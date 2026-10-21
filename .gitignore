@@ -1,0 +1,16 @@
+/target/
+/data/seq/
+/data/tools/
+/data/work/
+**/node_modules/
+**/dist/
+**/.astro/
+**/.venv/
+__pycache__/
+*.pyc
+.env
+*.db
+*.sqlite3
+apps/portal/var/
+apps/portal/uploads/
+bench-out/
