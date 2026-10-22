@@ -25,28 +25,28 @@ The Xiph.Org CIF test sequences, first frame of each. They are fetched
 by `tools/fetch_sequences.sh`, which prints their checksums, and they
 are not in the repository because of their size.
 
-| File | Bytes |
-|---|---|
-| `akiyo_cif.y4m` | 45621044 |
-| `bus_cif.y4m` | 22810538 |
-| `city_cif.y4m` | 45621038 |
-| `coastguard_cif.y4m` | 45621044 |
-| `container_cif.y4m` | 45621044 |
-| `crew_cif.y4m` | 45621038 |
-| `deadline_cif.y4m` | 208944224 |
-| `flower_cif.y4m` | 38017544 |
-| `foreman_cif.y4m` | 45621044 |
-| `highway_cif.y4m` | 304140044 |
-| `mobile_cif.y4m` | 45621054 |
-| `stefan_cif.y4m` | 13686344 |
+| File | SHA-256 | Bytes |
+|---|---|---|
+| `akiyo_cif.y4m` | `0f7a1f997930217d601ab324b1428859fdb599dde8d33772a24bfe2803a9b067` | 45621044 |
+| `bus_cif.y4m` | `08f557aade483465fca3ad9f5ce9a5b6aad7e833c871ec969b5b8fbb0a791c87` | 22810538 |
+| `city_cif.y4m` | `2f99e08e66376c0a0acc9c7349aef7f61020be8fbfe6440bdb0c7ec7d05bb30f` | 45621038 |
+| `coastguard_cif.y4m` | `ae4052051ee9d77236ced5b231239dec97831c66faea3d7b70694e222ce00c43` | 45621044 |
+| `container_cif.y4m` | `45abe3a99a0e2914742b3eecf474335362e31921bc0b30eef1dd45bb42df82be` | 45621044 |
+| `crew_cif.y4m` | `c838aac518b44aa5d6be2c68d904a836f641c74481b4fcef611809cd31691b14` | 45621038 |
+| `deadline_cif.y4m` | `4498852bf8f18d0c56957a4eff9611e3a851bfa9087e6ac8efffdadf2d02b964` | 208944224 |
+| `flower_cif.y4m` | `26c7934b77186836a39db113e8011e841bd593e37295efb98a38915b24aa2b8e` | 38017544 |
+| `foreman_cif.y4m` | `b0e3c35eff9fe1da91521a02eb9f0e3ef4bc5aec341ecef1567cd87f1711267b` | 45621044 |
+| `highway_cif.y4m` | `a2a96ed29fc21e352353a042aea945f610772db8a69fab9ccf97d70e29e16d0a` | 304140044 |
+| `mobile_cif.y4m` | `8b32924ea00ef3bd52f7ddafd3ceb55d2bb331610b59957c5c3cc9628f9e0d90` | 45621054 |
+| `stefan_cif.y4m` | `f73153ac05ad55be7523f52f2329d278357382f379961c2be67585691cdb8a43` | 13686344 |
 
 ## The artefacts
 
 | Artefact | SHA-256 |
 |---|---|
-| `models/girc-predictor.json` | `902829903847361262121e6a4622961f5310b55a681cd6aa3d182159f4252b35` |
-| `bench-out/training.jsonl` | `90e30044ebd9329ddd83b001bfc1e9e4ec0a1b04b1de2e48a90746610ddd0990` |
-| `bench-out/report.json` | `5f98f845cadd87ec23afacee1c11ace7b44ef68f83963a85b0be62d01edaf000` |
+| `models/girc-predictor.json` | `000334ebf25c89b7d6764430dcfefcf8019786a9bf00b1aa378f8daa65fdcc78` |
+| `bench-out/training.jsonl` | `26046d242f7161f62d47871b49889e1e2355373f0e1863570ad99311df480445` |
+| `bench-out/report.json` | `b4b23f1a6a65d3b6e6ba57b97d93efe506d83653120875839a1d75de87c31b42` |
 
 The training data's checksum is also recorded inside the model file, so a
 model can be checked against the set it was fitted on without this

@@ -383,12 +383,20 @@ PYTHONPATH=python/girc-train python3 -m girc_train fit \
 export PATH="$PWD/data/tools/vvenc-src/bin/release-static:$PATH"
 ./target/release/girc-bench \
     --sequence data/seq/akiyo_cif.y4m \
+    --sequence data/seq/bus_cif.y4m \
+    --sequence data/seq/city_cif.y4m \
+    --sequence data/seq/coastguard_cif.y4m \
+    --sequence data/seq/container_cif.y4m \
+    --sequence data/seq/crew_cif.y4m \
+    --sequence data/seq/deadline_cif.y4m \
+    --sequence data/seq/flower_cif.y4m \
     --sequence data/seq/foreman_cif.y4m \
+    --sequence data/seq/highway_cif.y4m \
     --sequence data/seq/mobile_cif.y4m \
     --sequence data/seq/stefan_cif.y4m \
     --qps 22,27,32,37 \
     --model models/girc-predictor.json \
-    --margin 10 \
+    --margin 50 \
     --anchors x265,svt-av1,vvenc \
     --margin-sweep 0,2,5,10,20,50,100,500 \
     --report bench-out/report.json
@@ -413,6 +421,24 @@ the artifact's digest so it cannot be edited or replayed, one
 organisation's results cannot be submitted against another's request, and
 every state change — including failed sign-ins — reaches an append-only
 audit log.
+
+A security audit of the portal as delivered found three exploitable
+defects, which were then fixed, each with a test that fails against the
+unfixed code:
+
+- **Path traversal.** A result upload's file name and a registered
+  artifact's slug and version were joined onto a path unsanitised. A
+  file named `../../escaped.txt` was written outside the upload
+  directory, and an artifact slug could name a path anywhere on disk.
+  The names are now reduced to a conservative character set and every
+  destination is resolved and checked to be inside the artifact root.
+- **A forged audit trail.** The address recorded in the audit log came
+  from the `X-Forwarded-For` header unconditionally, and a client can
+  send any value it likes. The header is now trusted only when the
+  deployment says a proxy sets it, which is the default-off case.
+- **No rate limit on sign-in.** A portal that hands out confidential
+  material is worth guessing at. Sign-in is now limited per address,
+  with a lockout.
 
 A licence or an assignment follows the evaluation rather than preceding
 it.
