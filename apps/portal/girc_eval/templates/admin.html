@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Administration — GIRC Evaluate{% endblock %}
+{% block body %}
+<div class="readout">ADMINISTRATION</div>
+<h1>Administration</h1>
+
+<h2>Evaluation requests</h2>
+<table>
+  <thead>
+    <tr><th>Reference</th><th>Organisation</th><th>Target codec</th>
+        <th>Status</th><th>Decision</th></tr>
+  </thead>
+  <tbody>
+  {% for r in requests %}
+    <tr>
+      <td>{{ r.reference }}</td>
+      <td>{{ r.organization_id }}</td>
+      <td>{{ r.target_codec }}</td>
+      <td><span class="tag {{ r.status.value }}">{{ r.status.value }}</span></td>
+      <td>
+        {% if r.status.value == 'submitted' %}
+        <form method="post" action="/requests/{{ r.reference }}/decision"
+              data-json="true" style="display:inline">
+          <input type="hidden" name="decision" value="approve" />
+          <button class="btn small" type="submit">Approve</button>
+        </form>
+        <form method="post" action="/requests/{{ r.reference }}/decision"
+              data-json="true" style="display:inline">
+          <input type="hidden" name="decision" value="decline" />
+          <button class="btn small" type="submit">Decline</button>
+        </form>
+        {% else %}
+          {{ r.decision_note or '—' }}
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="muted">No requests.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Organisations</h2>
+<table>
+  <thead><tr><th>Id</th><th>Name</th><th>Created</th></tr></thead>
+  <tbody>
+  {% for o in organizations %}
+    <tr>
+      <td>{{ o.id }}</td>
+      <td>{{ o.name }}</td>
+      <td>{{ o.created_utc.strftime('%Y-%m-%d') }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="3" class="muted">None.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Gated artifacts</h2>
+<table>
+  <thead><tr><th>Slug</th><th>Title</th><th>Version</th><th>Size</th><th>Digest</th></tr></thead>
+  <tbody>
+  {% for a in artifacts %}
+    <tr>
+      <td>{{ a.slug }}</td>
+      <td>{{ a.title }}</td>
+      <td>{{ a.version }}</td>
+      <td>{{ (a.size_bytes / 1024) | round(1) }} KiB</td>
+      <td>{{ a.sha256[:16] }}…</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="muted">None registered.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h3>Register an artifact</h3>
+<form method="post" action="/admin/artifacts" data-json="true">
+  <div class="field">
+    <label for="slug">Slug</label>
+    <input type="text" id="slug" name="slug" required placeholder="girc-core-source" />
+  </div>
+  <div class="field">
+    <label for="title">Title</label>
+    <input type="text" id="title" name="title" required />
+  </div>
+  <div class="field">
+    <label for="description">Description</label>
+    <textarea id="description" name="description" required></textarea>
+  </div>
+  <div class="field">
+    <label for="version">Version</label>
+    <input type="text" id="version" name="version" required placeholder="1.0.0" />
+  </div>
+  <div class="field">
+    <label for="requires_agreement_version">Requires agreement version</label>
+    <input type="text" id="requires_agreement_version"
+           name="requires_agreement_version" required />
+  </div>
+  <button class="btn primary" type="submit">Register artifact</button>
+</form>
+
+<h2>Audit log</h2>
+<table>
+  <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Detail</th><th>Source</th></tr></thead>
+  <tbody>
+  {% for entry in audit_entries %}
+    <tr>
+      <td>{{ entry.created_utc.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+      <td>{{ entry.actor_email }}</td>
+      <td>{{ entry.action }}</td>
+      <td>{{ entry.detail }}</td>
+      <td>{{ entry.source_ip or '—' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

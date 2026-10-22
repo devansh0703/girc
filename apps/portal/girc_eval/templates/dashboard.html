@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — GIRC Evaluate{% endblock %}
+{% block body %}
+<div class="readout">{{ organization.name if organization else 'NO ORGANISATION' }}</div>
+<h1>Evaluation dashboard</h1>
+<p class="muted">
+  Signed in as {{ user.email }} · {{ user.role.value }}.
+</p>
+
+<h2>The confidential evaluation agreement</h2>
+{% if agreement %}
+  <div class="notice">
+    <p>
+      Agreement version <strong>{{ agreement.version }}</strong> was accepted
+      on {{ agreement.accepted_utc.strftime('%Y-%m-%d') }}.
+      The accepted text's digest is
+      <span class="mono">{{ agreement.text_digest[:16] }}…</span>.
+    </p>
+  </div>
+{% else %}
+  <div class="notice">
+    <p>
+      The agreement has not been accepted yet. Until it is, no gated
+      artifact can be downloaded.
+    </p>
+  </div>
+  <details>
+    <summary class="mono" style="cursor:pointer;font-size:0.85rem">
+      Read the agreement (version {{ agreement_version }})
+    </summary>
+    <pre style="white-space:pre-wrap">{{ agreement_text }}</pre>
+  </details>
+  <form method="post" action="/agreement/accept" data-json="true">
+    <button class="btn primary" type="submit">Accept the agreement</button>
+  </form>
+{% endif %}
+
+<h2>Evaluation requests</h2>
+{% if requests %}
+<table>
+  <thead>
+    <tr><th>Reference</th><th>Title</th><th>Target codec</th>
+        <th>Status</th><th>Requested</th></tr>
+  </thead>
+  <tbody>
+  {% for r in requests %}
+    <tr>
+      <td>{{ r.reference }}</td>
+      <td>{{ r.title }}</td>
+      <td>{{ r.target_codec }}{% if r.target_codec_version %} {{ r.target_codec_version }}{% endif %}</td>
+      <td><span class="tag {{ r.status.value }}">{{ r.status.value }}</span></td>
+      <td>{{ r.requested_utc.strftime('%Y-%m-%d') }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <p class="muted">No evaluation has been requested yet.</p>
+{% endif %}
+
+<h3>Request an evaluation</h3>
+<form method="post" action="/requests" data-json="true">
+  <div class="field">
+    <label for="title">Title</label>
+    <input type="text" id="title" name="title" required
+           placeholder="Transform signalling against our HEVC encoder" />
+  </div>
+  <div class="field">
+    <label for="target_codec">Target codec</label>
+    <input type="text" id="target_codec" name="target_codec" required
+           placeholder="VVC, AV1, HEVC…" />
+  </div>
+  <div class="field">
+    <label for="target_codec_version">Target codec version</label>
+    <input type="text" id="target_codec_version" name="target_codec_version" />
+  </div>
+  <div class="field">
+    <label for="test_content_description">Test content</label>
+    <textarea id="test_content_description" name="test_content_description"
+              required
+              placeholder="Which sequences, at what resolution, and whether they are under your control."></textarea>
+  </div>
+  <div class="field">
+    <label for="sampling_plan">Sampling plan</label>
+    <textarea id="sampling_plan" name="sampling_plan" required
+              placeholder="The quantization parameter sweep and the number of frames per sequence."></textarea>
+  </div>
+  <div class="field">
+    <label for="motivation">Why you want this evaluation</label>
+    <textarea id="motivation" name="motivation" required
+              placeholder="What you expect the mechanism to do in your encoder, and what would change your mind."></textarea>
+  </div>
+  <button class="btn primary" type="submit">Request evaluation</button>
+</form>
+
+<h2>Gated artifacts</h2>
+{% if can_download %}
+  <p class="muted">
+    An evaluation has been approved. Request a download link for any
+    artifact; the link is signed, time-limited and bound to the artifact's
+    digest.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Artifact</th><th>Version</th><th>Size</th><th>Description</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for a in artifacts %}
+      <tr>
+        <td>{{ a.title }}</td>
+        <td>{{ a.version }}</td>
+        <td>{{ (a.size_bytes / 1024) | round(1) }} KiB</td>
+        <td>{{ a.description }}</td>
+        <td>
+          <button class="btn small" data-download="{{ a.slug }}">Download</button>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="muted">
+    The gated artifacts become available once an evaluation request has been
+    approved.
+  </p>
+  <table>
+    <thead><tr><th>Artifact</th><th>Version</th><th>Description</th></tr></thead>
+    <tbody>
+    {% for a in artifacts %}
+      <tr>
+        <td>{{ a.title }}</td>
+        <td>{{ a.version }}</td>
+        <td>{{ a.description }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}

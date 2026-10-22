@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Results — GIRC</title>
+    <meta
+      name="description"
+      content="Measured results for the geometry-inference transform signalling: the margin sweep, the predictability ceiling, and the comparison against x265, SVT-AV1 and VVenC."
+    />
+    <link rel="stylesheet" href="assets/site.css" />
+  </head>
+  <body>
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="index.html">GIRC<span>.</span>dev</a>
+        <nav class="site">
+          <a href="index.html">Overview</a>
+          <a href="method.html">Method</a>
+          <a href="results.html">Results</a>
+          <a href="package.html">Patent Package</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="wrap">
+        <section class="hero">
+          <div class="readout">MEASURED ON XIPH.ORG CIF · 4 SEQUENCES · QP 22–37</div>
+          <h1>The mechanism is close to break-even, and the report says so.</h1>
+          <p class="lede">
+            With three transform types over a skewed distribution, the explicit
+            signalling is already cheap for a context-adaptive coder to code.
+            The inference removes that overhead and pays for it in
+            distortion. The margin sweep below is the whole trade.
+          </p>
+        </section>
+
+        <section>
+          <h2>Method</h2>
+          <p>
+            Every number below comes from the same repository, with the same
+            sequences and the same quantization parameter sweep. GIRC runs in
+            both signalling modes over a four-point QP sweep, and the
+            Bjontegaard delta rate is computed by cubic polynomial
+            interpolation over the overlapping PSNR range, as the JVET common
+            test conditions define it. The two GIRC modes differ in exactly
+            one thing: how the transform type reaches the decoder.
+          </p>
+          <p>
+            The anchors are the real encoders: x265 for HEVC, SVT-AV1 for AV1
+            and VVenC 1.14.0 for VVC, each coding the same first frame of
+            the same file and measured by the same PSNR code.
+          </p>
+        </section>
+
+        <section>
+          <h2>The margin sweep</h2>
+          <p>
+            The margin is the rate, in bits, the encoder is willing to give
+            up to avoid signalling the transform type. It is the mechanism's
+            only free parameter, and sweeping it shows the whole trade.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Margin (bits)</th>
+                <th>Mean BD-rate</th>
+                <th>Prediction mismatch</th>
+                <th>Reading</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>0</td>
+                <td class="bad">+0.146%</td>
+                <td>53.0%</td>
+                <td>No margin: the encoder always takes the optimal transform</td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td class="warn">+0.051%</td>
+                <td>47.8%</td>
+                <td>Small margin, small gain</td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td class="warn">+0.051%</td>
+                <td>47.6%</td>
+                <td>Little change</td>
+              </tr>
+              <tr>
+                <td>10</td>
+                <td class="good">−0.064%</td>
+                <td>47.3%</td>
+                <td><strong>The optimum on this content</strong></td>
+              </tr>
+              <tr>
+                <td>20</td>
+                <td class="warn">−0.006%</td>
+                <td>46.8%</td>
+                <td>Past the optimum</td>
+              </tr>
+              <tr>
+                <td>50</td>
+                <td class="bad">+0.216%</td>
+                <td>44.9%</td>
+                <td>Distortion starts to dominate</td>
+              </tr>
+              <tr>
+                <td>100</td>
+                <td class="bad">+0.222%</td>
+                <td>41.2%</td>
+                <td>Worse</td>
+              </tr>
+              <tr>
+                <td>500</td>
+                <td class="bad">+2.425%</td>
+                <td>23.9%</td>
+                <td>Far past the optimum</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="muted">
+            Mean Bjontegaard delta rate of the inferred mode against the
+            explicit mode, over akiyo, foreman, mobile and stefan at
+            CIF resolution. Negative means the inferred mode is smaller.
+          </p>
+        </section>
+
+        <section>
+          <h2>Per sequence at the optimum</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Sequence</th>
+                <th>BD-rate</th>
+                <th>Content</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>akiyo_cif</td>
+                <td class="good">−0.313%</td>
+                <td>Flat, high detail, little motion</td>
+              </tr>
+              <tr>
+                <td>foreman_cif</td>
+                <td class="good">−0.033%</td>
+                <td>Fine texture, strong edges</td>
+              </tr>
+              <tr>
+                <td>mobile_cif</td>
+                <td class="good">−0.053%</td>
+                <td>Moving subject, detailed background</td>
+              </tr>
+              <tr>
+                <td>stefan_cif</td>
+                <td class="bad">+0.145%</td>
+                <td>Motion, texture and noise</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="muted">
+            Margin of 10 bits, QP 22 to 37, luma plane, 8×8 blocks.
+          </p>
+        </section>
+
+        <section>
+          <h2>Against the anchor codecs</h2>
+          <p>
+            GIRC is an intra-only research codec with a small mode set. It is
+            not a VVC competitor, and this table is context rather than a
+            claim. What the table does show is that the measurement
+            apparatus is real: the same content, the same rate and
+            distortion code, four codecs.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Codec</th>
+                <th>QP 22</th>
+                <th>QP 27</th>
+                <th>QP 32</th>
+                <th>QP 37</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>girc-explicit</td>
+                <td>94664 b / 43.54 dB</td>
+                <td>67848 b / 40.51 dB</td>
+                <td>47784 b / 37.38 dB</td>
+                <td>32104 b / 34.30 dB</td>
+              </tr>
+              <tr>
+                <td>girc-inferred</td>
+                <td>94568 b / 43.53 dB</td>
+                <td>67976 b / 40.51 dB</td>
+                <td>47432 b / 37.40 dB</td>
+                <td>32008 b / 34.30 dB</td>
+              </tr>
+              <tr>
+                <td>x265 (HEVC)</td>
+                <td>104200 b / 46.34 dB</td>
+                <td>71008 b / 43.63 dB</td>
+                <td>51568 b / 40.62 dB</td>
+                <td>39288 b / 37.48 dB</td>
+              </tr>
+              <tr>
+                <td>svt-av1 (AV1)</td>
+                <td>61704 b / 44.54 dB</td>
+                <td>49928 b / 43.13 dB</td>
+                <td>38920 b / 41.64 dB</td>
+                <td>30720 b / 40.17 dB</td>
+              </tr>
+              <tr>
+                <td>vvenc (VVC)</td>
+                <td>176088 b / 50.75 dB</td>
+                <td>95288 b / 47.43 dB</td>
+                <td>52184 b / 44.58 dB</td>
+                <td>35720 b / 42.41 dB</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="muted">
+            akiyo_cif, first frame, luma only for GIRC. The BD-rate of each
+            against the GIRC-explicit baseline is −23.96% for x265, −48.63%
+            for SVT-AV1 and −56.10% for VVenC: the anchors are better
+            codecs, as expected, and the figure is the scale of the gap.
+          </p>
+        </section>
+
+        <section>
+          <h2>How predictable is the transform?</h2>
+          <p>
+            The predictor's accuracy is the mechanism's ceiling, so the
+            training pipeline measures it two ways: the shipped logistic
+            regression, and a gradient-boosted tree fitted over the same
+            features as an upper bound on what any model over them can
+            achieve.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Measure</th>
+                <th>Accuracy</th>
+                <th>Reading</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Majority class (always DCT-II)</td>
+                <td>55.53%</td>
+                <td>The baseline any predictor must beat</td>
+              </tr>
+              <tr>
+                <td>Gradient-boosted ceiling</td>
+                <td>56.44%</td>
+                <td>What these features can support</td>
+              </tr>
+              <tr>
+                <td>Shipped model</td>
+                <td>47.35%</td>
+                <td>Trained without class balancing</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="muted">
+            Per class, the shipped model's held-out accuracy is 52.65% for
+            DCT-II, 57.03% for DCT-VIII and 30.38% for DST-VII.
+          </p>
+          <div class="note">
+            <p>
+              <strong>The honest reading.</strong> The ceiling is barely
+              above the majority class. The transform choice is driven by the
+              block's own residual, which the decoder has not seen; the
+              geometry of the neighbourhood constrains it only weakly. That
+              is why the mechanism is close to break-even rather than a
+              clear win, and it is the main thing a codec team would want
+              to challenge.
+            </p>
+            <p>
+              The consequence is a design limit worth stating plainly: with
+              three transform types over a skewed distribution, the explicit
+              signalling is already nearly free for a context-adaptive coder
+              to code. The mechanism removes an overhead that is smaller
+              than the distortion it costs to remove it.
+            </p>
+          </div>
+        </section>
+
+        <section>
+          <h2>What would change the answer</h2>
+          <div class="grid">
+            <div class="cell">
+              <h3>More transform types</h3>
+              <p>
+                The overhead the mechanism removes scales with how many
+                choices there are to signal. Three types over a skewed
+                distribution is close to the least favourable case.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>A wider causal window</h3>
+              <p>
+                The features read a 16-sample window. A larger one, or a
+                learned representation of the neighbourhood, would raise
+                the predictability ceiling.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Inter prediction</h3>
+              <p>
+                The residual of a predicted block carries the motion
+                vector's structure, which is far more directional than an
+                intra residual and far more predictable from the causal
+                neighbourhood.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Signalling at a coarser grain</h3>
+              <p>
+                Signalling the transform once per region rather than once
+                per block would make the prediction problem much easier and
+                the overhead much larger.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>
+          Every figure on this page is reproducible from the repository with
+          the command shown in the method.
+        </div>
+        <div>
+          <a href="method.html">Method</a>
+          <a href="package.html">Patent Package</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

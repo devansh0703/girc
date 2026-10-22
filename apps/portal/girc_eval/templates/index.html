@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}GIRC Evaluate{% endblock %}
+{% block body %}
+<div class="readout">CONFIDENTIAL EVALUATION ENVIRONMENT</div>
+<h1>Evaluate the geometry-inference transform signalling.</h1>
+<p class="muted">
+  This is the evaluation environment for the GIRC patent package. The
+  reference implementation, the trained predictor, the benchmark harness and
+  the patent materials are released to an approved organisation under a
+  confidential evaluation agreement.
+</p>
+
+<div class="grid" style="margin-top:2rem">
+  <div class="cell">
+    <h3>1 · Register</h3>
+    <p>Create your organisation's account. The first user is the
+    organisation's administrator.</p>
+    <p><a class="btn small" href="/register">Register</a></p>
+  </div>
+  <div class="cell">
+    <h3>2 · Agree</h3>
+    <p>Sign the confidential evaluation agreement. The version and the
+    digest of the accepted text are recorded.</p>
+  </div>
+  <div class="cell">
+    <h3>3 · Request</h3>
+    <p>Name the codec you want to test against and the content you plan
+    to use. A reviewer approves the request.</p>
+  </div>
+  <div class="cell">
+    <h3>4 · Evaluate</h3>
+    <p>Download the gated package, run it against your own encoder, and
+    submit your results for review.</p>
+  </div>
+</div>
+
+<h2>Current activity</h2>
+<p class="muted">The most recent actions recorded in the audit log.</p>
+<table>
+  <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Detail</th></tr></thead>
+  <tbody>
+  {% for entry in recent_audit %}
+    <tr>
+      <td>{{ entry.created_utc.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ entry.actor_email }}</td>
+      <td>{{ entry.action }}</td>
+      <td>{{ entry.detail }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4" class="muted">No activity recorded yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<p class="muted">
+  {{ artifact_count }} gated artifacts are registered, and
+  {{ request_count }} evaluation requests have been submitted.
+</p>
+{% endblock %}

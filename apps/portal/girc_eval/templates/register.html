@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Register — GIRC Evaluate{% endblock %}
+{% block wrapclass %}narrow{% endblock %}
+{% block body %}
+<div class="readout">REGISTER</div>
+<h1>Register your organisation</h1>
+<p class="muted">
+  The first user of an organisation becomes its administrator and may sign
+  the evaluation agreement and request evaluations.
+</p>
+<form method="post" action="/register" data-json="true">
+  <div class="field">
+    <label for="organization_name">Organisation</label>
+    <input type="text" id="organization_name" name="organization_name"
+           required autocomplete="organization" />
+  </div>
+  <div class="field">
+    <label for="full_name">Your name</label>
+    <input type="text" id="full_name" name="full_name" required
+           autocomplete="name" />
+  </div>
+  <div class="field">
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" required autocomplete="username" />
+  </div>
+  <div class="field">
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" required
+           minlength="12" autocomplete="new-password" />
+    <p class="muted">At least twelve characters.</p>
+  </div>
+  <button class="btn primary" type="submit">Register</button>
+</form>
+{% endblock %}

@@ -77,7 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    def get_db() -> Session:
+    def db_session() -> Session:
         """A database session for the request."""
         session = database._session_factory()
         try:
@@ -89,11 +89,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             session.close()
 
-    DbSession = Annotated[Session, Depends(get_db)]
-
-    def current_user(
-        request: Request, db: DbSession
-    ) -> User | None:
+    def current_user(request: Request, db: Session = Depends(db_session)) -> User | None:
         """The signed-in user, or `None`."""
         token = request.cookies.get("girc_session")
         if not token:
@@ -106,13 +102,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return None
         return user
 
-    def require_user(user: Annotated[User | None, Depends(current_user)]) -> User:
+    def require_user(user: User | None = Depends(current_user)) -> User:
         """The signed-in user, or a 401."""
         if user is None:
             raise HTTPException(status_code=401, detail="sign in required")
         return user
 
-    def require_admin(user: Annotated[User, Depends(require_user)]) -> User:
+    def require_admin(user: User = Depends(require_user)) -> User:
         """A platform administrator, or a 403."""
         if user.role != UserRole.platform_admin:
             raise HTTPException(status_code=403, detail="administrator access required")
@@ -128,13 +124,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # ---------------------------------------------------------------- pages
 
     @app.get("/", response_class=HTMLResponse)
-    def index(request: Request, db: DbSession):
+    def index(request: Request, db: Session = Depends(db_session), user: User | None = Depends(current_user)):
         """The portal's landing page."""
         recent = audit.recent(db, limit=10)
         return templates.TemplateResponse(
+            request,
             "index.html",
             {
                 "request": request,
+                "user": user,
                 "recent_audit": recent,
                 "artifact_count": len(list(db.scalars(select(Artifact)))),
                 "request_count": len(list(db.scalars(select(EvaluationRequest)))),
@@ -154,8 +152,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard(
         request: Request,
-        db: DbSession,
-        user: Annotated[User, Depends(require_user)],
+        user: User = Depends(require_user),
+        db: Session = Depends(db_session),
     ):
         """The signed-in user's dashboard."""
         organization = (
@@ -180,6 +178,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         artifacts = list(db.scalars(select(Artifact).order_by(Artifact.title)))
         return templates.TemplateResponse(
+            request,
             "dashboard.html",
             {
                 "request": request,
@@ -199,8 +198,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/admin", response_class=HTMLResponse)
     def admin_page(
         request: Request,
-        db: DbSession,
-        user: Annotated[User, Depends(require_admin)],
+        user: User = Depends(require_admin),
+        db: Session = Depends(db_session),
     ):
         """The administrator's view."""
         requests = list(
@@ -211,6 +210,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         organizations = list(db.scalars(select(Organization)))
         artifacts = list(db.scalars(select(Artifact)))
         return templates.TemplateResponse(
+            request,
             "admin.html",
             {
                 "request": request,
@@ -227,11 +227,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/register", response_class=JSONResponse)
     def register(
         request: Request,
-        db: DbSession,
         organization_name: Annotated[str, Form()],
         email: Annotated[str, Form()],
         password: Annotated[str, Form()],
         full_name: Annotated[str, Form()],
+        db: Session = Depends(db_session),
     ):
         """Register an organisation and its first user."""
         if len(password) < 12:
@@ -269,19 +269,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             source_ip=source_ip(request),
         )
         db.commit()
-        return JSONResponse(
-            {
-                "status": "registered",
-                "session": sign_session(user.id, settings.secret_key),
-            }
+        response = JSONResponse({"status": "registered"})
+        response.set_cookie(
+            "girc_session",
+            sign_session(user.id, settings.secret_key),
+            httponly=True,
+            samesite="lax",
+            max_age=settings.session_hours * 3600,
         )
+        return response
 
     @app.post("/login", response_class=JSONResponse)
     def login(
         request: Request,
-        db: DbSession,
         email: Annotated[str, Form()],
         password: Annotated[str, Form()],
+        db: Session = Depends(db_session),
     ):
         """Sign in."""
         user = db.scalar(select(User).where(User.email == email.lower()))
@@ -306,9 +309,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             source_ip=source_ip(request),
         )
         db.commit()
-        return JSONResponse(
-            {"status": "ok", "session": sign_session(user.id, settings.secret_key)}
+        response = JSONResponse({"status": "ok"})
+        response.set_cookie(
+            "girc_session",
+            sign_session(user.id, settings.secret_key),
+            httponly=True,
+            samesite="lax",
+            max_age=settings.session_hours * 3600,
         )
+        return response
 
     @app.post("/logout")
     def logout():
@@ -322,8 +331,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/agreement/accept", response_class=JSONResponse)
     def accept_agreement(
         request: Request,
-        db: DbSession,
-        user: Annotated[User, Depends(require_user)],
+        user: User = Depends(require_user),
+        db: Session = Depends(db_session),
     ):
         """Accept the confidential evaluation agreement."""
         if user.organization_id is None:
@@ -367,14 +376,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/requests", response_class=JSONResponse)
     def create_request(
         request: Request,
-        db: DbSession,
-        user: Annotated[User, Depends(require_user)],
         title: Annotated[str, Form()],
         target_codec: Annotated[str, Form()],
         test_content_description: Annotated[str, Form()],
         sampling_plan: Annotated[str, Form()],
         motivation: Annotated[str, Form()],
         target_codec_version: Annotated[str, Form()] = "",
+        user: User = Depends(require_user),
+        db: Session = Depends(db_session),
     ):
         """Request an evaluation."""
         if user.organization_id is None:
@@ -421,11 +430,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/requests/{reference}/decision", response_class=JSONResponse)
     def decide_request(
         request: Request,
-        db: DbSession,
-        user: Annotated[User, Depends(require_admin)],
         reference: str,
         decision: Annotated[str, Form()],
         note: Annotated[str, Form()] = "",
+        user: User = Depends(require_admin),
+        db: Session = Depends(db_session),
     ):
         """Approve or decline an evaluation request."""
         evaluation = db.scalar(
@@ -457,9 +466,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/artifacts/{slug}/download-token", response_class=JSONResponse)
     def download_token(
         request: Request,
-        db: DbSession,
-        user: Annotated[User, Depends(require_user)],
         slug: str,
+        user: User = Depends(require_user),
+        db: Session = Depends(db_session),
     ):
         """Issue a signed download token for a gated artifact."""
         artifact = db.scalar(select(Artifact).where(Artifact.slug == slug))
@@ -493,8 +502,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/download")
     def download(
         request: Request,
-        db: DbSession,
         token: str,
+        db: Session = Depends(db_session),
     ):
         """Download a gated artifact with a signed token."""
         parsed = read_download(token, settings.secret_key, settings.download_token_minutes)
@@ -539,13 +548,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/requests/{reference}/results", response_class=JSONResponse)
     async def submit_result(
         request: Request,
-        db: DbSession,
-        user: Annotated[User, Depends(require_user)],
         reference: str,
         label: Annotated[str, Form()],
         summary: Annotated[str, Form()],
         reported_bd_rate: Annotated[str, Form()] = "",
         file: Annotated[UploadFile, File()] = None,
+        user: User = Depends(require_user),
+        db: Session = Depends(db_session),
     ):
         """Submit the results of an evaluation."""
         evaluation = db.scalar(
@@ -601,11 +610,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/results/{result_id}/decision", response_class=JSONResponse)
     def decide_result(
         request: Request,
-        db: DbSession,
-        user: Annotated[User, Depends(require_admin)],
         result_id: int,
         decision: Annotated[str, Form()],
         note: Annotated[str, Form()] = "",
+        user: User = Depends(require_admin),
+        db: Session = Depends(db_session),
     ):
         """Accept or reject a result submission."""
         result = db.get(ResultSubmission, result_id)
@@ -641,13 +650,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/admin/artifacts", response_class=JSONResponse)
     def register_artifact(
         request: Request,
-        db: DbSession,
-        user: Annotated[User, Depends(require_admin)],
         slug: Annotated[str, Form()],
         title: Annotated[str, Form()],
         description: Annotated[str, Form()],
         version: Annotated[str, Form()],
         requires_agreement_version: Annotated[str, Form()],
+        user: User = Depends(require_admin),
+        db: Session = Depends(db_session),
     ):
         """Register a gated artifact from a file already in the store."""
         source = settings.artifact_root / "incoming" / slug
@@ -684,9 +693,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/audit", response_class=JSONResponse)
     def audit_log(
-        db: DbSession,
-        user: Annotated[User, Depends(require_admin)],
         limit: int = 100,
+        user: User = Depends(require_admin),
+        db: Session = Depends(db_session),
     ):
         """The audit log."""
         entries = audit.recent(db, limit=limit)

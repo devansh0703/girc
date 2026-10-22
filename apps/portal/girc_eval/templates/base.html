@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}GIRC Evaluate{% endblock %}</title>
+    <link rel="stylesheet" href="/static/portal.css" />
+  </head>
+  <body>
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="/">GIRC<span>.</span>evaluate</a>
+        <nav class="site">
+          {% if user %}
+          <a href="/dashboard">Dashboard</a>
+          {% if user.role.value == 'platform_admin' %}<a href="/admin">Admin</a>{% endif %}
+          <a href="/logout">Sign out</a>
+          {% else %}
+          <a href="/login">Sign in</a>
+          <a href="/register">Register</a>
+          {% endif %}
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="wrap {% block wrapclass %}{% endblock %}">
+        {% block body %}{% endblock %}
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>Confidential evaluation environment for the Geometry-Inference Codec.</div>
+        <div>All access is recorded in the audit log.</div>
+      </div>
+    </footer>
+    <script src="/static/portal.js"></script>
+  </body>
+</html>
