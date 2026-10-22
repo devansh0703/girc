@@ -5,6 +5,7 @@ on:
     branches: [master]
     paths:
       - "web/girc-site/**"
+      - "web/eval-site/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -19,6 +20,12 @@ permissions:
   pages: write
   id-token: write
 
+env:
+  # The address the confidential portal is served on. It is a
+  # repository setting rather than a secret, and it is substituted
+  # into the evaluation site's pages when they are assembled.
+  GIRC_PORTAL_URL: https://eval.girc.invalid
+
 jobs:
   build:
     name: Build the site
@@ -28,29 +35,24 @@ jobs:
 
       - name: Check that every page links to a page that exists
         run: |
-          python3 - <<'PY'
-          import re, sys
-          from pathlib import Path
-
-          failed = False
-          for site in ("web/girc-site", "web/eval-site"):
-              root = Path(site)
-              for page in sorted(root.glob("*.html")):
-                  text = page.read_text()
-                  for target in re.findall(r'href="([^"#:]+)"', text):
-                      if target.startswith(("http", "mailto:", "/")):
-                          continue
-                      resolved = (page.parent / target).resolve()
-                      if not resolved.exists():
-                          print(f"{page}: broken link to {target}")
-                          failed = True
-          sys.exit(1 if failed else 0)
-          PY
+          python3 tools/check_site_links.py
 
       - name: Assemble the site
         run: |
           mkdir -p _site
           cp -R web/girc-site/. _site/
+          # The evaluation site's pages are the public face of the
+          # confidential portal: what the evaluation is, how it runs,
+          # and what is out of scope. They are deployed under
+          # /evaluate/, and the portal itself is a separate
+          # deployment with its own domain and its own secrets.
+          mkdir -p _site/evaluate
+          cp -R web/eval-site/. _site/evaluate/
+          # The portal's address is a deployment setting, so the pages
+          # carry a token and the real address is substituted here.
+          PORTAL_URL="${GIRC_PORTAL_URL:-https://eval.girc.invalid}"
+          find _site/evaluate -name '*.html' -print0 \
+            | xargs -0 sed -i "s|{{PORTAL_URL}}|$PORTAL_URL|g"
           # The site uses relative links throughout, so it works under a
           # project path without a base tag. The .nojekyll file keeps
           # GitHub Pages from running the directory through Jekyll.

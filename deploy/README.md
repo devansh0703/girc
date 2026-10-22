@@ -136,6 +136,22 @@ sed -i "s|^GIRC_SECRET_KEY=.*|GIRC_SECRET_KEY=$(python3 -c 'import secrets; prin
 docker compose up -d --force-recreate portal
 ```
 
+## The address the portal is served on
+
+The evaluation site's pages carry a `{{PORTAL_URL}}` token, and the
+address is substituted when the site is assembled. It is a repository
+setting, not a secret, and it is set in `.github/workflows/pages.yml`:
+
+```yaml
+env:
+  GIRC_PORTAL_URL: https://eval.example.com
+```
+
+The portal itself is a separate deployment with its own domain, its own
+certificate and its own secrets, and it is not served from the
+project's pages. The pages under `/evaluate/` are the public face of
+it: what the evaluation is, how it runs, and what is out of scope.
+
 ## What is not in the repository
 
 - The `.env` file. It holds the signing secret, so it is mode 600 and

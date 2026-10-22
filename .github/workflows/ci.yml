@@ -139,24 +139,7 @@ jobs:
 
       - name: Check that every page links to a page that exists
         run: |
-          python3 - <<'PY'
-          import re, sys
-          from pathlib import Path
-
-          failed = False
-          for site in ("web/girc-site", "web/eval-site"):
-              root = Path(site)
-              for page in sorted(root.glob("*.html")):
-                  text = page.read_text()
-                  for target in re.findall(r'href="([^"#:]+)"', text):
-                      if target.startswith(("http", "mailto:", "/")):
-                          continue
-                      resolved = (page.parent / target).resolve()
-                      if not resolved.exists():
-                          print(f"{page}: broken link to {target}")
-                          failed = True
-          sys.exit(1 if failed else 0)
-          PY
+          python3 tools/check_site_links.py
 
   deployment:
     name: Deployment
