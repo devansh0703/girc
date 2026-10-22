@@ -621,6 +621,7 @@ pub fn encode(frames: &[Frame], config: &EncoderConfig) -> Result<EncodeResult, 
         signalling: config.signalling,
         luma_words: luma_result.payload.len() as u32,
         chroma_words: chroma_payload.len() as u32,
+        model_id: config.predictor.model_id(),
     };
     let mut bitstream = Vec::new();
     header.write(&mut bitstream, &luma_result.payload, &chroma_payload);
@@ -772,7 +773,10 @@ fn decode_luma_sequence(
 /// Decode a luma payload into a sequence of pictures.
 ///
 /// This is the luma-only counterpart of [`decode`], and the one the
-/// tests and the luma-only tooling use.
+/// tests and the luma-only tooling use. The payload has no header, so
+/// the caller states the predictor it was coded with, and a mismatch is
+/// refused: the decoder's prediction is part of the syntax, so a
+/// different predictor decodes a different picture without saying so.
 pub fn decode_luma(
     payload: &[Word],
     config: &EncoderConfig,
@@ -780,6 +784,34 @@ pub fn decode_luma(
     height: usize,
     frames: usize,
 ) -> Result<Vec<Picture>, CodecError> {
+    decode_luma_with_model(payload, config, width, height, frames, None)
+}
+
+/// Decode a luma payload that was coded with a known predictor.
+///
+/// The luma-only payload has no header of its own, so the caller
+/// states the predictor it was coded with. A mismatch is refused,
+/// because the decoder's prediction is part of the syntax: a different
+/// predictor decodes a different picture without saying so.
+pub fn decode_luma_with_model(
+    payload: &[Word],
+    config: &EncoderConfig,
+    width: usize,
+    height: usize,
+    frames: usize,
+    model_id: Option<u16>,
+) -> Result<Vec<Picture>, CodecError> {
+    if let Some(model_id) = model_id {
+        if config.signalling == TransformSignalling::Inferred
+            && model_id != config.predictor.model_id()
+        {
+            return Err(CodecError::Predictor(format!(
+                "the payload was coded with the predictor {model_id}, and the \
+                 decoder has {}",
+                config.predictor.model_id()
+            )));
+        }
+    }
     let header = BitstreamHeader {
         version: crate::bitstream::VERSION,
         width: width as u32,
@@ -789,6 +821,7 @@ pub fn decode_luma(
         signalling: config.signalling,
         luma_words: payload.len() as u32,
         chroma_words: 0,
+        model_id: config.predictor.model_id(),
     };
     Ok(decode_luma_sequence(payload, &header, config)?.pictures)
 }
@@ -812,6 +845,22 @@ pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Vec<Frame>, Co
         return Err(CodecError::Bitstream(BitstreamError::Truncated));
     }
     let (luma_part, chroma_part) = words.split_at(luma_words);
+
+    // An inferred-signalling payload cannot be decoded without the
+    // predictor the encoder used, because the decoder's prediction is
+    // part of the syntax: the correction is relative to it. A decoder
+    // with a different model would decode a different picture without
+    // reporting an error, so the mismatch is caught here.
+    if header.signalling == TransformSignalling::Inferred
+        && header.model_id != config.predictor.model_id()
+    {
+        return Err(CodecError::Predictor(format!(
+            "the stream was coded with the predictor {}, and the decoder has {}; \
+             an inferred stream needs the predictor it was coded with",
+            header.model_id,
+            config.predictor.model_id()
+        )));
+    }
 
     let luma = decode_luma_sequence(luma_part, &header, config)?;
 
@@ -1680,6 +1729,109 @@ mod tests {
         // must have been overridden.
         let decoded = decode_luma(&encoded.payload, &config, 32, 32, 1).unwrap();
         assert_eq!(decoded[0], encoded.reconstructions[0]);
+    }
+
+    /// A stream coded with one predictor must not be decoded with
+    /// another.
+    ///
+    /// The decoder's prediction is part of the syntax: the correction
+    /// is relative to it. A decoder with a different predictor reads
+    /// the correction against a different list, and decodes a different
+    /// picture without reporting an error. The stream records the
+    /// predictor it was coded with, and a mismatch is refused.
+    #[test]
+    fn a_stream_refuses_a_different_predictor() {
+        let model = std::fs::read_to_string(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../models/girc-predictor.json"),
+        )
+        .expect("the shipped model must be present");
+        let predictor = TransformPredictor::from_json(&model).unwrap();
+
+        let picture = test_picture(64, 64);
+        let config = EncoderConfig {
+            signalling: TransformSignalling::Inferred,
+            predictor: predictor.clone(),
+            ..Default::default()
+        };
+        let encoded = encode_luma(std::slice::from_ref(&picture), &config).unwrap();
+
+        // The same stream, decoded with the constant predictor.
+        let wrong = EncoderConfig {
+            signalling: TransformSignalling::Inferred,
+            predictor: TransformPredictor::constant_dct2(),
+            ..Default::default()
+        };
+        let error = decode_luma_with_model(
+            &encoded.payload,
+            &wrong,
+            64,
+            64,
+            1,
+            Some(predictor.model_id()),
+        )
+        .unwrap_err();
+        assert!(
+            error.to_string().contains("predictor"),
+            "the mismatch was not reported: {error}"
+        );
+
+        // And with the right one it decodes.
+        let decoded = decode_luma(&encoded.payload, &config, 64, 64, 1).unwrap();
+        assert_eq!(decoded[0], encoded.reconstructions[0]);
+    }
+
+    /// The encoder and the decoder must agree with the shipped model.
+    ///
+    /// The unit tests use the constant predictor, and with it the two
+    /// sides' predictions trivially agree. With a trained model the
+    /// prediction is a function of the features, and the features are
+    /// a function of the reconstruction so far, so the two sides have
+    /// to be kept in step exactly. This test uses the shipped model on
+    /// content with structure, which is what makes the predictor
+    /// predict something other than the constant.
+    #[test]
+    fn the_shipped_model_keeps_the_encoder_and_the_decoder_in_step() {
+        let model = std::fs::read_to_string(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../models/girc-predictor.json"),
+        )
+        .expect("the shipped model must be present");
+        let predictor = TransformPredictor::from_json(&model).unwrap();
+
+        let frames: Vec<Picture> = (0..3)
+            .map(|index| {
+                let mut picture = Picture::filled(64, 64, 0);
+                for y in 0..64 {
+                    for x in 0..64 {
+                        let value = ((((x + index) / 4) as f32 * 0.8).sin() * 60.0
+                            + (((y + index) / 4) as f32 * 0.8).cos() * 60.0
+                            + 128.0) as u8;
+                        picture.set_sample(x, y, value);
+                    }
+                }
+                picture
+            })
+            .collect();
+
+        let config = EncoderConfig {
+            signalling: TransformSignalling::Inferred,
+            predictor,
+            transform_margin: 50.0,
+            ..Default::default()
+        };
+        let encoded = encode_luma(&frames, &config).unwrap();
+        let decoded = decode_luma(&encoded.payload, &config, 64, 64, frames.len()).unwrap();
+        for (index, (decoded, reconstruction)) in decoded
+            .iter()
+            .zip(encoded.reconstructions.iter())
+            .enumerate()
+        {
+            assert_eq!(
+                decoded, reconstruction,
+                "frame {index} differs from the encoder's reconstruction"
+            );
+        }
     }
 
     /// Every intra mode must survive the mode code.

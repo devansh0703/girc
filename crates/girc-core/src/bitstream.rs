@@ -86,7 +86,7 @@ pub const MAGIC: &[u8; 4] = b"GIRC";
 /// so that the luma rate and the chroma rate can be measured separately.
 /// A version 2 stream carries one combined payload, so it is rejected
 /// rather than mis-decoded.
-pub const VERSION: u16 = 3;
+pub const VERSION: u16 = 4;
 
 /// The header of a GIRC bitstream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,6 +112,20 @@ pub struct BitstreamHeader {
     pub luma_words: u32,
     /// The length of the chroma payload, in words.
     pub chroma_words: u32,
+    /// The identifier of the predictor the payload was coded with.
+    ///
+    /// An inferred-signalling payload cannot be decoded without the
+    /// predictor the encoder used, because the decoder's prediction is
+    /// part of the syntax: the correction is relative to it. A decoder
+    /// with a different model produces a different prediction, reads the
+    /// correction against the wrong list, and decodes a different
+    /// picture without reporting an error.
+    ///
+    /// The identifier is a short hash of the model's version string, so
+    /// it is cheap to carry and enough to catch the common mistake of
+    /// decoding with the wrong model or with none. Zero means the
+    /// constant predictor, which every decoder has.
+    pub model_id: u16,
 }
 
 /// The header flag that records the signalling mode.
@@ -127,7 +141,7 @@ impl BitstreamHeader {
         let flags = match self.signalling {
             TransformSignalling::Explicit => 0,
             TransformSignalling::Inferred => FLAG_INFERRED,
-        };
+        } | (self.model_id & 0xFFFE);
         out.extend_from_slice(MAGIC);
         out.extend_from_slice(&self.version.to_le_bytes());
         out.extend_from_slice(&flags.to_le_bytes());
@@ -168,6 +182,7 @@ impl BitstreamHeader {
         } else {
             TransformSignalling::Explicit
         };
+        let model_id = flags & 0xFFFE;
         let luma_words = u32::from_le_bytes([bytes[18], bytes[19], bytes[20], bytes[21]]) as usize;
         let chroma_words =
             u32::from_le_bytes([bytes[22], bytes[23], bytes[24], bytes[25]]) as usize;
@@ -181,6 +196,7 @@ impl BitstreamHeader {
                 signalling,
                 luma_words: luma_words as u32,
                 chroma_words: chroma_words as u32,
+                model_id,
             },
             Self::SIZE + (luma_words + chroma_words) * 4,
         ))
@@ -368,6 +384,7 @@ mod tests {
             qp: 27,
             frames: 3,
             signalling: TransformSignalling::Inferred,
+            model_id: 0,
             luma_words: 4,
             chroma_words: 2,
         };
@@ -394,6 +411,7 @@ mod tests {
             qp: 27,
             frames: 3,
             signalling: TransformSignalling::Explicit,
+            model_id: 0,
             luma_words: 4,
             chroma_words: 2,
         };

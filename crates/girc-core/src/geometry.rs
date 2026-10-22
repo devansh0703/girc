@@ -799,6 +799,39 @@ pub struct TransformPredictor {
 }
 
 impl TransformPredictor {
+    /// A short identifier for this model, carried in the bitstream.
+    ///
+    /// An inferred-signalling payload cannot be decoded without the
+    /// predictor the encoder used, because the decoder's prediction is
+    /// part of the syntax. The identifier is a hash of the model's
+    /// version string, so two models with the same version are the same
+    /// model, and a decoder with a different one is caught rather than
+    /// producing a different picture without saying so.
+    ///
+    /// The constant predictor has the identifier zero, because every
+    /// decoder has it and it is the default.
+    pub fn model_id(&self) -> u16 {
+        if self.model_version == "constant-dct2" {
+            return 0;
+        }
+        // A simple, stable hash: the FNV-1a of the version string,
+        // folded to fifteen bits so it fits beside the signalling flag
+        // and is never zero, which is reserved for the constant.
+        let mut hash: u32 = 0x811C9DC5;
+        for byte in self.model_version.as_bytes() {
+            hash ^= *byte as u32;
+            hash = hash.wrapping_mul(0x01000193);
+        }
+        let id = ((hash >> 1) & 0xFFFE) as u16;
+        if id == 0 {
+            2
+        } else {
+            id
+        }
+    }
+}
+
+impl TransformPredictor {
     /// A model that always predicts DCT-II, the baseline transform.
     ///
     /// Used when no trained model is available; the explicit-signalling

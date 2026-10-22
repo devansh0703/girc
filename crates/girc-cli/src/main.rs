@@ -214,14 +214,25 @@ fn run() -> Result<()> {
         Command::Decode {
             input,
             output,
-            signalling,
+            // The stream carries its own signalling mode, so the
+            // command line does not have to repeat it.
+            signalling: _,
             model,
             frames: _,
         } => {
             let bitstream = fs::read(&input)
                 .with_context(|| format!("reading the bitstream at {}", input.display()))?;
             let (header, _) = BitstreamHeader::read(&bitstream)?;
-            let config = build_config(signalling, header.qp as i32, model.as_ref(), 0.0)?;
+            // The stream carries the signalling mode and the predictor it
+            // was coded with, so the decoder does not have to be told
+            // either. A stream coded with the inference needs the same
+            // model, and the core checks that.
+            let config = build_config(
+                signalling_from(header.signalling),
+                header.qp as i32,
+                model.as_ref(),
+                0.0,
+            )?;
             let decoded = decode(&bitstream, &config)?;
             let frames: Vec<_> = decoded
                 .iter()
@@ -234,7 +245,9 @@ fn run() -> Result<()> {
                 decoded[0].width(),
                 decoded[0].height(),
                 header.qp,
-                signalling_name(signalling),
+                // The stream's own signalling mode, which is what was
+                // decoded, rather than whatever the command line said.
+                signalling_name(signalling_from(header.signalling)),
                 decoded.len(),
             );
         }
@@ -318,6 +331,14 @@ fn run() -> Result<()> {
 }
 
 /// The display name of a signalling mode.
+/// The command-line signalling mode as the core's.
+fn signalling_from(signalling: TransformSignalling) -> Signalling {
+    match signalling {
+        TransformSignalling::Explicit => Signalling::Explicit,
+        TransformSignalling::Inferred => Signalling::Inferred,
+    }
+}
+
 fn signalling_name(signalling: Signalling) -> &'static str {
     match signalling {
         Signalling::Explicit => "explicit",
