@@ -42,7 +42,7 @@ whether the claims of any reference disclose it.
 |---|---|
 | E1 | the transform is derived implicitly, without explicit signalling |
 | E2 | the derivation reads the geometry of a neighbourhood of reconstructed samples |
-| E3 | the horizontal and the vertical axis are predicted separately |
+| E3 | the transform is selected per axis, so that the horizontal and the vertical axis can differ |
 | E4 | the encoder may take a less optimal transform, at a rate-distortion cost, to avoid signalling the correction |
 | E5 | the prediction comes from a trained or learned model |
 | E6 | a correction is signalled relative to a prediction |
@@ -99,10 +99,20 @@ transform separately.
 
 This is the most crowded element, and the honest reading is that a
 claim to "predict the horizontal and the vertical transform separately"
-is not available. What may be available is the specific composition:
-two *learned* per-axis predictors, a composition rule that forces the
-plain DCT-II when either axis predicts it, and the RD margin applied
-to the composed mode.
+is not available. What may be available is the specific prediction: a
+*learned* model over the joint mode, its features, and the RD margin
+applied to the predicted mode.
+
+The implementation predicts the joint mode with one model rather than
+two per-axis models composed together, and that was a measured
+decision rather than a preference. Each axis on its own was well above
+the majority class, about 54.6% against 49.8%, and the composed mode
+came out *below* it, at 48.3%. The five modes are not a product space:
+the plain DCT-II appears on an axis only in the mode where both axes
+are the plain DCT-II, and the four multiple transform selection modes
+are correlated. Composing two independent per-axis models cannot
+recover the joint distribution, and the measurement showed it losing.
+One model over the five modes is both simpler and better.
 
 **E5, a learned model.** EP2991352A1 claim 3: *"wherein the set of transforms is determined by at least one of: (i) using training data, and (ii) choosing a subset of a family of transforms."* US9357221B2
 claim 23: *"the plurality of ... nsforms are adaptively updated to obtain

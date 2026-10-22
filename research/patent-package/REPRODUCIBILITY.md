@@ -70,7 +70,7 @@ document.
 | Margin for the published per-sequence table | 50, in rate-distortion cost units |
 | Margin sweep | 0, 25, 50, 100, 200, in rate-distortion cost units |
 | Rate-distortion lambda | 0.85 |
-| Predictor | two multinomial logistic regressions, 46 features each, one per axis, composed into the mode |
+| Predictor | one multinomial logistic regression over the joint mode, 64 features |
 
 ## Reproducing
 

@@ -338,47 +338,45 @@
             <tbody>
               <tr>
                 <td>Majority class (always DCT-II)</td>
-                <td>44.31%</td>
+                <td>53.50%</td>
                 <td>The baseline any predictor must beat, over the five modes</td>
               </tr>
               <tr>
                 <td>Gradient-boosted ceiling, joint mode</td>
-                <td>44.98%</td>
+                <td>53.89%</td>
                 <td>What these features support for the mode as a whole</td>
               </tr>
               <tr>
-                <td>Gradient-boosted ceiling, one axis</td>
-                <td>51.75%</td>
-                <td>What they support for a single axis</td>
-              </tr>
-              <tr>
-                <td>Shipped model, composed from the two axes</td>
-                <td>43.07%</td>
-                <td>Per axis: 51.1% horizontal, 51.0% vertical</td>
+                <td>Shipped model, over the joint mode</td>
+                <td>53.41%</td>
+                <td>92.3% on the plain DCT-II, 3.6% to 17.9% on the four others</td>
               </tr>
             </tbody>
           </table>
           <p class="muted">
-            76,032 blocks, collected from the encoder's own rate-distortion
+            760,320 blocks, collected from the encoder's own rate-distortion
             search over twelve sequences at four QP points, so the labels
             are the encoder's real choices and the features are what the
             decoder will actually see.
           </p>
           <div class="note">
             <p>
-              <strong>The honest reading.</strong> The joint mode is barely
-              predictable: the ceiling of 44.98% is barely above the 44.31%
-              majority class. The transform choice is driven by the block's
-              own residual, which the decoder has not seen, and the
-              geometry of the neighbourhood constrains it only weakly.
+              <strong>The honest reading.</strong> The joint mode is
+              barely predictable: the ceiling of 53.9% is barely above the
+              53.5% majority class. The transform choice is driven by the
+              block's own residual, which the decoder has not seen, and
+              the geometry of the neighbourhood constrains it only weakly.
+              The rate-distortion choice between the modes is close to a
+              tie, so there is little for a predictor to predict.
             </p>
             <p>
-              Splitting the mode into its two axes is what makes the
-              mechanism work. Each axis on its own reaches 51.75%, a clear
-              margin over the majority class, because the geometry of a
-              neighbourhood says more about the transform on one axis than
-              about the mode as a whole. The shipped predictor therefore
-              models the two axes separately and composes them.
+              An earlier version modelled the two axes separately and
+              composed them, because each axis on its own was well above
+              the majority class. The composed mode came out below it.
+              The five modes are not a product space, so composing two
+              independent per-axis models cannot recover the joint
+              distribution, and the measurement showed it losing. The
+              shipped predictor is one model over the five modes.
             </p>
             <p>
               Even so, the saving is 0.239%, not a headline number. The

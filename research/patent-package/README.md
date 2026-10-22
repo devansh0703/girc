@@ -445,13 +445,13 @@ picture at a motion-compensated position.
 | Claim | Closest reference | Why the reference does not anticipate the claim |
 |---|---|---|
 | 1 | EP3977732B1 (InterDigital) | The reference derives the transform from the block's width and height by table lookup. Claim 1 derives it from a gradient orientation distribution over reconstructed samples, predicts the two axes separately and composes them, and adds the rate-distortion margin of element (e), which the reference has no counterpart for. |
-| 1 | US11363302B2 (MediaTek) | The reference's neural network takes the current block's own reconstruction as input, which the decoder does not have at the point the transform is needed. Claim 1's features come from a *causal* neighbourhood that excludes the current block, the two axes are predicted by separately trained functions, and the reference has no margin. |
+| 1 | US11363302B2 (MediaTek) | The reference's neural network takes the current block's own reconstruction as input, which the decoder does not have at the point the transform is needed. Claim 1's features come from a *causal* neighbourhood that excludes the current block, together with the block's own prediction, and the reference has no margin. |
 | 2 | any | No reference found forms a gradient orientation distribution over a causal window. |
 | 3 | US12143605 | That reference uses side information associated with the prediction, not a spatial window of reconstructed samples. |
 | 4 | any | No reference found codes a correction relative to a predicted value in a canonical order. The correction here selects among the four modes the prediction ruled out, in two bins. |
 | 5 | US11363302B2 | The reference trains a network, but not on the encoder's own rate-distortion decisions, and its output is not a transform type chosen by a margin. |
-| 5, 7 | none found | No reference found trains two prediction functions separately, one per axis, and composes them into the mode. The measurement behind the split is in §1.4: the joint mode is barely predictable while each axis is not. |
-| 6 | EP3977732B1 | The reference's decoder derives the transform from syntax alone. Claim 6's decoder derives it from geometry, composes two per-axis predictions, and resolves a mismatch against a canonical ordering. |
+| 5, 7 | none found | No reference found trains a prediction function over the geometric features and uses it to predict the transform mode. The measurement behind the prediction is in §1.4. |
+| 6 | EP3977732B1 | The reference's decoder derives the transform from syntax alone. Claim 6's decoder derives it from geometry, predicts the mode, and resolves a mismatch against a canonical ordering. |
 | 7 | US11363302B2 | The reference does not disclose collecting the encoder's own rate-distortion decisions over a causal neighbourhood, nor fitting the two axes separately. |
 | 8 | none found | No reference found expresses the signalling-versus-distortion trade as a rate-denominated margin. |
 

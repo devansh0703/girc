@@ -362,15 +362,22 @@ as measured. The full numbers are in the root README and in
   for all sixteen per-axis mode and size combinations, not just the twelve
   originally planned.
 - The mechanism's net effect is a **small** win. The best margin in the
-  intra-only sweep is −0.106% mean BD-rate, and it is negative on some
-  sequences and positive on others. The three-transform result of −0.226%
-  quoted in earlier notes was a different, superseded configuration and is
-  not the headline.
+  full sweep, with the chroma planes coded and the comparison against
+  whole-frame anchors, is −0.239% mean BD-rate on the luma plane and
+  −0.156% on the whole frame, and it is negative on some sequences and
+  positive on others. The three-transform result of −0.226% quoted in
+  earlier notes was a different, superseded configuration and is not the
+  headline.
 - The reason the win is small is measurable. The joint five-class mode is
-  barely predictable (44.98% against a 44.31% majority baseline), because
-  the rate-distortion choice between the modes is close to a tie. The
-  implementation therefore predicts the two axes separately and composes
-  them, which reaches 51.75% on one axis.
+  barely predictable (a ceiling of 53.9% against a 53.5% majority
+  baseline), because the rate-distortion choice between the modes is
+  close to a tie. Predicting the two axes separately and composing them
+  was tried and measured, and it was worse: each axis on its own was well
+  above the majority class, about 54.6%, and the composed mode came out
+  below it, at 48.3%. The five modes are not a product space, so
+  composing two independent per-axis models cannot recover the joint
+  distribution. The implementation predicts the joint mode with one
+  model, and adds the block's own prediction plane to the features.
 - The RD-cost margin is the part of the disclosure the prior art does not
   reach. The claim text of ten references was extracted and read, and the
   findings are:

@@ -182,6 +182,28 @@ def main() -> int:
         + (f", and the whole frame on {better_total} of {len(total)}" if better_total is not None else "")
     )
 
+    # The predictor's own measured accuracy, which the documents quote
+    # and which comes from the model rather than from the benchmark.
+    model_path = root / "models/girc-predictor.json"
+    if model_path.exists():
+        model = json.loads(model_path.read_text(encoding="utf-8"))
+        training = model.get("training", {})
+        ceiling = training.get("predictability_ceiling", {})
+        figures = [
+            ("the majority class accuracy", training.get("majority_class_accuracy")),
+            ("the shipped model's accuracy", training.get("test_accuracy")),
+            ("the gradient-boosted ceiling", ceiling.get("gradient_boosted_accuracy")),
+        ]
+        for description, value in figures:
+            if value is None:
+                continue
+            percent = f"{value * 100:.2f}%"
+            present = [name for name, text in documents.items() if percent in text]
+            print(f"{description}: {percent}, quoted in {len(present)} document(s)")
+            if not present:
+                print(f"  no document quotes the {description}")
+                failed = True
+
     if failed:
         print("\nthe documents and the report disagree")
         return 1
