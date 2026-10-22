@@ -115,11 +115,11 @@ At a margin of 50, over the twelve sequences:
 
 | Measure | Value | Better on |
 |---|---|---|
-| Mean BD-rate, luma plane | −0.239% | 10 of 12 |
-| Mean BD-rate, whole frame | −0.156% | 10 of 12 |
-| Median BD-rate, luma plane | −0.332% | — |
-| Best sequence | `deadline_cif`, −0.902% | — |
-| Worst sequence | `akiyo_cif`, +1.403% | — |
+| Mean BD-rate, luma plane | −0.240% | 11 of 12 |
+| Mean BD-rate, whole frame | −0.159% | 11 of 12 |
+| Median BD-rate, luma plane | −0.352% | — |
+| Best sequence | `deadline_cif`, −0.816% | — |
+| Worst sequence | `akiyo_cif`, +1.393% | — |
 | Prediction mismatch | 42.5% | — |
 
 The learned predictor against the constant one, which is the
@@ -128,48 +128,54 @@ alternative that needs no training and no model:
 | Predictor | Mean BD-rate, luma | Better on |
 |---|---|---|
 | Constant, always the plain DCT-II | −0.120% | 10 of 12 |
-| The shipped learned model | −0.239% | 10 of 12 |
+| The shipped learned model | −0.240% | 11 of 12 |
 
 The margin sweep, on the luma plane:
 
 | Margin | Mean BD-rate | Mismatch | Better on |
 |---|---|---|---|
 | 0 | −0.056% | 46.4% | 12 of 12 |
-| 25 | −0.138% | 44.7% | 9 of 12 |
-| 50 | −0.239% | 42.5% | 10 of 12 |
-| 100 | +0.116% | 38.0% | 8 of 12 |
-| 200 | +0.557% | 30.7% | 5 of 12 |
+| 25 | −0.098% | 44.6% | 9 of 12 |
+| 50 | −0.240% | 42.5% | 11 of 12 |
+| 100 | +0.040% | 38.0% | 10 of 12 |
+| 200 | +0.589% | 30.6% | 6 of 12 |
 
 The training set is rebuilt the same way:
 
 ```sh
 mkdir -p bench-out/train-pred
 for sequence in data/seq/*.y4m; do
-  for qp in 22 27 32 37; do
-    ./target/release/girc collect --input "$sequence" --qp "$qp" --frames 10
-  done
+  ./target/release/girc collect --input "$sequence" --qp 27 --frames 30
 done > bench-out/train-pred/mixed.jsonl
 
 PYTHONPATH=python/girc-train python3 -m girc_train fit \
   --input bench-out/train-pred/mixed.jsonl \
   --output models/girc-predictor.json \
-  --model-version v7-joint-prediction
+  --model-version v8-joint-inter-consistent
 ```
 
-That produces 760,320 records, and the model records the SHA-256 of the
+That produces 570,240 records, and the model records the SHA-256 of the
 data it was fitted on, so a re-run that produced different data would
 be visible:
 
 ```
-sha256  247e62742c56ead475195cf9dbebb9043b9308608274f8a75213d7fd9d2ef229
+sha256  4232ea195cf0876a41d9af950a61601abdd9987a3e2ea512d8d1c69ce9d21232
 ```
 
-The data itself is 422 MB and is not in the repository; the collection
+The data itself is 300 MB and is not in the repository; the collection
 is deterministic, because the encoder's search is, so re-running the
 command above reproduces it. The fitted model is in the repository, and
 `crates/girc-core/tests/shipped_model.rs` checks that it loads, that
 its weights match the codec's feature count, and that it is not the
 constant predictor.
+
+The features the model is fitted on have to be ones the decoder can
+compute, and the collection runs through the encoder, so they are. An
+inter block carries a motion vector instead of an intra mode, so the
+decoder cannot know the mode the encoder would have chosen for it, and
+the intra mode feature is empty for one. The earlier model, which did
+not have that rule, was fitted on features the decoder could not
+reproduce, and its measured accuracy was flattered by them.
 
 The harness records the tool versions it ran against inside the report,
 so a re-run that produced a different figure would show why.

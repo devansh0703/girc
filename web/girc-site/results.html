@@ -27,12 +27,12 @@
       <div class="wrap">
         <section class="hero">
           <div class="readout">MEASURED ON XIPH.ORG CIF · 12 SEQUENCES · 10 FRAMES · QP 22–37</div>
-          <h1>The mechanism saves 0.239% of the bitrate.</h1>
+          <h1>The mechanism saves 0.240% of the bitrate.</h1>
           <p class="lede">
             Twelve CIF sequences, ten frames each, four QP points, and the
-            inferred mode comes out 0.239% smaller than the explicit mode
-            on the luma plane, and 0.156% smaller on the whole frame. It
-            is smaller on ten sequences of the twelve. The margin sweep
+            inferred mode comes out 0.240% smaller than the explicit mode
+            on the luma plane, and 0.159% smaller on the whole frame. It
+            is smaller on eleven sequences of the twelve. The margin sweep
             below is the whole trade: the rate the encoder gives up in
             distortion, against the rate it saves in signalling.
           </p>
@@ -93,30 +93,30 @@
               </tr>
               <tr>
                 <td>25</td>
-                <td class="good">−0.138</td>
-                <td>44.7%</td>
+                <td class="good">−0.098</td>
+                <td>44.6%</td>
                 <td>9 of 12</td>
                 <td>The margin starts to pay</td>
               </tr>
               <tr>
                 <td>50</td>
-                <td class="good"><strong>−0.239</strong></td>
+                <td class="good"><strong>−0.240</strong></td>
                 <td>42.5%</td>
-                <td>10 of 12</td>
+                <td>11 of 12</td>
                 <td>The optimum on this content</td>
               </tr>
               <tr>
                 <td>100</td>
-                <td class="warn">+0.116</td>
+                <td class="warn">+0.040</td>
                 <td>38.0%</td>
-                <td>8 of 12</td>
+                <td>10 of 12</td>
                 <td>Past the optimum</td>
               </tr>
               <tr>
                 <td>200</td>
-                <td class="warn">+0.557</td>
-                <td>30.7%</td>
-                <td>5 of 12</td>
+                <td class="warn">+0.589</td>
+                <td>30.6%</td>
+                <td>6 of 12</td>
                 <td>Distortion dominates</td>
               </tr>
             </tbody>
@@ -126,7 +126,7 @@
             explicit mode, over twelve CIF sequences at four QP points, on
             the luma plane. Negative means the inferred mode is smaller.
             The whole-frame figure, which includes the chroma planes, is
-            −0.156% at the margin of 50, and the inferred mode is smaller
+            −0.159% at the margin of 50, and the inferred mode is smaller
             on ten sequences of the twelve.
           </p>
         </section>
@@ -206,8 +206,8 @@
           </table>
           <p class="muted">
             Margin of 50, QP 22 to 37, luma plane, 8×8 blocks, ten frames
-            per sequence. The mean over the twelve is −0.239% and the
-            median −0.332%.
+            per sequence. The mean over the twelve is −0.240% and the
+            median −0.352%.
           </p>
         </section>
 
@@ -236,17 +236,17 @@
               </tr>
               <tr>
                 <td><strong>The shipped learned model</strong></td>
-                <td class="good"><strong>−0.239%</strong></td>
-                <td>10 of 12</td>
+                <td class="good"><strong>−0.240%</strong></td>
+                <td>11 of 12</td>
               </tr>
             </tbody>
           </table>
           <p class="muted">
-            The learned model is ahead on nine of the twelve sequences, and
-            the gap between the two is 0.119 percentage points of BD-rate,
-            which is twice the mechanism's own effect. The model is one
+            The learned model is ahead on seven of the twelve sequences, and
+            the gap between the two is 0.120 percentage points of BD-rate,
+            which is half the mechanism's own effect. The model is one
             multinomial logistic regression over the joint mode, fitted on
-            760,320 real block records from the twelve sequences.
+            570,240 real block records from the twelve sequences.
           </p>
         </section>
 
@@ -338,36 +338,49 @@
             <tbody>
               <tr>
                 <td>Majority class (always DCT-II)</td>
-                <td>53.50%</td>
+                <td>50.10%</td>
                 <td>The baseline any predictor must beat, over the five modes</td>
               </tr>
               <tr>
                 <td>Gradient-boosted ceiling, joint mode</td>
-                <td>53.89%</td>
+                <td>50.65%</td>
                 <td>What these features support for the mode as a whole</td>
               </tr>
               <tr>
                 <td>Shipped model, over the joint mode</td>
-                <td>53.41%</td>
-                <td>92.3% on the plain DCT-II, 3.6% to 17.9% on the four others</td>
+                <td>50.18%</td>
+                <td>91.6% on the plain DCT-II, 5.3% to 15.4% on the four others</td>
               </tr>
             </tbody>
           </table>
           <p class="muted">
-            760,320 blocks, collected from the encoder's own rate-distortion
-            search over twelve sequences at four QP points, so the labels
-            are the encoder's real choices and the features are what the
-            decoder will actually see.
+            570,240 blocks, collected from the encoder's own rate-distortion
+            search over twelve sequences, so the labels are the encoder's
+            real choices and the features are what the decoder will
+            actually see.
           </p>
           <div class="note">
             <p>
               <strong>The honest reading.</strong> The joint mode is
-              barely predictable: the ceiling of 53.9% is barely above the
-              53.5% majority class. The transform choice is driven by the
+              barely predictable: the ceiling of 50.7% is barely above the
+              50.1% majority class. The transform choice is driven by the
               block's own residual, which the decoder has not seen, and
               the geometry of the neighbourhood constrains it only weakly.
               The rate-distortion choice between the modes is close to a
               tie, so there is little for a predictor to predict.
+            </p>
+            <p>
+              These figures are lower than an earlier revision reported,
+              and the reason is worth stating rather than hiding. An
+              inter block carries a motion vector instead of an intra
+              mode, so the decoder cannot know the mode the encoder would
+              have chosen for it. A feature built from that mode let the
+              encoder predict from information the decoder does not have,
+              and the model trained on it looked better than it could ever
+              be. The shipped code leaves the feature empty for an inter
+              block, and the benchmark decodes every stream it encodes and
+              refuses a result if the decoded picture differs from the
+              encoder's own reconstruction.
             </p>
             <p>
               An earlier version modelled the two axes separately and
@@ -379,7 +392,7 @@
               shipped predictor is one model over the five modes.
             </p>
             <p>
-              Even so, the saving is 0.239%, not a headline number. The
+              Even so, the saving is 0.240%, not a headline number. The
               explicit signalling is already cheap for a context-adaptive
               coder to code, and the mechanism removes an overhead that is
               close to the distortion it costs to remove it. The margin

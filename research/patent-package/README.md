@@ -170,9 +170,9 @@ a margin of 50:
 
 | Measure | Value |
 |---|---|
-| Mean BD-rate, luma plane | −0.239% |
-| Mean BD-rate, whole frame | −0.156% |
-| Better than the explicit mode | 10 of the 12 sequences, on both axes |
+| Mean BD-rate, luma plane | −0.240% |
+| Mean BD-rate, whole frame | −0.159% |
+| Better than the explicit mode | 11 of the 12 sequences, on both axes |
 
 **The learned predictor has to beat the constant one, and it does.** The
 constant predictor always answers the plain DCT-II and needs no
@@ -184,11 +184,12 @@ reports them in the same file:
 | Predictor | Mean BD-rate, luma | Better on |
 |---|---|---|
 | Constant, always the plain DCT-II | −0.120% | 10 of 12 |
-| The shipped learned model | **−0.239%** | 10 of 12 |
+| The shipped learned model | **−0.240%** | 11 of 12 |
 
-The learned model is ahead on nine of the twelve sequences, and the gap
-between the two is 0.119 percentage points of BD-rate, which is twice
-the mechanism's own effect.
+The learned model is ahead on seven of the twelve sequences, and the gap
+between the two is 0.120 percentage points of BD-rate, which is half
+the mechanism's own effect. The learned predictor is therefore worth
+having, but it is not what makes the mechanism work: the margin is.
 
 Two rate axes are reported because the mechanism changes the luma
 signalling and nothing else: the luma rate is the mechanism's own
@@ -197,12 +198,13 @@ comparison against the anchors is on the whole-frame rate, because the
 anchors code all three planes and so does GIRC.
 
 The mechanism is a small win, and the reason it is not a larger one is
-measurable rather than mysterious. The predictability ceiling of the
-feature set, measured by fitting a gradient-boosted tree over the same
-features, is 53.9% against a 53.5% majority class. The joint mode is
-close to unpredictable: the per-class accuracy of the shipped model is
-92.3% on the plain DCT-II and between 3.6% and 17.9% on the four
-multiple transform selection modes. The rate-distortion choice between
+measurable rather than mysterious. The shipped model predicts the mode
+correctly on 50.18% of the held-out blocks, against a 50.10% majority
+class, and the predictability ceiling of the feature set, measured by
+fitting a gradient-boosted tree over the same features, is 50.65%. The
+joint mode is close to unpredictable: the per-class accuracy of the
+shipped model is 91.6% on the plain DCT-II and between 5.3% and 15.4% on
+the four multiple transform selection modes. The rate-distortion choice between
 the modes is close to a tie — the gap between the best and the
 second-best mode is under 10% of the distortion for half the blocks —
 and so the mode is hard to predict from anything the decoder has.
@@ -237,7 +239,7 @@ rather than in this document:
   previous frame at a motion-compensated position, so it carries
   information the causal window of the current frame does not have.
 
-Even so, the saving is 0.239% and not a headline number, and the report
+Even so, the saving is 0.240% and not a headline number, and the report
 says so. The explicit signalling is already cheap for a context-adaptive
 coder to code, and the mechanism removes an overhead that is close to
 the distortion it costs to remove it. §1.5 states the conditions under
@@ -472,7 +474,7 @@ instead.
 **The measured result is a small win, and the closest prior art reports a
 loss.** InterDigital's EP3977732B1 reports +0.34% overall for its
 implicit transform design against an MTS-disabled anchor: their approach
-did not pay. The present disclosure's −0.239% at a margin of 50 is a
+did not pay. The present disclosure's −0.240% at a margin of 50 is a
 better result by a different mechanism, and it is still far from a
 decisive win. A filing that claimed a large coding gain would be
 contradicted by the reference implementation in this repository.

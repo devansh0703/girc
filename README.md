@@ -41,13 +41,13 @@ current model:
 | Margin (RD-cost units) | Mean BD-rate, luma | Prediction mismatch | Better on |
 |---|---|---|---|
 | 0 | −0.056% | 46.4% | 12 of 12 |
-| 25 | −0.138% | 44.7% | 9 of 12 |
-| 50 | **−0.239%** | 42.5% | 10 of 12 |
-| 100 | +0.116% | 38.0% | 8 of 12 |
-| 200 | +0.557% | 30.7% | 5 of 12 |
+| 25 | −0.098% | 44.6% | 9 of 12 |
+| 50 | **−0.240%** | 42.5% | 11 of 12 |
+| 100 | +0.040% | 38.0% | 8 of 12 |
+| 200 | +0.589% | 30.6% | 5 of 12 |
 
-At the margin of 50 the mechanism is **−0.239% on the luma plane** and
-**−0.156% on the whole frame**, and it is better on 10 of the 12
+At the margin of 50 the mechanism is **−0.240% on the luma plane** and
+**−0.159% on the whole frame**, and it is better on 11 of the 12
 sequences on both axes.
 
 **The learned predictor beats the constant one, and the benchmark
@@ -58,10 +58,10 @@ about a trained predictor has to beat:
 | Predictor | Mean BD-rate, luma | Better on |
 |---|---|---|
 | Constant, always the plain DCT-II | −0.120% | 10 of 12 |
-| The shipped learned model | **−0.239%** | 10 of 12 |
+| The shipped learned model | **−0.240%** | 11 of 12 |
 
-The learned model is ahead on 9 of the 12 sequences, and the gap
-between them is 0.119 percentage points of BD-rate, which is twice the
+The learned model is ahead on 7 of the 12 sequences, and the gap
+between them is 0.120 percentage points of BD-rate, which is half the
 mechanism's own effect.
 
 Two rate axes are reported because the mechanism changes the luma
@@ -71,14 +71,25 @@ save. The comparison against the anchors is on the whole-frame rate,
 because the anchors code all three planes and so does GIRC.
 
 The mechanism is a small win, and the reason it is not a larger one is
-measurable rather than mysterious. The predictability ceiling of the
-feature set, measured by fitting a gradient-boosted tree over the same
-features, is 53.9% against a 53.5% majority class. The joint mode is
+measurable rather than mysterious. The shipped model predicts the mode
+correctly on 50.18% of the held-out blocks, against a 50.10% majority
+class. The predictability ceiling of the feature set, measured by
+fitting a gradient-boosted tree over the same features, is 50.65%. The joint mode is
 close to unpredictable: the rate-distortion choice between the modes is
 close to a tie, so there is little for a predictor to predict. The
-per-class accuracy of the shipped model is 92.3% on the plain DCT-II
-and between 3.6% and 17.9% on the four multiple transform selection
+per-class accuracy of the shipped model is 91.6% on the plain DCT-II
+and between 5.3% and 15.4% on the four multiple transform selection
 modes.
+
+Those figures are low, and they are low for an honest reason that is
+worth stating. An inter block carries a motion vector instead of an
+intra mode, so the decoder cannot know the mode the encoder would have
+chosen for it. A feature built from that mode would let the encoder
+predict from information the decoder does not have, and a model trained
+on it would look better than it could ever be. The earlier figures of
+53.4% were flattered by exactly that, and the fix is in the shipped
+code: the intra mode feature is empty for an inter block, and the
+benchmark decodes what it encodes and fails if the two pictures differ.
 
 That measurement is the mechanism's most useful result. It says the
 constraint is not the signalling and not the coding tools: it is that

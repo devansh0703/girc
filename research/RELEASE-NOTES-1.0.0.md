@@ -16,8 +16,8 @@ each and four quantization parameters, with the margin at 50:
 
 | Measure | Value | Better on |
 |---|---|---|
-| Mean BD-rate, luma plane | **−0.239%** | 10 of 12 |
-| Mean BD-rate, whole frame | **−0.156%** | 10 of 12 |
+| Mean BD-rate, luma plane | **−0.240%** | 11 of 12 |
+| Mean BD-rate, whole frame | **−0.159%** | 11 of 12 |
 | The same, with the constant predictor | −0.120% | 10 of 12 |
 
 The last row is the one that matters most. The constant predictor
@@ -47,7 +47,7 @@ prediction only when it is not. The margin is the part of this that the
 prior art does not reach.
 
 **The training method.** The predictor is a multinomial logistic
-regression over the joint mode, fitted on 760,320 real block records
+regression over the joint mode, fitted on 570,240 real block records
 from the twelve sequences, exported as a frozen versioned artifact so
 the encoder and the decoder are guaranteed bit-identical. The training
 data's SHA-256 is recorded in the model.

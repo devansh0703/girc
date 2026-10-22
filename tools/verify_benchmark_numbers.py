@@ -71,7 +71,7 @@ def main() -> int:
     report_path = Path(
         sys.argv[1]
         if len(sys.argv) > 1
-        else "research/benchmark/report-v7-joint.json"
+        else "research/benchmark/report-v8-joint.json"
     )
     if not report_path.exists():
         print(f"no report at {report_path}", file=sys.stderr)

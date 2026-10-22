@@ -1731,7 +1731,6 @@ mod tests {
         assert_eq!(decoded[0], encoded.reconstructions[0]);
     }
 
-
     /// The encoder and the decoder must agree on a multi-frame
     /// sequence.
     ///

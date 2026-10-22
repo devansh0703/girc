@@ -409,7 +409,6 @@ impl NeighbourTransforms {
     }
 }
 
-
 /// The one-hot encoding of the block's intra mode.
 ///
 /// An inter block has no intra prediction mode: the syntax carries a

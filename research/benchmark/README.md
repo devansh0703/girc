@@ -10,8 +10,7 @@ which runs in CI.
 
 | File | What it is |
 |---|---|
-| `report-v7-joint.json` | The full benchmark over the twelve sequences: the explicit mode, the inferred mode with the shipped model, the three anchor encoders, and the margin sweep. |
-| `report-constant-comparison.json` | The same content with the constant predictor added, so the learned predictor and the one that needs no training can be compared. |
+| `report-v8-joint.json` | The full benchmark over the twelve sequences: the explicit mode, the inferred mode with the shipped model, the constant predictor, the three anchor encoders, and the margin sweep. |
 
 ## What the configuration was
 
@@ -22,7 +21,7 @@ which runs in CI.
 | Quantization parameters | 22, 27, 32, 37 |
 | Block size | 8 × 8 |
 | Margin | 50, in rate-distortion cost units |
-| Model | `models/girc-predictor.json`, version `v7-joint-prediction` |
+| Model | `models/girc-predictor.json`, version `v8-joint-inter-consistent` |
 | Anchors | x265, SVT-AV1, VVenC 1.14.0 |
 
 ## The two rate axes
@@ -42,7 +41,7 @@ the anchors code all three planes and so does GIRC.
 
 ```sh
 cargo build --release --workspace
-export PATH="$PWD/data/tools/vvenc-src/bin/release-static:$PATH"
+source tools/benchmark_env.sh
 
 ./target/release/girc-bench \
     --sequence data/seq/akiyo_cif.y4m \
@@ -62,12 +61,14 @@ export PATH="$PWD/data/tools/vvenc-src/bin/release-static:$PATH"
     --margin 50 \
     --frames 10 \
     --anchors x265,svt-av1,vvenc \
+    --compare-constant \
     --margin-sweep 0,25,50,100,200 \
-    --report research/benchmark/report-v7-joint.json \
+    --report research/benchmark/report-v8-joint.json \
     --work-dir bench-out/work
 ```
 
-The constant comparison is the same run with `--compare-constant`.
+The `source tools/benchmark_env.sh` puts VVenC on the path, and says so
+if any of the three anchor encoders is missing.
 
 The report carries the tool versions it ran against, so a re-run that
 produced a different figure would show why.
