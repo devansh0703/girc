@@ -178,12 +178,25 @@ def main() -> int:
         print(
             f"the reference encoder is not built at {vvenc}\n"
             "build it with tracing enabled:\n"
-            "  cmake -S data/tools/vvenc-src -B data/tools/vvenc-src/build-trace \\\n"
+            "  cmake -S data/tools/vvenc-src -B data/tools/vvenc-src/build \\\n"
             "    -DCMAKE_BUILD_TYPE=Release -DVVENC_ENABLE_TRACING=1\n"
-            "  cmake --build data/tools/vvenc-src/build-trace --config Release -j 4",
+            "  cmake --build data/tools/vvenc-src/build --config Release -j 4",
             file=sys.stderr,
         )
         return 2
+
+    # The sequences are not in the repository, so the one the check
+    # needs is fetched if it is not there.
+    if not sequence.exists():
+        print(f"fetching {sequence.name}")
+        fetch = subprocess.run(
+            [str(root / "tools/fetch_sequences.sh"), str(sequence.parent), sequence.stem],
+            capture_output=True,
+            text=True,
+        )
+        if fetch.returncode != 0 or not sequence.exists():
+            print(f"the sequence could not be fetched:\n{fetch.stderr[-1000:]}", file=sys.stderr)
+            return 2
 
     # The check itself: the two algorithms agree for every mode.
     print("the syntax, mode by mode:")

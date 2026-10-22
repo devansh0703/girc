@@ -6,7 +6,10 @@
 # repository because of their size; this script fetches them and the
 # reproducibility manifest records their checksums.
 #
-# Usage: tools/fetch_sequences.sh [output-dir]
+# Usage: tools/fetch_sequences.sh [output-dir] [sequence ...]
+#
+# With no sequence names, every sequence is fetched. With names, only
+# those are, which is what a check that needs one file wants.
 set -euo pipefail
 
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -29,6 +32,11 @@ SEQUENCES=(
 )
 
 mkdir -p "$DEST"
+
+if [ "$#" -ge 2 ]; then
+  shift
+  SEQUENCES=("$@")
+fi
 
 for name in "${SEQUENCES[@]}"; do
   target="$DEST/$name.y4m"
