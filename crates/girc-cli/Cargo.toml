@@ -1,0 +1,20 @@
+[package]
+name = "girc-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Command-line front end for the GIRC reference codec: encode, decode and inspect bitstreams."
+
+[[bin]]
+name = "girc"
+path = "src/main.rs"
+
+[dependencies]
+girc-core = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
