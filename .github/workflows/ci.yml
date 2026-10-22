@@ -23,7 +23,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache the build
-        uses: Swatinem/rust-lang-cache@v2
+        uses: Swatinem/rust-tool-cache@v2
 
       - name: Check the formatting
         run: cargo fmt --all -- --check
