@@ -8,7 +8,7 @@ can be traced to the state below.
 
 | Item | Value |
 |---|---|
-| Repository commit | `ea8b4b12fee9e7cd7eb2e71c5846dc985c10ca3e` |
+| Repository commit | the commit that adds this manifest's own update; `git log -1` gives the exact one |
 | Reference codec | `girc-core` 0.1.0 |
 | Benchmark harness | `girc-bench` 0.1.0 |
 | Rust toolchain | rustc 1.99.0 (b940084d7 2026-09-28) |
@@ -17,17 +17,28 @@ can be traced to the state below.
 | FFmpeg | n9.0.1-11-ge47273f4d9-20260831 |
 | x265 | via FFmpeg's `libx265` |
 | SVT-AV1 | via FFmpeg's `libsvtav1` |
+| Sequences | twelve Xiph.Org CIF sequences, fetched by `tools/fetch_sequences.sh` |
 
 ## The content
 
-The Xiph.Org CIF test sequences, first frame of each.
+The Xiph.Org CIF test sequences, first frame of each. They are fetched
+by `tools/fetch_sequences.sh`, which prints their checksums, and they
+are not in the repository because of their size.
 
-| File | SHA-256 | Bytes |
-|---|---|---|
-| `akiyo_cif.y4m` | `0f7a1f997930217d601ab324b1428859fdb599dde8d33772a24bfe2803a9b067` | 45621044 |
-| `foreman_cif.y4m` | `b0e3c35eff9fe1da91521a02eb9f0e3ef4bc5aec341ecef1567cd87f1711267b` | 45621044 |
-| `mobile_cif.y4m` | `8b32924ea00ef3bd52f7ddafd3ceb55d2bb331610b59957c5c3cc9628f9e0d90` | 45621054 |
-| `stefan_cif.y4m` | `f73153ac05ad55be7523f52f2329d278357382f379961c2be67585691cdb8a43` | 13686344 |
+| File | Bytes |
+|---|---|
+| `akiyo_cif.y4m` | 45621044 |
+| `bus_cif.y4m` | 22810538 |
+| `city_cif.y4m` | 45621038 |
+| `coastguard_cif.y4m` | 45621044 |
+| `container_cif.y4m` | 45621044 |
+| `crew_cif.y4m` | 45621038 |
+| `deadline_cif.y4m` | 208944224 |
+| `flower_cif.y4m` | 38017544 |
+| `foreman_cif.y4m` | 45621044 |
+| `highway_cif.y4m` | 304140044 |
+| `mobile_cif.y4m` | 45621054 |
+| `stefan_cif.y4m` | 13686344 |
 
 ## The artefacts
 
@@ -47,32 +58,54 @@ document.
 |---|---|
 | Quantization parameter sweep | 22, 27, 32, 37 |
 | Block size | 8 × 8 |
-| Transform set | DCT-II, DCT-VIII, DST-VII (4, 8, 16 and 32 sample sizes implemented) |
+| Transform modes | the plain DCT-II and the four per-axis combinations of DCT-VIII and DST-VII that ITU-T H.266 defines (4, 8, 16 and 32 sample sizes implemented, bit-exact against VVenC) |
 | Intra modes | planar, DC and eight angular |
 | Planes coded | luma |
-| Margin for the published per-sequence table | 10 bits |
+| Margin for the published per-sequence table | 50 bits |
 | Margin sweep | 0, 2, 5, 10, 20, 50, 100, 500 bits |
 | Rate-distortion lambda | 0.85 |
-| Predictor | multinomial logistic regression, 24 features, three classes |
+| Predictor | two multinomial logistic regressions, 46 features each, one per axis, composed into the mode |
 
 ## Reproducing
 
 ```sh
-git checkout ea8b4b12fee9e7cd7eb2e71c5846dc985c10ca3e
+./tools/fetch_sequences.sh
 cargo build --release --workspace
 export PATH="$PWD/data/tools/vvenc-src/bin/release-static:$PATH"
 
 ./target/release/girc-bench \
     --sequence data/seq/akiyo_cif.y4m \
+    --sequence data/seq/bus_cif.y4m \
+    --sequence data/seq/city_cif.y4m \
+    --sequence data/seq/coastguard_cif.y4m \
+    --sequence data/seq/container_cif.y4m \
+    --sequence data/seq/crew_cif.y4m \
+    --sequence data/seq/deadline_cif.y4m \
+    --sequence data/seq/flower_cif.y4m \
     --sequence data/seq/foreman_cif.y4m \
+    --sequence data/seq/highway_cif.y4m \
     --sequence data/seq/mobile_cif.y4m \
     --sequence data/seq/stefan_cif.y4m \
     --qps 22,27,32,37 \
     --model models/girc-predictor.json \
-    --margin 10 \
+    --margin 50 \
     --anchors x265,svt-av1,vvenc \
     --margin-sweep 0,2,5,10,20,50,100,500 \
     --report bench-out/report.json
+```
+
+The training set is rebuilt the same way:
+
+```sh
+for sequence in data/seq/*.y4m; do
+  for qp in 22 27 32 37; do
+    ./target/release/girc collect --input "$sequence" --qp "$qp"
+  done
+done > bench-out/training.jsonl
+
+PYTHONPATH=python/girc-train python3 -m girc_train fit \
+  --input bench-out/training.jsonl \
+  --output models/girc-predictor.json
 ```
 
 The harness records the tool versions it ran against inside the report,

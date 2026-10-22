@@ -393,7 +393,7 @@
     "sha256": "26046d242f7161f62d47871b49889e1e2355373f0e1863570ad99311df480445"
   },
   "environment": {
-    "python": "3.12.13",
+    "python": "3.14.7",
     "platform": "Linux-7.3.0-9-generic-x86_64-with-glibc2.44",
     "numpy": "2.5.4"
   }
