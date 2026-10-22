@@ -91,6 +91,10 @@ jobs:
           cmake -S data/tools/vvenc-src -B data/tools/vvenc-src/build \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build data/tools/vvenc-src/build --config Release -j 2
+          # The same build again, with tracing, for the syntax check.
+          cmake -S data/tools/vvenc-src -B data/tools/vvenc-src/build-trace \
+            -DCMAKE_BUILD_TYPE=Release -DVVENC_ENABLE_TRACING=1
+          cmake --build data/tools/vvenc-src/build-trace --config Release -j 2
 
       - name: Generate the reference vectors
         run: |
@@ -102,6 +106,9 @@ jobs:
 
       - name: Check the chroma QP mapping against VVenC
         run: cargo test -p girc-core chroma_qp
+
+      - name: Check the transform signalling against VVenC
+        run: python3 tools/check_mts_syntax.py
 
   prior-art:
     name: Prior art

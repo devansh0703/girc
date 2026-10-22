@@ -256,6 +256,24 @@ space. It is also why the package needs a *training method* deliverable: the
 model is part of the protected invention, and the training pipeline must be
 reproducible for the patent to be defensible.
 
+### The signalling is the standard's signalling
+
+GIRC's explicit mode codes the transform type with the syntax ITU-T
+H.266 uses for `mts_idx`. That is checked against the reference
+implementation rather than asserted: the reference encoder is run with
+multiple transform selection enabled, its syntax trace is read to get
+the transform mode it actually chose for every transform unit it coded
+— 187,834 of them on one CIF frame, covering four of the five modes —
+and the bin sequence it writes for each is compared with GIRC's. They
+agree on every mode, and the check is in `tools/check_mts_syntax.py`
+and runs in CI.
+
+The reason it matters is that the mechanism's argument is that the
+transform-type signalling is redundant. That argument only means
+something if the signalling being removed is the signalling a
+conformant decoder has to read. With its own syntax, the measured
+saving would be of a saving no conformant codec pays.
+
 ### The chroma planes, and why the mechanism does not touch them
 
 ITU-T H.266 codes 4:2:0 content as three planes, and the chroma planes are

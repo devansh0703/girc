@@ -185,6 +185,7 @@ These are checks that run with `cargo test --workspace` and
 | `bitstream::tests::the_context_tracks_the_observed_rate` | The entropy coder's context estimator converges to the observed rate rather than drifting |
 | `quant::tests::the_reconstruction_error_is_bounded_by_the_step` | The quantizer's reconstruction is within one step at every quantization parameter |
 | `chroma_qp::tests::the_table_matches_the_reference_encoder` | The chroma quantization parameter mapping is exactly the one VVenC derives, for every quantization parameter |
+| `tools/check_mts_syntax.py` | GIRC's transform-type signalling writes the same bins the reference implementation writes, for all five modes, checked against the reference encoder's own output |
 | `chroma::tests::every_chroma_intra_mode_survives_the_code` | Every chroma intra mode survives the truncated unary code |
 | `chroma::tests::a_chroma_plane_round_trips` | A chroma plane round-trips through the coder exactly, and its inter blocks are predicted from the luma motion |
 | `codec::tests::a_frame_round_trips` | A 4:2:0 frame round-trips exactly in all three planes, and the chroma is a real reconstruction rather than a flat fill |

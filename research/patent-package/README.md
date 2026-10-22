@@ -141,6 +141,26 @@ has to be narrowed to match:
   the invention precisely: it is a mechanism for removing luma
   transform-type signalling, and it says nothing about chroma because
   the standard says nothing about chroma.
+- **The signalling GIRC removes is the signalling the standard has.**
+  GIRC's explicit mode codes the transform with the syntax ITU-T H.266
+  uses for `mts_idx`, and that is checked against the reference
+  encoder rather than asserted. The reference implementation is run
+  with multiple transform selection enabled, and its syntax trace is
+  read, which gives the transform mode it actually chose for every
+  transform unit it coded: 187,834 of them on one CIF frame, covering
+  four of the five modes. The bin sequence it writes for each of them
+  is computed from its own algorithm and compared with GIRC's, and they
+  agree on every mode.
+
+  This matters for the claim in a specific way. The mechanism's
+  argument is that the transform-type signalling is redundant, and
+  that argument is only meaningful if the signalling being removed is
+  the signalling a conformant decoder would have to read. If GIRC used
+  its own syntax, the measured saving would be of a saving that no
+  conformant codec pays. The check removes that doubt: the bins are
+  the standard's bins, and the saving is of the standard's signalling.
+
+  The check is in `tools/check_mts_syntax.py` and it runs in CI.
 
 ### 1.4 What the measurements actually show
 

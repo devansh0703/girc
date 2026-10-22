@@ -52,11 +52,13 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[-]` cut
 - [x] pushed to one repository
 
 ## Open, and deliberately not cut
-- [~] The mechanism saves about 0.1% at its best margin, on the current
-      model. The predictability ceiling of the joint mode is 44.98%
-      against a 44.31% majority baseline, and each axis on its own
-      reaches 51.75%. The binding constraint is the predictability of
-      the mode, not the signalling.
+- [~] The mechanism saves 0.239% on the luma plane at its best margin,
+      on the current model, and the learned predictor beats the constant
+      one, at −0.239% against −0.120%. The predictability ceiling of the
+      joint mode is 53.9% against a 53.5% majority baseline, so the
+      binding constraint is the predictability of the mode, not the
+      signalling: the rate-distortion choice between the five modes is
+      close to a tie, and there is little for a predictor to predict.
 - [~] Inter prediction is implemented and measured. The inter blocks'
       mismatch rate is consistently lower than the intra blocks', so
       the hypothesis holds, but the gain over the majority baseline is
@@ -72,8 +74,16 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[-]` cut
 - [ ] Counsel. A public-record search is not a freedom-to-operate
       opinion, and the national phase filings of the families in the
       set were not searched. That needs a patent attorney.
-- [ ] A VVC-conformant bitstream. GIRC measures the mechanism with its
-      own format, which isolates the signalling and nothing else.
+- [~] A VVC-conformant bitstream. GIRC measures the mechanism with its
+      own format, which isolates the signalling and nothing else. What
+      *is* conformant is the signalling the mechanism removes: GIRC's
+      explicit mode writes the same bins the reference implementation
+      writes for `mts_idx`, checked against the reference encoder's own
+      output over 187,834 transform units, in `tools/check_mts_syntax.py`
+      and in CI. A whole conformant H.266 bitstream would mean a
+      conformant H.266 encoder, which is a different and much larger
+      piece of work, and it is the right thing for a codec team with
+      one to do: that is what the evaluation is for.
 - [x] Chroma. The 4:2:0 chroma planes are coded: the plain DCT-II, as
       H.266 4:2:0 requires; the mapped chroma quantization parameter,
       checked against the reference encoder for every quantization
