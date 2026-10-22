@@ -22,12 +22,14 @@ results.
 | `crates/girc-core` | The codec: VVC-exact integer transforms, intra and inter prediction, 4:2:0 chroma, quantization, a context-adaptive entropy coder, and both signalling modes |
 | `crates/girc-cli` | `encode`, `decode`, `inspect`, `collect`, `evaluate` |
 | `crates/girc-bench` | The benchmark: both modes and three anchor codecs, the Bjontegaard implementation, and the margin sweep |
-| `python/girc-train` | The training pipeline: collects the encoder's own decisions, fits the two per-axis predictors, reports the predictability ceiling |
+| `python/girc-train` | The training pipeline: collects the encoder's own decisions, fits the joint-mode predictor, reports the predictability ceiling |
 | `apps/portal` | The confidential evaluation environment |
-| `web/girc-site` | The product site |
-| `web/eval-site` | The evaluation site |
+| `deploy` | The evaluation portal's production deployment: TLS, secret injection, backups, a restore that cannot half-apply |
+| `web/girc-site` | The product site, at [devansh0703.github.io/girc](https://devansh0703.github.io/girc) |
+| `web/eval-site` | The evaluation site, at [/evaluate/](https://devansh0703.github.io/girc/evaluate/) |
 | `research/patent-package` | The disclosure, the claim chart, the prior-art analysis, the reproducibility manifest |
-| `tools/` | The transform-table extractor and the VVenC oracle |
+| `research/benchmark` | The committed benchmark reports the documents' figures are checked against |
+| `tools/` | The reference encoders' oracles, the claim-chart verifier, the benchmark-number verifier, the syntax checker |
 
 ## The result, stated honestly
 
