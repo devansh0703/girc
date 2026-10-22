@@ -55,7 +55,7 @@
 //! quality rather than in bits. The benchmark measures both effects.
 
 use crate::intra::IntraMode;
-use crate::transform::TransformKind;
+use crate::transform::TransformMode;
 
 /// The geometry features extracted from a block's causal neighbourhood.
 ///
@@ -124,12 +124,13 @@ pub struct GeometryFeatures {
     /// both derive the transform type of a transform unit from the
     /// neighbouring units' types, and the VVC implicit multiple
     /// transform selection proposals do the same.
-    pub neighbour_transforms: [f32; NEIGHBOUR_TRANSFORM_SLOTS * 3],
+    pub neighbour_transforms: [f32; NEIGHBOUR_TRANSFORM_SLOTS * MODE_COUNT],
 }
 
 impl GeometryFeatures {
     /// The number of features in the vector.
-    pub const LEN: usize = 8 + 4 + 3 + 1 + IntraMode::COUNT + NEIGHBOUR_TRANSFORM_SLOTS * 3;
+    pub const LEN: usize =
+        8 + 4 + 3 + 1 + IntraMode::COUNT + NEIGHBOUR_TRANSFORM_SLOTS * MODE_COUNT;
 
     /// The feature vector in the order the trained model expects.
     pub fn to_vec(&self) -> Vec<f32> {
@@ -157,6 +158,11 @@ const ORIENTATION_BINS: usize = 8;
 /// The order is left, above, above-left, above-right.
 pub const NEIGHBOUR_TRANSFORM_SLOTS: usize = 4;
 
+/// The number of transform modes the predictor chooses between.
+///
+/// The plain DCT-II and the four multiple transform selection modes.
+pub const MODE_COUNT: usize = 5;
+
 /// The transforms of the neighbouring blocks, as context for the predictor.
 ///
 /// The four slots are the block to the left, the block above, the block
@@ -164,18 +170,18 @@ pub const NEIGHBOUR_TRANSFORM_SLOTS: usize = 4;
 /// that has not been coded yet -- because the neighbour is outside the
 /// picture, or because the raster order has not reached it -- is empty.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct NeighbourTransforms(pub [Option<TransformKind>; NEIGHBOUR_TRANSFORM_SLOTS]);
+pub struct NeighbourTransforms(pub [Option<TransformMode>; NEIGHBOUR_TRANSFORM_SLOTS]);
 
 impl NeighbourTransforms {
     /// The one-hot encoding of the neighbour transforms.
     ///
     /// Each occupied slot contributes a 1 in the position of its
     /// transform; an empty slot contributes nothing.
-    pub fn one_hot(&self) -> [f32; NEIGHBOUR_TRANSFORM_SLOTS * 3] {
-        let mut out = [0f32; NEIGHBOUR_TRANSFORM_SLOTS * 3];
-        for (slot, kind) in self.0.iter().enumerate() {
-            if let Some(kind) = kind {
-                out[slot * 3 + kind.as_index() as usize] = 1.0;
+    pub fn one_hot(&self) -> [f32; NEIGHBOUR_TRANSFORM_SLOTS * MODE_COUNT] {
+        let mut out = [0f32; NEIGHBOUR_TRANSFORM_SLOTS * MODE_COUNT];
+        for (slot, mode) in self.0.iter().enumerate() {
+            if let Some(mode) = mode {
+                out[slot * MODE_COUNT + mode.as_index() as usize] = 1.0;
             }
         }
         out
@@ -475,10 +481,10 @@ fn coverage(left: &[Option<i32>], top: &[Option<i32>]) -> f32 {
 /// always agree.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransformPredictor {
-    /// Per-class bias terms, indexed by [`TransformKind::as_index`].
-    pub biases: [f32; 3],
-    /// Per-class weight vectors, indexed by [`TransformKind::as_index`].
-    pub weights: [[f32; GeometryFeatures::LEN]; 3],
+    /// Per-class bias terms, indexed by [`TransformMode::as_index`].
+    pub biases: [f32; MODE_COUNT],
+    /// Per-class weight vectors, indexed by [`TransformMode::as_index`].
+    pub weights: [[f32; GeometryFeatures::LEN]; MODE_COUNT],
     /// The version of the training data the model was fitted on, recorded
     /// so a report can state which model produced a number.
     pub model_version: String,
@@ -490,12 +496,12 @@ impl TransformPredictor {
     /// Used when no trained model is available; the explicit-signalling
     /// baseline does not need a predictor at all.
     pub fn constant_dct2() -> Self {
-        let mut weights = [[0f32; GeometryFeatures::LEN]; 3];
+        let mut weights = [[0f32; GeometryFeatures::LEN]; MODE_COUNT];
         // A positive bias on DCT-II wins the argmax whenever every feature
         // is zero.
         weights[0][0] = 1.0;
         Self {
-            biases: [1.0, 0.0, 0.0],
+            biases: [1.0, 0.0, 0.0, 0.0, 0.0],
             weights,
             model_version: "constant-dct2".into(),
         }
@@ -515,17 +521,17 @@ impl TransformPredictor {
     ///
     /// Ties break toward the lower class index, so the result is a
     /// deterministic function of the inputs.
-    pub fn predict(&self, features: &GeometryFeatures) -> TransformKind {
+    pub fn predict(&self, features: &GeometryFeatures) -> TransformMode {
         let mut best = 0usize;
         let mut best_logit = f32::NEG_INFINITY;
-        for class in 0..3 {
+        for class in 0..MODE_COUNT {
             let logit = self.logit(class, features);
             if logit > best_logit {
                 best_logit = logit;
                 best = class;
             }
         }
-        TransformKind::ALL[best]
+        TransformMode::ALL[best]
     }
 
     /// The predicted transform and the probability margin over the runner-up.
@@ -533,20 +539,19 @@ impl TransformPredictor {
     /// The margin is the signal the encoder uses to decide whether to trust
     /// the prediction or to override it: a confident prediction is worth
     /// spending the override bit on.
-    pub fn predict_with_margin(&self, features: &GeometryFeatures) -> (TransformKind, f32) {
-        let logits = [
-            self.logit(0, features),
-            self.logit(1, features),
-            self.logit(2, features),
-        ];
-        let mut order = [0usize, 1, 2];
+    pub fn predict_with_margin(&self, features: &GeometryFeatures) -> (TransformMode, f32) {
+        let mut logits = [0f32; MODE_COUNT];
+        for (class, logit) in logits.iter_mut().enumerate() {
+            *logit = self.logit(class, features);
+        }
+        let mut order = [0usize, 1, 2, 3, 4];
         order.sort_by(|a, b| {
             logits[*b]
                 .partial_cmp(&logits[*a])
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         let margin = logits[order[0]] - logits[order[1]];
-        (TransformKind::ALL[order[0]], margin)
+        (TransformMode::ALL[order[0]], margin)
     }
 
     /// Parse a model from its JSON representation.
@@ -567,22 +572,25 @@ impl TransformPredictor {
         };
 
         let biases = parse_vec("biases")?;
-        if biases.len() != 3 {
-            return Err(format!("model has {} biases, expected 3", biases.len()));
+        if biases.len() != MODE_COUNT {
+            return Err(format!(
+                "model has {} biases, expected {MODE_COUNT}",
+                biases.len()
+            ));
         }
-        let mut bias_array = [0f32; 3];
+        let mut bias_array = [0f32; MODE_COUNT];
         bias_array.copy_from_slice(&biases);
 
         let weight_rows = value["weights"]
             .as_array()
             .ok_or_else(|| "model is missing the weights array".to_string())?;
-        if weight_rows.len() != 3 {
+        if weight_rows.len() != MODE_COUNT {
             return Err(format!(
-                "model has {} weight rows, expected 3",
+                "model has {} weight rows, expected {MODE_COUNT}",
                 weight_rows.len()
             ));
         }
-        let mut weights = [[0f32; GeometryFeatures::LEN]; 3];
+        let mut weights = [[0f32; GeometryFeatures::LEN]; MODE_COUNT];
         for (i, row) in weight_rows.iter().enumerate() {
             let values = parse_vec_from(row)?;
             if values.len() != GeometryFeatures::LEN {
@@ -657,39 +665,56 @@ impl TransformSignalling {
 /// What the encoder sends for a block's transform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransformSignal {
-    /// The transform type, sent explicitly.
-    Explicit(TransformKind),
+    /// The transform mode, sent explicitly.
+    Explicit(TransformMode),
     /// The decoder's prediction was correct; nothing else to send.
     Predicted,
-    /// The decoder's prediction was wrong; the actual transform follows,
+    /// The decoder's prediction was wrong; the actual mode follows,
     /// coded relative to the prediction.
     Override {
-        /// The transform the decoder predicted.
-        predicted: TransformKind,
-        /// The transform the encoder chose.
-        actual: TransformKind,
+        /// The mode the decoder predicted.
+        predicted: TransformMode,
+        /// The mode the encoder chose.
+        actual: TransformMode,
     },
 }
 
 impl TransformSignal {
     /// The syntax elements this signal contributes to the bitstream.
     ///
-    /// The explicit mode always sends the transform type, which costs one
-    /// bin for the first type and two for the others. The inferred mode
-    /// sends one bin saying whether the prediction was right, and when it
-    /// was wrong one further bin selecting between the two transforms the
-    /// prediction ruled out.
+    /// The explicit mode always sends the mode. The syntax is the one
+    /// ITU-T H.266 uses for `mts_idx`: one bin saying whether a multiple
+    /// transform selection mode is used at all, and, when one is, a
+    /// truncated unary code over the four modes, which takes one to four
+    /// bins. The reference implementation codes it the same way, in
+    /// `CABACWriter::mts_idx`.
+    ///
+    /// The inferred mode sends one bin saying whether the prediction was
+    /// right. When it was wrong, the actual mode is selected from the
+    /// four the prediction ruled out, which takes two bins.
+    ///
+    /// The explicit signalling is the more expensive of the two, and it
+    /// is expensive because there are five modes to choose between and
+    /// the standard codes the choice with a truncated unary code. That
+    /// is the reason the mechanism has anything to save.
     pub fn bin_count(self) -> usize {
         match self {
-            TransformSignal::Explicit(kind) => {
-                if kind == TransformKind::Dct2 {
+            TransformSignal::Explicit(mode) => {
+                if mode == TransformMode::DCT2 {
                     1
                 } else {
-                    2
+                    // The flag, plus the truncated unary code over the
+                    // four multiple transform selection modes.
+                    1 + match mode.as_index() {
+                        1 => 1,
+                        2 => 2,
+                        3 => 3,
+                        _ => 4,
+                    }
                 }
             }
             TransformSignal::Predicted => 1,
-            TransformSignal::Override { .. } => 2,
+            TransformSignal::Override { .. } => 3,
         }
     }
 }
@@ -701,32 +726,32 @@ mod tests {
     #[test]
     fn neighbour_transforms_are_one_hot_per_slot() {
         let neighbours = NeighbourTransforms([
-            Some(TransformKind::Dst7),
-            Some(TransformKind::Dct2),
+            Some(TransformMode::MTS[0]),
+            Some(TransformMode::DCT2),
             None,
-            Some(TransformKind::Dct8),
+            Some(TransformMode::MTS[3]),
         ]);
         let one_hot = neighbours.one_hot();
-        assert_eq!(one_hot.len(), NEIGHBOUR_TRANSFORM_SLOTS * 3);
-        // Left is DST-VII.
+        assert_eq!(one_hot.len(), NEIGHBOUR_TRANSFORM_SLOTS * MODE_COUNT);
+        // Left is DST-VII/DST-VII.
         assert_eq!(
-            one_hot[0 * 3 + TransformKind::Dst7.as_index() as usize],
+            one_hot[0 * MODE_COUNT + TransformMode::MTS[0].as_index() as usize],
             1.0
         );
-        // Above is DCT-II.
+        // Above is the plain DCT-II.
         assert_eq!(
-            one_hot[1 * 3 + TransformKind::Dct2.as_index() as usize],
+            one_hot[1 * MODE_COUNT + TransformMode::DCT2.as_index() as usize],
             1.0
         );
         // Above-left does not exist, so its slot is empty.
-        assert_eq!(one_hot[2 * 3..3 * 3], [0.0, 0.0, 0.0]);
-        // Above-right is DCT-VIII.
+        assert_eq!(one_hot[2 * MODE_COUNT..3 * MODE_COUNT], [0.0; MODE_COUNT]);
+        // Above-right is DCT-VIII/DCT-VIII.
         assert_eq!(
-            one_hot[3 * 3 + TransformKind::Dct8.as_index() as usize],
+            one_hot[3 * MODE_COUNT + TransformMode::MTS[3].as_index() as usize],
             1.0
         );
-        // Every slot has exactly one transform set, so the whole vector
-        // sums to the number of occupied slots.
+        // Every slot has exactly one mode set, so the whole vector sums
+        // to the number of occupied slots.
         assert_eq!(one_hot.iter().sum::<f32>(), 3.0);
     }
 
@@ -768,8 +793,8 @@ mod tests {
     #[test]
     fn predictor_is_deterministic() {
         let predictor = TransformPredictor {
-            biases: [0.0, 1.0, -1.0],
-            weights: [[0.0; GeometryFeatures::LEN]; 3],
+            biases: [0.0, 1.0, -1.0, 0.0, 0.0],
+            weights: [[0.0; GeometryFeatures::LEN]; MODE_COUNT],
             model_version: "test".into(),
         };
         let features = extract_features(
@@ -782,14 +807,14 @@ mod tests {
         let a = predictor.predict(&features);
         let b = predictor.predict(&features);
         assert_eq!(a, b);
-        assert_eq!(a, TransformKind::Dct8, "highest bias wins");
+        assert_eq!(a, TransformMode::MTS[0], "highest bias wins");
     }
 
     #[test]
     fn model_json_round_trips() {
         let mut predictor = TransformPredictor {
-            biases: [0.1, 0.2, 0.3],
-            weights: [[0.0; GeometryFeatures::LEN]; 3],
+            biases: [0.1, 0.2, 0.3, 0.4, 0.5],
+            weights: [[0.0; GeometryFeatures::LEN]; MODE_COUNT],
             model_version: "v1".into(),
         };
         predictor.weights[2][0] = 1.5;
@@ -806,30 +831,42 @@ mod tests {
             "{\"biases\":[1,2,3],\"weights\":[[1,2],[3,4],[5,6]]}"
         )
         .is_err());
+        // A model with the wrong number of classes is rejected, so a
+        // model trained for the three-transform set cannot be used with
+        // the five-mode set.
+        assert!(TransformPredictor::from_json(
+            "{\"biases\":[1,2,3],\"weights\":[[1,2],[3,4],[5,6]]}"
+        )
+        .is_err());
     }
 
     #[test]
     fn signal_costs_are_as_documented() {
-        // The explicit mode uses a truncated binary code: one bin for the
-        // first transform, two for the others.
+        // The explicit mode codes the mode the way ITU-T H.266 codes
+        // `mts_idx`: one bin for the plain DCT-II, three for a multiple
+        // transform selection mode.
         assert_eq!(
-            TransformSignal::Explicit(TransformKind::Dct2).bin_count(),
+            TransformSignal::Explicit(TransformMode::DCT2).bin_count(),
             1
         );
         assert_eq!(
-            TransformSignal::Explicit(TransformKind::Dct8).bin_count(),
+            TransformSignal::Explicit(TransformMode::MTS[0]).bin_count(),
             2
         );
+        assert_eq!(
+            TransformSignal::Explicit(TransformMode::MTS[3]).bin_count(),
+            5
+        );
         // The inferred mode always spends one bin on the override flag,
-        // and one more when the prediction was wrong.
+        // and two more when the prediction was wrong.
         assert_eq!(TransformSignal::Predicted.bin_count(), 1);
         assert_eq!(
             TransformSignal::Override {
-                predicted: TransformKind::Dct2,
-                actual: TransformKind::Dst7,
+                predicted: TransformMode::DCT2,
+                actual: TransformMode::MTS[0],
             }
             .bin_count(),
-            2
+            3
         );
     }
 }

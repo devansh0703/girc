@@ -18,8 +18,16 @@ from typing import Iterable, Iterator, Sequence
 
 import numpy as np
 
-# The transform classes, in the order `girc-core` indexes them.
-TRANSFORM_NAMES = ("DCT-II", "DCT-VIII", "DST-VII")
+# The transform modes, in the order `girc-core` indexes them. These are
+# ITU-T H.266's multiple transform selection modes: the plain DCT-II, then
+# the four per-axis combinations of DCT-VIII and DST-VII.
+TRANSFORM_NAMES = (
+    "DCT-II",
+    "DST-VII/DST-VII",
+    "DCT-VIII/DST-VII",
+    "DST-VII/DCT-VIII",
+    "DCT-VIII/DCT-VIII",
+)
 NUM_CLASSES = len(TRANSFORM_NAMES)
 
 # The feature layout, matching `girc_core::geometry::GeometryFeatures`:

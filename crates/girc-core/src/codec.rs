@@ -29,7 +29,7 @@ use crate::geometry::{
 };
 use crate::intra::{predict, IntraMode, ReferenceSamples};
 use crate::quant::{dequantize, dequantize_with, quantize_with, sse, QuantParams};
-use crate::transform::{forward, inverse, TransformKind};
+use crate::transform::{forward_mode, inverse_mode, TransformMode};
 
 /// The block size GIRC codes, in samples.
 pub const BLOCK_SIZE: usize = 8;
@@ -52,7 +52,7 @@ const NUM_CONTEXTS: usize = 16;
 /// neighbouring blocks.
 #[derive(Debug, Clone, Default)]
 pub struct TransformMap {
-    kinds: Vec<Option<TransformKind>>,
+    kinds: Vec<Option<TransformMode>>,
     blocks_x: usize,
 }
 
@@ -66,11 +66,11 @@ impl TransformMap {
     }
 
     /// Record the transform a block used.
-    pub fn set(&mut self, bx: usize, by: usize, kind: TransformKind) {
-        self.kinds[by * self.blocks_x + bx] = Some(kind);
+    pub fn set(&mut self, bx: usize, by: usize, mode: TransformMode) {
+        self.kinds[by * self.blocks_x + bx] = Some(mode);
     }
 
-    fn get(&self, bx: usize, by: usize) -> Option<TransformKind> {
+    fn get(&self, bx: usize, by: usize) -> Option<TransformMode> {
         let index = by.checked_mul(self.blocks_x)?.checked_add(bx)?;
         self.kinds.get(index).copied().flatten()
     }
@@ -108,7 +108,10 @@ const CTX_COEF_GREATER2: usize = 4;
 const CTX_COEF_SIGN: usize = 5;
 const CTX_COEF_EXP_GOLOMB: usize = 8;
 const CTX_TRANSFORM_OVERRIDE: usize = 6;
-const CTX_TRANSFORM_TYPE: usize = 7;
+/// Whether the block uses a multiple transform selection mode at all.
+const CTX_TRANSFORM_MTS: usize = 7;
+/// The bits of the mode index.
+const CTX_TRANSFORM_INDEX: usize = 9;
 
 /// A luma picture.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -410,7 +413,7 @@ pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Picture, Codec
             };
 
             let dequantized = dequantize(&levels, header.qp as i32);
-            let samples = inverse(transform, BLOCK_SIZE, &dequantized)
+            let samples = inverse_mode(transform, BLOCK_SIZE, &dequantized)
                 .map_err(|e| CodecError::Predictor(e.to_string()))?;
             let prediction = predict(mode, BLOCK_SIZE, &reference);
 
@@ -436,7 +439,7 @@ fn rd_cost(distortion: i64, bits: f32, lambda: f32) -> f32 {
 /// The candidate for one intra mode and one transform.
 #[derive(Clone)]
 struct Candidate {
-    transform: TransformKind,
+    transform: TransformMode,
     levels: Vec<i32>,
     reconstruction: Vec<i32>,
     cost: f32,
@@ -448,7 +451,7 @@ fn evaluate(
     reference: &ReferenceSamples,
     config: &EncoderConfig,
     mode: IntraMode,
-    transform: TransformKind,
+    transform: TransformMode,
 ) -> Option<Candidate> {
     let prediction = predict(mode, BLOCK_SIZE, reference);
     let residual: Vec<i32> = original
@@ -456,11 +459,11 @@ fn evaluate(
         .zip(prediction.iter())
         .map(|(o, p)| *o as i32 - p)
         .collect();
-    let coefficients = forward(transform, BLOCK_SIZE, &residual).ok()?;
+    let coefficients = forward_mode(transform, BLOCK_SIZE, &residual).ok()?;
     let params = QuantParams::new(config.qp, BLOCK_SIZE);
     let levels = quantize_with(&coefficients, &params);
     let dequantized = dequantize_with(&levels, &params);
-    let samples = inverse(transform, BLOCK_SIZE, &dequantized).ok()?;
+    let samples = inverse_mode(transform, BLOCK_SIZE, &dequantized).ok()?;
     let reconstruction: Vec<i32> = prediction
         .iter()
         .zip(samples.iter())
@@ -495,7 +498,7 @@ fn choose_mode(original: &[u8], reference: &ReferenceSamples, config: &EncoderCo
     let mut best_cost = f32::INFINITY;
     for mode in IntraMode::all() {
         let mut mode_cost = f32::INFINITY;
-        for transform in TransformKind::ALL {
+        for transform in TransformMode::ALL {
             if let Some(candidate) = evaluate(original, reference, config, mode, transform) {
                 mode_cost = mode_cost.min(candidate.cost);
             }
@@ -519,12 +522,12 @@ fn choose_transform(
     reference: &ReferenceSamples,
     config: &EncoderConfig,
     mode: IntraMode,
-    predicted: Option<TransformKind>,
-) -> (TransformKind, Vec<i32>, Vec<i32>, f32) {
+    predicted: Option<TransformMode>,
+) -> (TransformMode, Vec<i32>, Vec<i32>, f32) {
     let mut best: Option<Candidate> = None;
     let mut predicted_candidate: Option<Candidate> = None;
 
-    for transform in TransformKind::ALL {
+    for transform in TransformMode::ALL {
         let Some(candidate) = evaluate(original, reference, config, mode, transform) else {
             continue;
         };
@@ -571,7 +574,7 @@ pub fn search_block(
     original: &[u8],
     reference: &ReferenceSamples,
     config: &EncoderConfig,
-) -> (IntraMode, TransformKind, Vec<i32>, Vec<i32>, f32) {
+) -> (IntraMode, TransformMode, Vec<i32>, Vec<i32>, f32) {
     let mode = choose_mode(original, reference, config);
     let (transform, levels, reconstruction, cost) =
         choose_transform(original, reference, config, mode, None);
@@ -684,11 +687,19 @@ fn decode_intra_mode(decoder: &mut BinDecoder) -> Result<IntraMode, CodecError> 
 /// rather than the three a naive design would need.
 fn code_transform_signal(encoder: &mut BinEncoder, signal: TransformSignal) {
     match signal {
-        TransformSignal::Explicit(kind) => {
-            let index = kind.as_index();
-            encoder.encode(CTX_TRANSFORM_TYPE, index > 0);
-            if index > 0 {
-                encoder.encode(CTX_TRANSFORM_TYPE, index > 1);
+        TransformSignal::Explicit(mode) => {
+            // The syntax is the one ITU-T H.266 uses for `mts_idx`: a bin
+            // saying whether a multiple transform selection mode is used
+            // at all, and, when one is, a truncated unary code over the
+            // four modes. The reference implementation codes it the same
+            // way, in CABACWriter::mts_idx.
+            let index = mode.as_index();
+            encoder.encode(CTX_TRANSFORM_MTS, index > 0);
+            for i in 0..3 {
+                if index <= i {
+                    break;
+                }
+                encoder.encode(CTX_TRANSFORM_INDEX, index > i + 1);
             }
         }
         TransformSignal::Predicted => {
@@ -696,22 +707,29 @@ fn code_transform_signal(encoder: &mut BinEncoder, signal: TransformSignal) {
         }
         TransformSignal::Override { predicted, actual } => {
             encoder.encode(CTX_TRANSFORM_OVERRIDE, true);
-            encoder.encode(CTX_TRANSFORM_TYPE, override_bit(predicted, actual));
+            // The actual mode is one of the four the prediction rules
+            // out, so two bins select it.
+            let remaining = remaining_modes(predicted);
+            let position = remaining
+                .iter()
+                .position(|m| *m == actual)
+                .expect("the actual mode differs from the prediction");
+            encoder.encode(CTX_TRANSFORM_INDEX, position & 2 != 0);
+            encoder.encode(CTX_TRANSFORM_INDEX, position & 1 != 0);
         }
     }
 }
 
-/// The bit that selects between the two transforms a prediction rules out.
+/// The four modes a prediction rules out, in canonical order.
 ///
-/// The transforms are ordered canonically, and the predicted one is
-/// removed, so the two that remain have a well-defined order.
-fn override_bit(predicted: TransformKind, actual: TransformKind) -> bool {
-    let remaining: Vec<TransformKind> = TransformKind::ALL
+/// The order is fixed, so the encoder and the decoder derive the same
+/// list from the same prediction without signalling it.
+fn remaining_modes(predicted: TransformMode) -> Vec<TransformMode> {
+    TransformMode::ALL
         .iter()
         .copied()
-        .filter(|k| *k != predicted)
-        .collect();
-    remaining[1] == actual
+        .filter(|m| *m != predicted)
+        .collect()
 }
 
 /// Decode the transform signal, reconstructing the decoder's prediction when
@@ -725,22 +743,26 @@ fn decode_transform_signal(
     block: (usize, usize),
     mode: IntraMode,
     qp: i32,
-) -> Result<TransformKind, CodecError> {
-    // The explicit mode has no override flag; the transform type is coded
-    // directly.
+) -> Result<TransformMode, CodecError> {
+    // The explicit mode has no override flag; the mode is coded
+    // directly, with the same syntax the encoder used.
     if signalling == TransformSignalling::Explicit {
-        let first = decoder.decode(CTX_TRANSFORM_TYPE)?;
-        let index = if first {
-            if decoder.decode(CTX_TRANSFORM_TYPE)? {
-                2
-            } else {
-                1
+        let is_mts = decoder.decode(CTX_TRANSFORM_MTS)?;
+        let index = if is_mts {
+            // The truncated unary code, read the way the encoder wrote it.
+            let mut index = 1u8;
+            for i in 0..3 {
+                if !decoder.decode(CTX_TRANSFORM_INDEX)? {
+                    break;
+                }
+                index = (i + 2) as u8;
             }
+            index
         } else {
             0
         };
-        return TransformKind::from_index(index)
-            .ok_or_else(|| CodecError::Predictor(format!("unknown transform type {index}")));
+        return TransformMode::from_index(index)
+            .ok_or_else(|| CodecError::Predictor(format!("unknown transform mode {index}")));
     }
 
     let override_flag = decoder.decode(CTX_TRANSFORM_OVERRIDE)?;
@@ -749,13 +771,12 @@ fn decode_transform_signal(
     if !override_flag {
         return Ok(predicted);
     }
-    let bit = decoder.decode(CTX_TRANSFORM_TYPE)?;
-    let remaining: Vec<TransformKind> = TransformKind::ALL
-        .iter()
-        .copied()
-        .filter(|k| *k != predicted)
-        .collect();
-    Ok(if bit { remaining[1] } else { remaining[0] })
+    // Two bins select among the four modes the prediction rules out.
+    let high = decoder.decode(CTX_TRANSFORM_INDEX)?;
+    let low = decoder.decode(CTX_TRANSFORM_INDEX)?;
+    let position = (high as usize) * 2 + low as usize;
+    let remaining = remaining_modes(predicted);
+    Ok(remaining[position])
 }
 
 /// Code the quantized residual levels.
@@ -921,7 +942,7 @@ pub struct TrainingExample {
     /// The geometry features of the block's causal neighbourhood.
     pub features: GeometryFeatures,
     /// The transform the rate-distortion search chose.
-    pub transform: TransformKind,
+    pub transform: TransformMode,
 }
 
 /// Collect training examples by running the encoder's own block loop.
