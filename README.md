@@ -35,7 +35,7 @@ The mechanism removes the explicit signalling of the transform mode and
 replaces it with the decoder's own prediction of it. Over twelve
 Xiph.Org CIF sequences at QP 22 to 37, on the current model:
 
-| Margin (bits) | Mean BD-rate | Prediction mismatch |
+| Margin (RD-cost units) | Mean BD-rate | Prediction mismatch |
 |---|---|---|
 | 0 | +0.137% | 58.0% |
 | 25 | −0.055% | 55.3% |
@@ -57,16 +57,14 @@ design, against an MTS-disabled anchor.
 
 **The rate-distortion margin is the only part of the disclosure that
 the prior art does not reach.** The claim text of ten references was
-extracted and read; every reference derives the transform implicitly,
-four read reconstructed data, four select the horizontal and the
-vertical transform separately, two use training data, and two signal
-the transform only when the decoder's own state does not already hold
-it. No claim in any of them reads a threshold, a margin, a sub-optimal
-choice, or a trade of distortion against signalling. The search, the
-claim charts and the quotations are in
+extracted and read, and the findings are:
+E1 implicit derivation in 10, E2 reconstructed-neighbourhood geometry in 3, E3 per-axis selection in 6, E4 the rate-distortion margin in 0, E5 trained prediction in 2, E6 prediction-relative correction in 2.
+No claim in any of them reads a threshold, a margin, a sub-optimal choice,
+or a trade of distortion against signalling. The search, the claim charts
+and the quotations are in
 [the prior art report](research/patent-package/PRIOR_ART.md), and every
-quotation in it is checked against the extracted claim text by the
-test suite.
+quotation in it, and every cell of its result table, is checked against
+the extracted claim text by the test suite.
 
 ## Building
 

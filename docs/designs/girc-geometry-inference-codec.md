@@ -212,19 +212,23 @@ VVC's implicit MTS shows the general trick: transform type is a function of
 already-coded information, so it needs no signalling bits. GIRC generalises
 it to *geometry*:
 
-- The encoder, at a transform unit, has a candidate set of transforms
-  (DCT-II, DST-VII, DCT-VIII — the VVC MTS set, from the spec matrices).
-- Instead of signalling which one won, the decoder **predicts** the transform
+- The encoder, at a transform unit, has a candidate set of transform
+  **modes**, each of which is a per-axis pair drawn from VVC's actual MTS
+  set (DCT-II, DST-VII, DCT-VIII), taken from the spec matrices. The shipped
+  codec uses five modes: (DCT-II,DCT-II), (DST-VII,DST-VII),
+  (DCT-VIII,DST-VII), (DST-VII,DCT-VIII), (DCT-VIII,DCT-VIII).
+- Instead of signalling which one won, the decoder **predicts** the mode
   from spatial structure that both sides already have: the reconstructed
   neighbour samples around the unit, whose local gradient/edge orientation
   indicates which transform family will compress the residual best.
-- The encoder then signals only a **correction bit**: "my RDO choice differs
-  from the prediction" plus the explicit type when it does. Zero bits when
-  the prediction is right.
-- The predictor is a trained model (logistic regression / gradient-boosted
-  stumps over orientation-histogram features of the causal neighbourhood),
-  shipped as a frozen, versioned artifact, so encoder and decoder are
-  guaranteed bit-identical.
+- The encoder then signals only a **correction**, and only when its RDO
+  choice is not the predicted one. The correction is relative to the
+  prediction, and selects among the four non-predicted modes. Zero bits
+  when the prediction is right.
+- The predictor is a trained model — two per-axis logistic regressors over
+  a 2-D structure tensor of the causal neighbourhood, plus the decoded
+  neighbours' own transform modes — shipped as a frozen, versioned artifact,
+  so encoder and decoder are guaranteed bit-identical.
 
 This is precisely the brief's "geometry-transform inference lets a video codec
 infer some transforms instead of sending each one", and it is precisely the
@@ -255,16 +259,57 @@ quality.* That claim is testable, and this project tests it.
 
 - Does the trained predictor generalise across content (natural video vs.
   screen content vs. animation)? The answer decides whether the model is one
-  artifact or per-segment.
+  artifact or per-segment. **Still open.** The current model is trained on
+  natural CIF content only.
 - What is the true decode-complexity cost of the orientation feature
   extraction? If it is not near-free, the claim narrows to specific
-  conditions.
+  conditions. **Still open.** The feature extraction is a fixed 16x16
+  structure tensor plus four neighbour mode lookups per block, and it is
+  paid on the decode side for every block.
 - Can the mechanism extend to inter prediction / matrix-weighted intra, or is
-  it intra-only? This decides whether the IP is one patent or a family, and
-  therefore whether premise 4 holds.
+  it intra-only? **Answered: it extends to inter, and the extension is
+  weaker than the intra case.** Integer-pel single-reference inter prediction
+  is implemented and measured. The raw inter mismatch rate is consistently
+  lower than the intra one, but the gain over the majority-class baseline is
+  smaller, because the inter class distribution is more concentrated. So
+  inter blocks are *easier* in the raw sense and *harder* to beat the
+  baseline on. The IP is one patent covering a shared prediction path, not
+  two.
 - Who is the independent codec lab? The brief requires third-party
   verification before public release; a named lab is an early external
-  dependency, not a late one.
+  dependency, not a late one. **Still open, and outside what code can do.**
+
+## What the build actually found
+
+These are the results that the design doc's own success criteria asked for,
+as measured. The full numbers are in the root README and in
+`research/patent-package/REPRODUCIBILITY.md`.
+
+- The transform unit is bit-exact against Fraunhofer HHI's VVenC 1.14.0
+  for all sixteen per-axis mode and size combinations, not just the twelve
+  originally planned.
+- The mechanism's net effect is a **small** win. The best margin in the
+  intra-only sweep is −0.106% mean BD-rate, and it is negative on some
+  sequences and positive on others. The three-transform result of −0.226%
+  quoted in earlier notes was a different, superseded configuration and is
+  not the headline.
+- The reason the win is small is measurable. The joint five-class mode is
+  barely predictable (44.98% against a 44.31% majority baseline), because
+  the rate-distortion choice between the modes is close to a tie. The
+  implementation therefore predicts the two axes separately and composes
+  them, which reaches 51.75% on one axis.
+- The RD-cost margin is the part of the disclosure the prior art does not
+  reach. The claim text of ten references was extracted and read, and the
+  findings are:
+  E1 implicit derivation in 10, E2 reconstructed-neighbourhood geometry in 3, E3 per-axis selection in 6, E4 the rate-distortion margin in 0, E5 trained prediction in 2, E6 prediction-relative correction in 2.
+  Not one of them reads a threshold, a margin, a sub-optimal choice, or a
+  trade of distortion against signalling. That is the surviving claim, and
+  it is narrow.
+- A claim-level search also found earlier art than the design doc assumed:
+  Thomson Licensing's EP2991352A1 and US9357221B2 reach reconstructed-data-
+  derived, trained, per-axis transform selection and prediction-relative
+  correction. The broad claim space is materially narrower than the design
+  doc assumed.
 
 ## Success Criteria
 

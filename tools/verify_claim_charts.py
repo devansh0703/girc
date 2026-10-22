@@ -23,6 +23,16 @@ ROOT = Path(__file__).resolve().parent.parent
 CLAIMS = ROOT / "research" / "patent-package" / "claims"
 CHARTS = ROOT / "research" / "patent-package" / "claim_charts.json"
 
+#: The elements of the disclosure, in the order the chart holds them.
+ELEMENTS = [
+    "E1_implicit",
+    "E2_geometry",
+    "E3_per_axis",
+    "E4_margin",
+    "E5_learned",
+    "E6_correction",
+]
+
 
 def flatten(text: str) -> str:
     """The text as it reads, with the PDF's artefacts removed.
@@ -95,6 +105,80 @@ def similarity(quote: str, text: str) -> float:
     return best
 
 
+def check_result_table(report: str, charts: dict) -> int:
+    """Check the report's result table against the chart.
+
+    The table is the one place the per-reference findings are set out in
+    a form a reader can check at a glance, so it has to agree with the
+    chart it is drawn from. A hand-typed table drifts, so the cells are
+    compared with the chart's own findings.
+    """
+    # The columns of the table, in the order the chart holds the
+    # elements.
+    order = ELEMENTS
+    # The header names the elements, and they must be in the chart's
+    # order for the cells to line up.
+    header = re.search(r"^\|\s*Reference\s*\|.*$", report, re.M)
+    if header is None:
+        print("FAIL result table: no header row")
+        return 1
+    columns = [c.strip() for c in header.group(0).split("|")][1:-1]
+    element_columns = columns[3:]
+    if len(element_columns) != len(order):
+        print(f"FAIL result table: {len(element_columns)} element columns, expected {len(order)}")
+        return 1
+
+    failures = 0
+    seen = set()
+    for line in report.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.split("|")][1:-1]
+        if len(cells) != len(columns):
+            continue
+        number = cells[0]
+        if number not in charts:
+            continue
+        seen.add(number)
+        chart = charts[number]
+        for column, element in zip(element_columns, order):
+            marked = "●" in cells[3 + order.index(element)]
+            present = chart["elements"][element]["present"]
+            if marked != present:
+                failures += 1
+                print(f"FAIL result table {number} {element}: table says {marked}, chart says {present}")
+    missing = set(charts) - seen
+    if missing:
+        failures += len(missing)
+        print(f"FAIL result table: no row for {sorted(missing)}")
+    return failures
+
+
+def counts_sentence(charts: dict) -> str:
+    """The counts of the chart, in one sentence.
+
+    A document that reports how many references disclose each element
+    has to be right, and a hand-typed number drifts. The sentence is
+    built from the chart, and the documents are checked against it.
+    """
+    counts = {
+        element: sum(1 for chart in charts.values() if chart["elements"][element]["present"])
+        for element in ELEMENTS
+    }
+    names = {
+        "E1_implicit": "implicit derivation",
+        "E2_geometry": "reconstructed-neighbourhood geometry",
+        "E3_per_axis": "per-axis selection",
+        "E4_margin": "the rate-distortion margin",
+        "E5_learned": "trained prediction",
+        "E6_correction": "prediction-relative correction",
+    }
+    return ", ".join(
+        f"{element.split('_')[0]} {names[element]} in {counts[element]}"
+        for element in ELEMENTS
+    )
+
+
 def main() -> int:
     charts = json.loads(CHARTS.read_text())
     failures = 0
@@ -137,11 +221,29 @@ def main() -> int:
 
     print(f"{checked} quotes checked, {failures} not found")
 
+    # The documents that report the counts have to report them right, so
+    # the sentence they share is built from the chart and looked for in
+    # each of them.
+    sentence = counts_sentence(charts)
+    for name, path in (
+        ("README", ROOT / "README.md"),
+        ("design doc", ROOT / "docs" / "designs" / "girc-geometry-inference-codec.md"),
+    ):
+        if not path.exists():
+            continue
+        if sentence not in path.read_text():
+            failures += 1
+            print(f"FAIL {name}: the counts do not match the chart. Expected: {sentence}")
+
     # The report quotes the claims too, and those quotes are checked the
     # same way. A quotation of a title is not a claim, so it is not
     # checked.
     report = ROOT / "research" / "patent-package" / "PRIOR_ART.md"
     if report.exists():
+        table_failures = check_result_table(report.read_text(), charts)
+        print(f"result table checked, {table_failures} disagreeing cells")
+        failures += table_failures
+
         report_failures = 0
         report_checked = 0
         for quote in re.findall(r'\*"([^"]{40,})"\*', report.read_text()):
