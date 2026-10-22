@@ -17,14 +17,21 @@ was wrong.
 
 ### 1.1 The problem
 
-A VVC transform block is coded with one of three transforms: DCT-II,
-DCT-VIII or DST-VII. The encoder picks one by rate-distortion search, and
-the decoder learns which one from the bitstream. The signalling is pure
-overhead: it carries nothing the decoder could not have derived.
+A VVC transform block is coded with one of five *modes*: the plain DCT-II,
+or one of the four per-axis combinations of DCT-VIII and DST-VII that
+ITU-T H.266 clause 8.6.3 defines as multiple transform selection. The
+encoder picks one by rate-distortion search, and the decoder learns which
+one from the bitstream, through the `mts_idx` syntax element. The signalling
+is pure overhead: it carries nothing the decoder could not have derived.
 
 The reason it cannot be derived is that the choice looks random. It depends
 on the block's own residual, which the decoder has not yet seen. The
 encoder looks at the residual; the decoder cannot.
+
+The mode set is VVC's, not this package's. A mechanism that removed
+signalling of a single transform applied to both axes would be measuring
+something the standard does not do, and any claim drafted against it would
+be a claim about the wrong syntax element.
 
 ### 1.2 The mechanism
 
@@ -37,16 +44,25 @@ available on both sides at the same moment, so it can carry the choice.
 Three components:
 
 1. **Inference.** The decoder reads a two-dimensional causal window of its
-   own reconstruction and predicts the transform from its geometry: the
+   own reconstruction and predicts the *mode* from its geometry: the
    gradient orientation field, the per-axis energies, their correlation, the
-   intra prediction mode and the quantization parameter.
+   intra prediction mode, the quantization parameter, and the modes the
+   already-coded neighbouring blocks used.
 
-2. **Signalling.** The encoder spends one bin on whether the inference was
-   right. When it was wrong, one further bin selects between the two
-   transforms the inference ruled out. An override therefore costs two
-   bins, against the explicit mode's two, and the inference costs one.
+2. **Per-axis prediction.** The mode is a pair of per-axis transforms, and
+   the two are predicted independently and composed. This is the part of
+   the mechanism that makes it work, and §1.4 gives the measurement: the
+   joint mode is barely predictable, because the rate-distortion choice
+   between the modes is close to a tie, while each axis on its own is
+   markedly more predictable.
 
-3. **The margin.** The encoder may take a slightly worse transform than its
+3. **Signalling.** The encoder spends one bin on whether the inference was
+   right. When it was wrong, two further bins select between the four
+   modes the inference ruled out. The explicit mode codes the mode with
+   the standard's own `mts_idx` syntax, which is a flag bin followed by a
+   truncated unary code and therefore two to five bins.
+
+4. **The margin.** The encoder may take a slightly worse mode than its
    search found, when doing so costs less than the override would. This is
    the mechanism's rate-distortion knob, and it is what makes the mechanism
    work at all. See §1.4.
@@ -67,48 +83,67 @@ not anticipate:
   depends on the *content's* directional structure, not on a mode index.
 
 - **The encoder has a rate-distortion margin.** The encoder is not
-  obliged to signal the transform the search chose; it may take a
-  transform the decoder will infer, at a cost bounded in bits of rate. No
-  reference found derives the transform by rule and then lets the encoder
-  trade distortion against the signalling it would otherwise spend.
+  obliged to signal the mode the search chose; it may take a mode the
+  decoder will infer, at a cost bounded in bits of rate. No reference
+  found derives the mode by rule and then lets the encoder trade
+  distortion against the signalling it would otherwise spend.
+
+- **The prediction is per axis, and the axes are composed.** The prior art
+  that predicts a mode at all predicts it jointly or by table lookup on
+  syntax. Predicting the two axes separately, and composing them under
+  the standard's own rule that a mode is either the plain DCT-II on both
+  axes or a multiple transform selection mode in which neither axis is
+  the DCT-II, is not among them.
 
 ### 1.4 What the measurements actually show
 
-The honest result, from the repository's own benchmark:
+The result, from the repository's own benchmark, over twelve Xiph.Org CIF
+sequences at QP 22 to 37:
 
 | Margin (bits) | Mean BD-rate | Prediction mismatch |
 |---|---|---|
-| 0 | +0.146% | 53.0% |
-| 2 | +0.051% | 47.8% |
-| 5 | +0.051% | 47.6% |
-| **10** | **−0.064%** | 47.3% |
-| 20 | −0.006% | 46.8% |
-| 50 | +0.216% | 44.9% |
-| 100 | +0.222% | 41.2% |
-| 500 | +2.425% | 23.9% |
+| 0 | −0.018% | 56.9% |
+| 2 | −0.077% | 56.1% |
+| 5 | −0.091% | 56.0% |
+| 10 | −0.090% | 55.6% |
+| 20 | −0.120% | 55.0% |
+| **50** | **−0.226%** | 52.5% |
+| 100 | −0.170% | 47.9% |
+| 500 | +1.006% | 26.9% |
 
-At a margin of 10 bits the inferred mode is 0.064% smaller than the
-explicit mode, averaged over four Xiph.Org CIF sequences at QP 22 to 37.
-Without a margin the inferred mode is 0.146% *larger*, because the encoder
-takes the strictly optimal transform and overrides whenever the inference
-differs.
+At a margin of 50 bits the inferred mode is **0.226% smaller** than the
+explicit mode, and it is smaller on nine of the twelve sequences. The
+median is −0.231%. The best single sequence is `highway_cif` at −0.831%
+and the worst is `city_cif` at +0.378%.
 
-The mechanism is close to break-even, and the reason is measurable rather
-than mysterious. The predictability ceiling of the feature set, measured
-by fitting a gradient-boosted tree over the same features, is 56.44%
-against a 55.53% majority-class baseline. The transform choice is driven
-by the block's own residual, and the causal neighbourhood constrains it
-only weakly.
+The mechanism is a small win, and the reason it is not a larger one is
+measurable rather than mysterious. The predictability ceiling of the
+feature set, measured by fitting a gradient-boosted tree over the same
+features, depends on what is being predicted:
 
-The consequence is that with three transform types over a skewed
-distribution, the explicit signalling is already nearly free for a
-context-adaptive coder to code, and the distortion the inference costs
-exceeds the rate it saves.
+| Target | Ceiling | Majority class |
+|---|---|---|
+| The joint five-class mode | 44.98% | 44.31% |
+| One axis on its own | 51.75% | 44.31% |
 
-**This is a negative-leaning result, and it is reported as one.** It is
-also the most useful thing the package contains, because it establishes
-the mechanism's real envelope and shows a codec team where it would and
-would not pay. §1.5 states the conditions under which the trade changes.
+The joint mode is barely predictable, because the rate-distortion choice
+between the modes is close to a tie: the gap between the best and the
+second-best mode is under 10% of the distortion for half the blocks. Each
+axis on its own is markedly more predictable, because the geometry of a
+neighbourhood says more about the transform on one axis than about the
+mode as a whole.
+
+**That measurement is the mechanism's most useful result, and it is what
+the per-axis prediction is built on.** The implementation models the two
+axes separately and composes them, and the shipped model reaches 51.1% on
+the horizontal axis and 51.0% on the vertical one, against 44.31% for the
+constant majority predictor.
+
+Even so, the saving is 0.226% and not a headline number, and the report
+says so. The explicit signalling is already cheap for a context-adaptive
+coder to code, and the mechanism removes an overhead that is close to the
+distortion it costs to remove it. §1.5 states the conditions under which
+the trade changes.
 
 ### 1.5 Where the mechanism would pay
 
@@ -170,21 +205,30 @@ starting point for counsel, not a filing-ready set.
 >     samples of the video picture, a plurality of geometric features
 >     comprising at least a gradient orientation distribution over the
 >     neighbourhood;
-> (b) applying a trained prediction function to the features to obtain a
->     predicted transform type from a plurality of candidate transform
->     types;
-> (c) determining a candidate transform type for the current block by
->     rate-distortion optimisation over the candidate transform types;
-> (d) comparing the candidate transform type with the predicted transform
->     type and, when the difference in rate-distortion cost between them
+> (b) applying a first trained prediction function to the features to
+>     obtain a predicted transform type for a horizontal axis of the
+>     current block, and applying a second trained prediction function to
+>     the features to obtain a predicted transform type for a vertical
+>     axis of the current block, the first and second prediction functions
+>     being separately trained;
+> (c) combining the predicted transform types of the two axes to obtain a
+>     predicted transform mode, in which a predicted DCT-II on either axis
+>     yields a predicted transform mode of the plain DCT-II on both axes,
+>     and otherwise the predicted transform mode is the combination of the
+>     two predicted transform types;
+> (d) determining a candidate transform mode for the current block by
+>     rate-distortion optimisation over a plurality of candidate transform
+>     modes;
+> (e) comparing the candidate transform mode with the predicted transform
+>     mode and, when the difference in rate-distortion cost between them
 >     is within a margin expressed in units of rate, selecting the
->     predicted transform type in place of the candidate transform type;
-> (e) generating a coded representation of the current block using the
->     selected transform type; and
-> (f) writing to the coded representation a signal indicating whether the
->     selected transform type is the predicted transform type, and, when
->     it is not, an indication of which of the candidate transform types
->     other than the predicted transform type was selected.
+>     predicted transform mode in place of the candidate transform mode;
+> (f) generating a coded representation of the current block using the
+>     selected transform mode; and
+> (g) writing to the coded representation a signal indicating whether the
+>     selected transform mode is the predicted transform mode, and, when
+>     it is not, an indication of which of the candidate transform modes
+>     other than the predicted transform mode was selected.
 
 ### Claim 2 — the features
 
@@ -203,14 +247,14 @@ starting point for counsel, not a filing-ready set.
 ### Claim 4 — the signal
 
 > The method of claim 1, wherein the signal indicating which of the
-> candidate transform types was selected is a single bin selecting between
-> the candidate transform types other than the predicted transform type, in
-> a canonical order.
+> candidate transform modes was selected is two bins selecting between the
+> candidate transform modes other than the predicted transform mode, in a
+> canonical order.
 
 ### Claim 5 — the prediction function
 
-> The method of claim 1, wherein the prediction function is a multinomial
-> logistic regression over the features, and wherein the prediction
+> The method of claim 1, wherein each prediction function is a multinomial
+> logistic regression over the features, and wherein each prediction
 > function is trained on transform types selected by rate-distortion
 > optimisation during encoding of a training set.
 
