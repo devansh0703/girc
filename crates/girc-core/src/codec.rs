@@ -336,8 +336,7 @@ pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Picture, Codec
                 config,
                 header.signalling,
                 &picture,
-                bx,
-                by,
+                (bx, by),
                 mode,
                 header.qp as i32,
             )?;
@@ -660,8 +659,7 @@ fn decode_transform_signal(
     config: &EncoderConfig,
     signalling: TransformSignalling,
     picture: &Picture,
-    bx: usize,
-    by: usize,
+    block: (usize, usize),
     mode: IntraMode,
     qp: i32,
 ) -> Result<TransformKind, CodecError> {
@@ -683,7 +681,7 @@ fn decode_transform_signal(
     }
 
     let override_flag = decoder.decode(CTX_TRANSFORM_OVERRIDE)?;
-    let features = predict_features(picture, bx, by, mode, qp);
+    let features = predict_features(picture, block.0, block.1, mode, qp);
     let (predicted, _) = config.predictor.predict_with_margin(&features);
     if !override_flag {
         return Ok(predicted);

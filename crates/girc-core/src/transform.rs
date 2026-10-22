@@ -153,9 +153,9 @@ pub fn forward(kind: TransformKind, size: usize, block: &[i32]) -> Result<Block,
         });
     }
 
-    let shift_1st = (size.trailing_zeros() as u32) + BIT_DEPTH + TRANSFORM_MATRIX_SHIFT
-        - MAX_LOG2_TR_DYNAMIC_RANGE;
-    let shift_2nd = (size.trailing_zeros() as u32) + TRANSFORM_MATRIX_SHIFT;
+    let shift_1st =
+        size.trailing_zeros() + BIT_DEPTH + TRANSFORM_MATRIX_SHIFT - MAX_LOG2_TR_DYNAMIC_RANGE;
+    let shift_2nd = size.trailing_zeros() + TRANSFORM_MATRIX_SHIFT;
 
     // Pass 1: horizontal. `tmp[y][x]` holds the partially transformed value.
     let mut tmp = vec![0i32; size * size];

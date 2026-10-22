@@ -246,7 +246,7 @@ mod tests {
         // The reconstruction of a coefficient must be within one step of
         // it, at every quantization parameter. This is the property the
         // dead zone and the rounding together guarantee.
-        let coefficients: Vec<i32> = (0..64).map(|i| (i * 37 - 1200) as i32).collect();
+        let coefficients: Vec<i32> = (0..64).map(|i| i * 37 - 1200).collect();
         for qp in 0..=MAX_QP {
             let params = QuantParams::new(qp, 8);
             let levels = quantize_with(&coefficients, &params);
@@ -273,7 +273,7 @@ mod tests {
     fn quantize_dequantize_round_trips_within_the_step() {
         // The reconstruction must be within half a quantization step of the
         // original, which is the property the dead zone guarantees.
-        let coefficients: Vec<i32> = (0..64).map(|i| (i * 37 - 1200) as i32).collect();
+        let coefficients: Vec<i32> = (0..64).map(|i| i * 37 - 1200).collect();
         for qp in [0, 12, 24, 36, 51] {
             let params = QuantParams::new(qp, 8);
             let levels = quantize_with(&coefficients, &params);

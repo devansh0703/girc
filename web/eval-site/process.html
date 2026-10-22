@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Process — GIRC Evaluate</title>
+    <link rel="stylesheet" href="assets/site.css" />
+  </head>
+  <body>
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="index.html">GIRC<span>.</span>evaluate</a>
+        <nav class="site">
+          <a href="index.html">Overview</a>
+          <a href="process.html">Process</a>
+          <a href="scope.html">Scope</a>
+          <a href="https://eval.girc.invalid/register">Sign in</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="wrap narrow">
+        <section class="hero">
+          <div class="readout">PROCESS</div>
+          <h1>Five steps, and an audit log throughout.</h1>
+          <p class="lede">
+            The portal implements the evaluation lifecycle end to end. Every
+            state change is recorded with the actor, the time and the
+            address it came from.
+          </p>
+        </section>
+
+        <section>
+          <h2>1 · Register</h2>
+          <p>
+            An organisation creates an account. The first user becomes the
+            organisation's administrator, and may sign the agreement and
+            request evaluations. Passwords are hashed with Argon2id; the
+            plaintext is never stored.
+          </p>
+
+          <h2>2 · Sign the agreement</h2>
+          <p>
+            The confidential evaluation agreement is presented in full and
+            accepted explicitly. The version and the SHA-256 digest of the
+            accepted text are recorded, so a later change to the document
+            cannot retroactively alter what was agreed to. The agreement
+            covers what the package may be used for, that the results may be
+            published by the evaluator, that the package itself may not be
+            disclosed, and that it must be returned or destroyed at the end
+            of the evaluation.
+          </p>
+
+          <h2>3 · Request an evaluation</h2>
+          <p>
+            The organisation names the codec it wants to test against, the
+            content it plans to use, its sampling plan, and what it expects
+            the mechanism to do. A reviewer approves or declines the
+            request, and the decision and its note are recorded.
+          </p>
+
+          <h2>4 · Download the package</h2>
+          <p>
+            An approved organisation may request a download for any gated
+            artifact. The link is signed, time-limited, bound to the
+            artifact's digest and bound to the requesting user, so it cannot
+            be edited to fetch a different artifact, cannot be reused by
+            another user, and stops working when it expires. The artifact's
+            checksum is verified against the recorded digest.
+          </p>
+
+          <h2>5 · Submit results</h2>
+          <p>
+            The organisation uploads its results and its own account of what
+            it measured, including any BD-rate it computed. A reviewer
+            accepts or rejects the submission, and an accepted submission
+            closes the evaluation.
+          </p>
+        </section>
+
+        <div class="note">
+          <p>
+            <strong>What the audit log is for.</strong> It is append-only,
+            and the application never updates or deletes a row in it. It is
+            the record of who was given what and when, which is what a
+            confidentiality dispute turns on.
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>GIRC Evaluate.</div>
+        <div>
+          <a href="index.html">Overview</a>
+          <a href="scope.html">Scope</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

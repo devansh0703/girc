@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GIRC Evaluate — Confidential Evaluation</title>
+    <meta
+      name="description"
+      content="The confidential evaluation environment for the Geometry-Inference Codec: register your organisation, sign the agreement, and request an evaluation."
+    />
+    <link rel="stylesheet" href="assets/site.css" />
+  </head>
+  <body>
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="index.html">GIRC<span>.</span>evaluate</a>
+        <nav class="site">
+          <a href="index.html">Overview</a>
+          <a href="process.html">Process</a>
+          <a href="scope.html">Scope</a>
+          <a href="https://eval.girc.invalid/register">Sign in</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="wrap">
+        <section class="hero">
+          <div class="readout">CONFIDENTIAL EVALUATION ENVIRONMENT</div>
+          <h1>Bring your own codec.</h1>
+          <p class="lede">
+            The GIRC package is the reference implementation, the trained
+            predictor, the benchmark harness and the patent materials. The
+            evaluation exists to find out whether the mechanism helps in a
+            codec that is not ours.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="https://eval.girc.invalid/register"
+              >Register your organisation</a
+            >
+            <a class="btn" href="process.html">How the evaluation runs</a>
+            >
+          </div>
+        </section>
+
+        <section>
+          <h2>Why an evaluation rather than a paper</h2>
+          <p>
+            The published numbers come from GIRC, an intra-only research
+            codec with a small mode set, and they put the mechanism close to
+            break-even. That result is a starting point for an argument,
+            not the end of one. A codec team with a real VVC or AV1 encoder
+            can test the mechanism where the transform set is larger, where
+            the residual coding is richer, and where inter prediction is in
+            play.
+          </p>
+          <p>
+            The evaluation gives you the reference implementation, the
+            trained predictor and the benchmark harness, so the comparison
+            runs on your content and against your encoder rather than on
+            ours.
+          </p>
+        </section>
+
+        <section>
+          <h2>What you receive</h2>
+          <div class="grid">
+            <div class="cell">
+              <h3>Reference codec</h3>
+              <p>
+                The full Rust implementation with both signalling modes
+                behind one interface, its test suite, and the oracle that
+                checks the transform arithmetic against VVenC bit for bit.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Trained predictor</h3>
+              <p>
+                The model, the training set, its checksum and the pipeline
+                that produced it. The method, not only the weights, is what
+                is being evaluated.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Benchmark harness</h3>
+              <p>
+                The tool behind the published figures, with the anchor
+                codecs and the Bjontegaard implementation, so the
+                evaluation is reproducible on your own material.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Patent materials</h3>
+              <p>
+                The draft specification, the claim set, the drawings and the
+                prior-art analysis, in the form a patent counsel would need
+                to assess the filing.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2>What we ask of you</h2>
+          <div class="grid">
+            <div class="cell">
+              <h3>Keep it confidential</h3>
+              <p>
+                The package and the materials are the evaluator's
+                confidential information. You may use them to run the
+                evaluation and may publish your results.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Report honestly</h3>
+              <p>
+                Including when the mechanism does not help. A negative
+                result is worth more to the filing than a flattering one,
+                because it establishes the mechanism's real envelope.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Return it afterwards</h3>
+              <p>
+                At the end of the evaluation the package is destroyed and
+                the destruction confirmed. The results stay with us.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Talk to us</h3>
+              <p>
+                Especially about the case where the mechanism fails. That
+                is where the claim set has to be drawn carefully, and your
+                evidence is what draws it.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <div class="note">
+          <p>
+            <strong>A research evaluation, not a licence.</strong> Nothing
+            here grants any right in the evaluator's intellectual property.
+            A licence or an assignment is a separate conversation, and it
+            follows the evaluation rather than preceding it.
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>GIRC Evaluate — confidential evaluation environment.</div>
+        <div>
+          <a href="process.html">Process</a>
+          <a href="scope.html">Scope</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -477,10 +477,11 @@ impl TransformPredictor {
     /// the prediction or to override it: a confident prediction is worth
     /// spending the override bit on.
     pub fn predict_with_margin(&self, features: &GeometryFeatures) -> (TransformKind, f32) {
-        let mut logits = [0f32; 3];
-        for class in 0..3 {
-            logits[class] = self.logit(class, features);
-        }
+        let logits = [
+            self.logit(0, features),
+            self.logit(1, features),
+            self.logit(2, features),
+        ];
         let mut order = [0usize, 1, 2];
         order.sort_by(|a, b| {
             logits[*b]

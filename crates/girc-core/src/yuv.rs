@@ -195,9 +195,9 @@ impl Yuv4Frame {
         let file = File::create(path)
             .with_context(|| format!("creating the Y4M file at {}", path.display()))?;
         let mut writer = BufWriter::new(file);
-        write!(
+        writeln!(
             writer,
-            "YUV4MPEG2 W{} H{} F{}:{} Ip A1:1 C420jpeg\n",
+            "YUV4MPEG2 W{} H{} F{}:{} Ip A1:1 C420jpeg",
             self.width, self.height, self.fps_num, self.fps_den
         )?;
         writer.write_all(b"FRAME\n")?;
@@ -243,15 +243,10 @@ pub fn count_frames(path: &Path) -> Result<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write as _;
 
     fn write_test_y4m(path: &Path, width: usize, height: usize, frames: usize) {
         let mut file = File::create(path).unwrap();
-        write!(
-            file,
-            "YUV4MPEG2 W{width} H{height} F25:1 Ip A1:1 C420jpeg\n"
-        )
-        .unwrap();
+        writeln!(file, "YUV4MPEG2 W{width} H{height} F25:1 Ip A1:1 C420jpeg").unwrap();
         for _ in 0..frames {
             file.write_all(b"FRAME\n").unwrap();
             file.write_all(&vec![80u8; width * height]).unwrap();

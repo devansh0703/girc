@@ -192,8 +192,9 @@ fn solve(a: &mut [[f64; 4]; 4], b: &[f64; 4]) -> Option<[f64; 4]> {
 
         for row in (col + 1)..4 {
             let factor = m[row][col] / m[col][col];
-            for k in col..4 {
-                m[row][k] -= factor * m[col][k];
+            let pivot_row = m[col];
+            for (k, cell) in m[row].iter_mut().enumerate().skip(col) {
+                *cell -= factor * pivot_row[k];
             }
             rhs[row] -= factor * rhs[col];
         }
@@ -593,7 +594,6 @@ fn run_margin_sweep(
     qps: &[i32],
     predictor: &TransformPredictor,
     margins: &[f32],
-    work_dir: &Path,
 ) -> Result<Vec<MarginPoint>> {
     let mut points = Vec::new();
 
@@ -782,13 +782,7 @@ fn main() -> Result<()> {
     // so the main report stays a single configuration.
     let margin_sweep = match &args.margin_sweep {
         None => None,
-        Some(margins) => Some(run_margin_sweep(
-            &args.sequence,
-            &qps,
-            &predictor,
-            margins,
-            &args.work_dir,
-        )?),
+        Some(margins) => Some(run_margin_sweep(&args.sequence, &qps, &predictor, margins)?),
     };
 
     let report = Report {

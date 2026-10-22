@@ -1,0 +1,20 @@
+GIRC — Geometry-Inference Codec
+Copyright 2026 the GIRC authors
+
+This product includes software developed by third parties:
+
+* The integer transform matrices in crates/girc-core/src/transform_tables.rs
+  are generated from Fraunhofer HHI's VVenC, which is distributed under the
+  BSD 3-Clause Licence. The generator is tools/extract_transform_tables.sh
+  and the provenance is recorded in the file's header.
+
+* The transform oracle in tools/transform_oracle.c links Fraunhofer HHI's
+  VVenC to produce reference vectors. VVenC is distributed under the BSD
+  3-Clause Licence.
+
+* The evaluation portal depends on FastAPI, Starlette, SQLAlchemy,
+  Jinja2, argon2-cffi and itsdangerous, each under its own permissive
+  licence.
+
+* The benchmark harness invokes x265, SVT-AV1 and VVenC as external
+  encoders. It does not link against them.

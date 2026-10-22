@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache the build
+        uses: Swatinem/rust-lang-cache@v2
+
+      - name: Check the formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Build
+        run: cargo build --workspace --release
+
+      - name: Test
+        run: cargo test --workspace
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache the dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('apps/portal/requirements.txt') }}
+
+      - name: Install the dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r apps/portal/requirements.txt
+          pip install -r python/girc-train/requirements.txt
+
+      - name: Test the evaluation portal
+        env:
+          PYTHONPATH: apps/portal
+        run: pytest apps/portal/tests -q
+
+  transform-oracle:
+    name: Transform oracle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake git
+
+      - name: Build VVenC
+        run: |
+          git clone --depth 1 --branch v1.14.0 \
+            https://github.com/fraunhoferhhi/vvenc.git data/tools/vvenc-src
+          cmake -S data/tools/vvenc-src -B data/tools/vvenc-src/build \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build data/tools/vvenc-src/build --config Release -j 2
+
+      - name: Generate the reference vectors
+        run: |
+          ./tools/generate_transform_oracle.sh
+
+      - name: Check the transforms against VVenC
+        run: cargo test -p girc-core transform
+
+  sites:
+    name: Sites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that every page links to a page that exists
+        run: |
+          python3 - <<'PY'
+          import re, sys
+          from pathlib import Path
+
+          failed = False
+          for site in ("web/girc-site", "web/eval-site"):
+              root = Path(site)
+              for page in sorted(root.glob("*.html")):
+                  text = page.read_text()
+                  for target in re.findall(r'href="([^"#:]+)"', text):
+                      if target.startswith(("http", "mailto:", "/")):
+                          continue
+                      resolved = (page.parent / target).resolve()
+                      if not resolved.exists():
+                          print(f"{page}: broken link to {target}")
+                          failed = True
+          sys.exit(1 if failed else 0)
+          PY
