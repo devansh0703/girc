@@ -182,6 +182,7 @@ def encode_reference(
     options the check needs. The two runs differ only in whether the
     trace is written, and the bitstreams have to be identical.
     """
+    work.mkdir(parents=True, exist_ok=True)
     output = work / f"{name}.266"
     command = [
         str(vvenc.parent / binary),
