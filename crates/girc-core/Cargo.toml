@@ -9,5 +9,6 @@ authors.workspace = true
 description = "Geometry-Inference Reference Codec core: VVC integer transforms and the geometry-inference transform selection mechanism."
 
 [dependencies]
+constriction = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
