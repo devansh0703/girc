@@ -16,6 +16,8 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[-]` cut
 - [x] girc-bench: the dataset harness, three anchors, the BD-rate
       implementation and the margin sweep
 - [x] girc-train: the collection, fit, export and evaluation pipeline
+- [x] girc-core: the 4:2:0 chroma planes, the chroma quantization
+      parameter mapping, and the separate luma and chroma payloads
 
 ## Product B — Evaluation portal (apps/portal)
 - [x] organisation accounts, authentication and roles
@@ -72,8 +74,15 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[-]` cut
       set were not searched. That needs a patent attorney.
 - [ ] A VVC-conformant bitstream. GIRC measures the mechanism with its
       own format, which isolates the signalling and nothing else.
-- [ ] Chroma. GIRC codes the luma plane; the chroma planes are carried
-      by the Y4M layer and not coded.
+- [x] Chroma. The 4:2:0 chroma planes are coded: the plain DCT-II, as
+      H.266 4:2:0 requires; the mapped chroma quantization parameter,
+      checked against the reference encoder for every quantization
+      parameter; a four by four chroma grid, one block per luma block;
+      and the chroma motion derived from the luma motion, as H.266
+      does. The luma and chroma payloads are separate, so the luma
+      rate and the whole-frame rate can be measured separately, and
+      the benchmark reports both. The anchor comparison is now a
+      like-for-like one: both sides code all three planes.
 - [ ] A deployment of the evaluation portal: TLS, a reverse proxy, real
       secret injection, backups and distributed rate limiting.
 

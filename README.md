@@ -19,7 +19,7 @@ results.
 
 | Path | What it is |
 |---|---|
-| `crates/girc-core` | The codec: VVC-exact integer transforms, intra prediction, quantization, a context-adaptive entropy coder, and both signalling modes |
+| `crates/girc-core` | The codec: VVC-exact integer transforms, intra and inter prediction, 4:2:0 chroma, quantization, a context-adaptive entropy coder, and both signalling modes |
 | `crates/girc-cli` | `encode`, `decode`, `inspect`, `collect`, `evaluate` |
 | `crates/girc-bench` | The benchmark: both modes and three anchor codecs, the Bjontegaard implementation, and the margin sweep |
 | `python/girc-train` | The training pipeline: collects the encoder's own decisions, fits the two per-axis predictors, reports the predictability ceiling |
@@ -66,6 +66,38 @@ and the quotations are in
 quotation in it, and every cell of its result table, is checked against
 the extracted claim text by the test suite.
 
+## The chroma planes
+
+GIRC codes 4:2:0 content: the luma plane and both chroma planes. That
+is not a detail — the anchor codecs code all three planes, so comparing
+a luma-only GIRC rate against a whole-frame anchor rate was not a
+comparison of the same thing.
+
+What the standard fixes, and what the codec therefore does:
+
+- **No chroma transform type is signalled.** H.266 clause 7.3.9 codes a
+  transform type for the luma plane; the chroma transform type is
+  inferred, and in 4:2:0 it is always the plain DCT-II. The reference
+  encoder agrees: chroma transform selection is gated on
+  `m_useChromaTS`, which is off by default and only enabled for 4:4:4.
+- **So the mechanism is a luma mechanism** — exactly where the standard
+  signals a transform type at all. It removes all of the transform-type
+  signalling there is, and nothing else.
+- **The chroma quantization parameter is mapped, not equal**, through
+  H.266's chroma quantization parameter mapping, derived the way the
+  reference encoder derives it and checked against it for every
+  quantization parameter.
+- **The chroma grid is four by four chroma samples**, one chroma block
+  per luma block, and the chroma motion is derived from the luma motion
+  as H.266 does.
+
+The luma and chroma payloads are separate and the container records
+each one's length, because the mechanism changes the luma signalling
+and nothing else. The benchmark therefore reports two mechanism
+numbers: the effect on the luma plane, which is the mechanism's own
+effect, and the effect on the whole frame, which is what a deployment
+would save. The anchor comparison uses the whole frame, on both sides.
+
 ## Building
 
 ```sh
@@ -73,9 +105,11 @@ cargo build --release --workspace
 cargo test --workspace
 ```
 
-The transform test suite checks the integer transforms against Fraunhofer
-HHI's VVenC bit for bit, across all twelve transform and size
-combinations. It needs the reference implementation:
+The test suite checks the integer transforms against Fraunhofer HHI's
+VVenC bit for bit, across all twelve transform and size combinations,
+and checks the chroma quantization parameter mapping against the same
+reference implementation for every quantization parameter. It needs
+the reference implementation:
 
 ```sh
 git clone --depth 1 --branch v1.14.0 \
@@ -84,7 +118,9 @@ cmake -S data/tools/vvenc-src -B data/tools/vvenc-src/build \
     -DCMAKE_BUILD_TYPE=Release
 cmake --build data/tools/vvenc-src/build --config Release -j "$(nproc)"
 ./tools/generate_transform_oracle.sh
+./tools/generate_chroma_qp_oracle.sh
 cargo test -p girc-core transform
+cargo test -p girc-core chroma_qp
 ```
 
 ## The evaluation portal
@@ -150,8 +186,10 @@ traced to the state that produced it.
 - **It is not a VVC decoder.** GIRC's bitstream is its own research
   format. It exists to measure one mechanism with everything else held
   constant.
-- **It is not a VVC competitor.** GIRC is an intra-only research codec
-  with a small mode set. The anchor comparison is context.
+- **It is not a VVC competitor.** GIRC is a research codec with a small
+  mode set, integer-sample motion and no sub-sample interpolation. The
+  anchor comparison is context, and it is on the whole-frame rate, with
+  both sides coding all three planes.
 - **It is not a claim of a large coding gain.** The measured result is
   close to break-even, and the package says so.
 - **The prior art is real.** Four families of reference already disclose

@@ -117,6 +117,20 @@ has to be narrowed to match:
   predictors, a composition rule that forces the plain DCT-II when
   either axis predicts it, and the margin applied to the composed mode.
 
+- **The mechanism replaces exactly the signalling the standard has.**
+  ITU-T H.266 clause 7.3.9 codes a transform type for the luma plane;
+  the chroma transform type is inferred, and in 4:2:0 the inferred
+  chroma transform type is always the plain DCT-II. The reference
+  encoder agrees: chroma transform selection is gated on
+  `m_useChromaTS`, which defaults to off and is only enabled for 4:4:4
+  content, and its intra search assigns `MTS_DCT2_DCT2` to the chroma
+  planes directly. So in the format the mechanism targets, the luma
+  transform type is the only transform type that is signalled at all,
+  and the mechanism removes all of it, and nothing else. This bounds
+  the invention precisely: it is a mechanism for removing luma
+  transform-type signalling, and it says nothing about chroma because
+  the standard says nothing about chroma.
+
 ### 1.4 What the measurements actually show
 
 The result, from the repository's own benchmark, over twelve Xiph.Org CIF

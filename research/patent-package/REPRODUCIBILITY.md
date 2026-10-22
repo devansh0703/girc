@@ -47,6 +47,7 @@ are not in the repository because of their size.
 | `models/girc-predictor.json` | `000334ebf25c89b7d6764430dcfefcf8019786a9bf00b1aa378f8daa65fdcc78` |
 | `bench-out/training.jsonl` | `26046d242f7161f62d47871b49889e1e2355373f0e1863570ad99311df480445` |
 | `bench-out/report.json` | `b4b23f1a6a65d3b6e6ba57b97d93efe506d83653120875839a1d75de87c31b42` |
+| `bench-out/fair/report-10f.json` | the whole-frame benchmark over the twelve sequences at ten frames, with the anchors |
 
 The training data's checksum is also recorded inside the model file, so a
 model can be checked against the set it was fitted on without this
@@ -59,8 +60,13 @@ document.
 | Quantization parameter sweep | 22, 27, 32, 37 |
 | Block size | 8 × 8 |
 | Transform modes | the plain DCT-II and the four per-axis combinations of DCT-VIII and DST-VII that ITU-T H.266 defines (4, 8, 16 and 32 sample sizes implemented, bit-exact against VVenC) |
-| Intra modes | planar, DC and eight angular |
-| Planes coded | luma |
+| Intra modes | planar, DC and eight angular on the luma plane; planar, the two axis-aligned directions and DC on the chroma planes |
+| Planes coded | luma, and the two 4:2:0 chroma planes |
+| Chroma transform | the plain DCT-II, as ITU-T H.266 4:2:0 requires; no chroma transform type is signalled |
+| Chroma quantization parameter | the luma one mapped through H.266's chroma quantization parameter mapping, checked against VVenC for every quantization parameter |
+| Chroma block grid | four by four chroma samples, one chroma block per luma block |
+| Chroma motion | derived from the luma motion, as H.266 does; no chroma motion bits of its own |
+| Frames per sequence | 10 |
 | Margin for the published per-sequence table | 50 bits |
 | Margin sweep | 0, 2, 5, 10, 20, 50, 100, 500 bits |
 | Rate-distortion lambda | 0.85 |
@@ -89,10 +95,19 @@ export PATH="$PWD/data/tools/vvenc-src/bin/release-static:$PATH"
     --qps 22,27,32,37 \
     --model models/girc-predictor.json \
     --margin 50 \
+    --frames 10 \
     --anchors x265,svt-av1,vvenc \
     --margin-sweep 0,2,5,10,20,50,100,500 \
     --report bench-out/report.json
 ```
+
+The report carries two mechanism numbers, and they answer different
+questions. `mechanism_bd_rate` is on the luma plane alone, and it is the
+mechanism's own effect: the mechanism changes the luma signalling and
+nothing else, so the luma rate is the axis its effect is measured on.
+`mechanism_bd_rate_total` includes the chroma planes, and it is what a
+deployment would actually save. The anchor comparison is on the
+whole-frame rate, because the anchors code all three planes.
 
 The training set is rebuilt the same way:
 
@@ -116,11 +131,9 @@ so a re-run that produced a different figure would show why.
 The following are deliberately outside the measurement, and a reader should
 not infer anything about them from these numbers:
 
-- **Chroma.** GIRC codes the luma plane only. The Y4M chroma planes are
-  read and written, but they are not coded.
-- **Inter prediction.** GIRC is intra-only.
-- **More than one frame.** The harness codes the first frame of each
-  sequence. The anchors are held to the same frame.
+- **Sub-sample motion.** The motion search is whole-sample only, and the
+  chroma motion is the luma motion halved and rounded to a whole chroma
+  sample. H.266 has an eighth-sample chroma interpolation filter.
 - **A VVC-conformant bitstream.** GIRC's format is its own. It is not
   comparable with a VVC decoder, and the anchor comparison is context
   rather than a claim of competitiveness.
@@ -140,5 +153,10 @@ These are checks that run with `cargo test --workspace` and
 | `codec::tests::decode_reproduces_the_encoder_reconstruction` | The decoder reproduces the encoder's reconstruction exactly, in both signalling modes |
 | `bitstream::tests::the_context_tracks_the_observed_rate` | The entropy coder's context estimator converges to the observed rate rather than drifting |
 | `quant::tests::the_reconstruction_error_is_bounded_by_the_step` | The quantizer's reconstruction is within one step at every quantization parameter |
+| `chroma_qp::tests::the_table_matches_the_reference_encoder` | The chroma quantization parameter mapping is exactly the one VVenC derives, for every quantization parameter |
+| `chroma::tests::every_chroma_intra_mode_survives_the_code` | Every chroma intra mode survives the truncated unary code |
+| `chroma::tests::a_chroma_plane_round_trips` | A chroma plane round-trips through the coder exactly, and its inter blocks are predicted from the luma motion |
+| `codec::tests::a_frame_round_trips` | A 4:2:0 frame round-trips exactly in all three planes, and the chroma is a real reconstruction rather than a flat fill |
+| `codec::tests::the_chroma_planes_cost_bits` | The chroma planes cost bits, so the total rate is a real whole-frame rate |
 | `girc-bench`'s `identical_curves_have_zero_bd_rate` and its siblings | The Bjontegaard implementation is checked against synthetic curves with known answers |
-| The portal's twelve tests | The agreement gates the downloads, a download token cannot be edited or replayed, results cannot be cross-submitted, and every state change is audited |
+| The portal's nineteen tests | The agreement gates the downloads, a download token cannot be edited or replayed, results cannot be cross-submitted, and every state change is audited |

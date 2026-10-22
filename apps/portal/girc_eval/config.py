@@ -54,6 +54,17 @@ class Settings:
     #: How long a locked-out address is refused, in seconds.
     login_lockout_seconds: int = 900
 
+    #: The Upstash Redis REST endpoint for the distributed rate limiter.
+    #:
+    #: When this and the token are both set, the sign-in rate limit is
+    #: kept in Redis, so every process serving the portal shares it. A
+    #: deployment with one process can leave both unset and keep the
+    #: limiter in memory.
+    redis_url: str = ""
+
+    #: The bearer token for the Redis endpoint.
+    redis_token: str = ""
+
     @classmethod
     def from_env(cls) -> "Settings":
         """Build the settings from the environment."""
@@ -85,4 +96,6 @@ class Settings:
                     "GIRC_LOGIN_LOCKOUT_SECONDS", cls.login_lockout_seconds
                 )
             ),
+            redis_url=os.environ.get("GIRC_REDIS_URL", cls.redis_url),
+            redis_token=os.environ.get("GIRC_REDIS_TOKEN", cls.redis_token),
         )

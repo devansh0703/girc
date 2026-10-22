@@ -237,6 +237,42 @@ space. It is also why the package needs a *training method* deliverable: the
 model is part of the protected invention, and the training pipeline must be
 reproducible for the patent to be defensible.
 
+### The chroma planes, and why the mechanism does not touch them
+
+ITU-T H.266 codes 4:2:0 content as three planes, and the chroma planes are
+half the luma plane's width and height. GIRC codes all three, because the
+benchmark compares GIRC's rate against the anchors' rate, and the anchors
+code all three: comparing a luma-only GIRC rate against a 4:2:0 anchor rate
+was not a comparison of the same thing.
+
+What the standard fixes, and what the codec therefore does:
+
+- **No chroma transform type is signalled.** H.266 clause 7.3.9 codes
+  `transform_type` for the luma plane; the chroma transform type is
+  inferred, and in 4:2:0 the inferred type is always the plain DCT-II.
+  The reference encoder agrees: chroma transform selection is gated on
+  `m_useChromaTS`, which defaults to off and is only enabled for 4:4:4
+  content, and its intra search assigns `MTS_DCT2_DCT2` to the chroma
+  planes directly. So the mechanism is a **luma** mechanism, which is
+  exactly where the standard signals a transform type at all. This is not
+  a limitation of the implementation; it is the shape of the invention.
+- **The chroma quantization parameter is mapped, not equal.** It comes
+  from the luma one through H.266's chroma quantization parameter mapping,
+  derived in the same way the reference encoder derives it and checked
+  against it for every quantization parameter.
+- **The chroma grid is four by four chroma samples**, one chroma block
+  per luma block, which is the relationship H.266's chroma transform
+  blocks have to the luma ones, since a chroma sample covers four luma
+  samples.
+- **The chroma motion is derived from the luma motion**, as H.266 does,
+  so the chroma planes cost no motion bits of their own.
+
+The luma and chroma payloads are separate, and the container records each
+payload's length. That is a measurement decision, not a compression one:
+the mechanism changes the luma signalling and nothing else, so the luma
+rate is the axis its effect is measured on, and the whole-frame rate is
+the axis the anchors are compared on. The benchmark reports both.
+
 ### The honest measurement
 
 The interesting number is not "our codec beats VVC" — it cannot, and claiming

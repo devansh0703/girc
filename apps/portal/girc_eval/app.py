@@ -15,7 +15,6 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
@@ -43,6 +42,7 @@ from girc_eval.models import (
     User,
     UserRole,
 )
+from girc_eval.ratelimit import limiter_from_settings
 from girc_eval.security import (
     constant_time_equal,
     hash_password,
@@ -119,31 +119,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=403, detail="administrator access required")
         return user
 
-    # The failed sign-in attempts, by address.
+    # The sign-in rate limiter.
     #
-    # The portal is a single process, so an in-memory table is enough to
-    # slow a guessing run down. A deployment that runs more than one
-    # process puts a shared limiter in front of it instead.
-    login_failures: dict[str, list[float]] = {}
+    # It is in memory for a single process, and in Redis when the
+    # deployment configures one, so that every process serving the
+    # portal shares the same limit.
+    limiter = limiter_from_settings(settings)
 
     def login_allowed(address: str) -> bool:
         """Whether an address may attempt to sign in."""
-        failures = login_failures.get(address)
-        if not failures:
-            return True
-        if time.monotonic() - failures[-1] > settings.login_lockout_seconds:
-            login_failures.pop(address, None)
-            return True
-        return len(failures) < settings.max_login_attempts
+        return limiter.allowed(address)
 
     def record_login_failure(address: str) -> None:
         """Count a failed sign-in against an address."""
-        failures = login_failures.setdefault(address, [])
-        failures.append(time.monotonic())
+        limiter.record_failure(address)
 
     def clear_login_failures(address: str) -> None:
         """Forget an address's failed sign-ins after a success."""
-        login_failures.pop(address, None)
+        limiter.clear_failures(address)
 
     def source_ip(request: Request) -> str:
         """The address the request came from.

@@ -504,3 +504,85 @@ def test_resolve_within_refuses_a_path_outside_the_root():
             resolve_within(root, "..", "outside.txt")
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# The sign-in rate limiter
+# ---------------------------------------------------------------------------
+
+
+def test_the_memory_limiter_locks_an_address_out():
+    from girc_eval.ratelimit import MemoryLimiter
+
+    limiter = MemoryLimiter(max_attempts=3, lockout_seconds=60)
+    assert limiter.allowed("198.51.100.7"), "a fresh address may sign in"
+    for _ in range(3):
+        limiter.record_failure("198.51.100.7")
+    assert not limiter.allowed("198.51.100.7"), "the address was not locked out"
+    assert limiter.allowed("198.51.100.8"), "another address is unaffected"
+
+
+def test_a_successful_sign_in_clears_the_failures():
+    from girc_eval.ratelimit import MemoryLimiter
+
+    limiter = MemoryLimiter(max_attempts=2, lockout_seconds=60)
+    limiter.record_failure("198.51.100.7")
+    limiter.clear_failures("198.51.100.7")
+    assert limiter.allowed("198.51.100.7")
+
+
+def test_the_redis_limiter_is_chosen_when_it_is_configured():
+    from girc_eval.config import Settings
+    from girc_eval.ratelimit import RedisLimiter, limiter_from_settings
+
+    settings = Settings(redis_url="https://example.invalid", redis_token="token")
+    assert isinstance(limiter_from_settings(settings), RedisLimiter)
+    # With no endpoint configured, the in-memory limiter is used.
+    assert not isinstance(limiter_from_settings(Settings()), RedisLimiter)
+
+
+def test_the_redis_limiter_speaks_the_upstash_command_shape():
+    """The limiter must send the commands Upstash's REST API expects.
+
+    The API takes a JSON array of command arrays, and answers with
+    ``{"result": ...}``. A limiter that sent the wrong shape would fail
+    open, which is the worst possible failure for a rate limiter.
+    """
+    from girc_eval.ratelimit import RedisLimiter
+
+    sent: list[list[str]] = []
+
+    class FakeResponse:
+        def __init__(self, result):
+            self._result = result
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"result": self._result}
+
+    class FakeClient:
+        def __init__(self):
+            self.headers: dict[str, str] = {}
+
+        def post(self, url, headers=None, json=None):
+            sent.append(json)
+            return FakeResponse(1)
+
+    limiter = RedisLimiter(
+        url="https://example.invalid",
+        token="secret-token",
+        max_attempts=10,
+        client=FakeClient(),
+    )
+    assert limiter.allowed("198.51.100.7")
+    assert sent, "the limiter sent nothing"
+    assert sent[0][0] == "ZREMRANGEBYSCORE", sent
+    assert sent[0][1].startswith("girc-eval:login:"), sent
+    assert "198.51.100.7" not in str(sent), "the address must not be in the key"
+
+    limiter.record_failure("198.51.100.7")
+    commands = [entry[0] for entry in sent]
+    assert "ZADD" in commands, commands
+    assert "EXPIRE" in commands, commands

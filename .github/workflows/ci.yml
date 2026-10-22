@@ -95,9 +95,13 @@ jobs:
       - name: Generate the reference vectors
         run: |
           ./tools/generate_transform_oracle.sh
+          ./tools/generate_chroma_qp_oracle.sh
 
       - name: Check the transforms against VVenC
         run: cargo test -p girc-core transform
+
+      - name: Check the chroma QP mapping against VVenC
+        run: cargo test -p girc-core chroma_qp
 
   prior-art:
     name: Prior art
