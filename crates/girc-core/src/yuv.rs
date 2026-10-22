@@ -39,6 +39,17 @@ pub struct Yuv4Frame {
 impl Yuv4Frame {
     /// Read the first frame of a Y4M file.
     pub fn read(path: &Path) -> Result<Self> {
+        Self::read_many(path, 1)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("the Y4M file at {} has no frames", path.display()))
+    }
+
+    /// Read up to `count` frames of a Y4M file.
+    ///
+    /// The frames are read in order, and fewer are returned if the file
+    /// holds fewer.
+    pub fn read_many(path: &Path, count: usize) -> Result<Vec<Self>> {
         let file = File::open(path)
             .with_context(|| format!("opening the Y4M file at {}", path.display()))?;
         let mut reader = BufReader::new(file);
@@ -142,28 +153,57 @@ impl Yuv4Frame {
 
         let luma_len = width * height;
         let chroma_len = (width / 2) * (height / 2);
-        let mut y = vec![0u8; luma_len];
-        let mut u = vec![0u8; chroma_len];
-        let mut v = vec![0u8; chroma_len];
-        reader
-            .read_exact(&mut y)
-            .with_context(|| format!("reading the luma plane of {}", path.display()))?;
-        reader
-            .read_exact(&mut u)
-            .with_context(|| format!("reading the U plane of {}", path.display()))?;
-        reader
-            .read_exact(&mut v)
-            .with_context(|| format!("reading the V plane of {}", path.display()))?;
+        let mut frames = Vec::with_capacity(count);
 
-        Ok(Self {
-            width,
-            height,
-            fps_num,
-            fps_den,
-            y,
-            u,
-            v,
-        })
+        for index in 0..count {
+            // Every frame after the first starts with a marker.
+            let mut marker = Vec::new();
+            if index > 0 {
+                loop {
+                    if reader.read(&mut byte)? == 0 {
+                        break;
+                    }
+                    marker.push(byte[0]);
+                    if byte[0] == b'\n' {
+                        break;
+                    }
+                }
+                if marker.is_empty() {
+                    break;
+                }
+                if !marker.trim_ascii().starts_with(b"FRAME") {
+                    bail!(
+                        "the Y4M file at {} does not have a FRAME marker at frame {index}",
+                        path.display()
+                    );
+                }
+            }
+
+            let mut y = vec![0u8; luma_len];
+            let mut u = vec![0u8; chroma_len];
+            let mut v = vec![0u8; chroma_len];
+            if reader.read_exact(&mut y).is_err() {
+                break;
+            }
+            reader
+                .read_exact(&mut u)
+                .with_context(|| format!("reading the U plane of {}", path.display()))?;
+            reader
+                .read_exact(&mut v)
+                .with_context(|| format!("reading the V plane of {}", path.display()))?;
+
+            frames.push(Self {
+                width,
+                height,
+                fps_num,
+                fps_den,
+                y,
+                u,
+                v,
+            });
+        }
+
+        Ok(frames)
     }
 
     /// The luma plane as a GIRC picture.
@@ -192,18 +232,28 @@ impl Yuv4Frame {
 
     /// Write the frame as a single-frame Y4M file.
     pub fn write(&self, path: &Path) -> Result<()> {
+        Self::write_many(std::slice::from_ref(self), path)
+    }
+
+    /// Write frames as a Y4M file.
+    pub fn write_many(frames: &[Self], path: &Path) -> Result<()> {
+        let Some(first) = frames.first() else {
+            bail!("there are no frames to write");
+        };
         let file = File::create(path)
             .with_context(|| format!("creating the Y4M file at {}", path.display()))?;
         let mut writer = BufWriter::new(file);
         writeln!(
             writer,
             "YUV4MPEG2 W{} H{} F{}:{} Ip A1:1 C420jpeg",
-            self.width, self.height, self.fps_num, self.fps_den
+            first.width, first.height, first.fps_num, first.fps_den
         )?;
-        writer.write_all(b"FRAME\n")?;
-        writer.write_all(&self.y)?;
-        writer.write_all(&self.u)?;
-        writer.write_all(&self.v)?;
+        for frame in frames {
+            writer.write_all(b"FRAME\n")?;
+            writer.write_all(&frame.y)?;
+            writer.write_all(&frame.u)?;
+            writer.write_all(&frame.v)?;
+        }
         writer.flush()?;
         Ok(())
     }

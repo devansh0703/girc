@@ -212,6 +212,30 @@ fn solve(a: &mut [[f64; 4]; 4], b: &[f64; 4]) -> Option<[f64; 4]> {
 }
 
 /// The peak signal-to-noise ratio between two luma planes.
+/// The mean squared error between two planes.
+pub fn mse(reference: &[u8], test: &[u8]) -> f64 {
+    if reference.len() != test.len() || reference.is_empty() {
+        return 0.0;
+    }
+    let total: f64 = reference
+        .iter()
+        .zip(test.iter())
+        .map(|(a, b)| {
+            let difference = *a as f64 - *b as f64;
+            difference * difference
+        })
+        .sum();
+    total / reference.len() as f64
+}
+
+/// The peak signal-to-noise ratio from a mean squared error.
+pub fn mse_to_psnr(mse: f64) -> f64 {
+    if mse <= 0.0 {
+        return 100.0;
+    }
+    10.0 * (255.0f64 * 255.0 / mse).log10()
+}
+
 pub fn psnr(reference: &[u8], test: &[u8]) -> f64 {
     assert_eq!(reference.len(), test.len());
     if reference.is_empty() {
@@ -268,9 +292,11 @@ pub fn run_girc(
     signalling: TransformSignalling,
     predictor: &TransformPredictor,
     transform_margin: f32,
+    frames: usize,
 ) -> Result<CodecResult> {
-    let frame = Yuv4Frame::read(sequence)?;
-    let picture = frame.luma_picture();
+    let read = Yuv4Frame::read_many(sequence, frames.max(1))?;
+    let pictures: Vec<_> = read.iter().map(|f| f.luma_picture()).collect();
+    let picture = &pictures[0];
     let mut points = Vec::new();
     let mut mismatches = 0u64;
     let mut blocks = 0u64;
@@ -283,8 +309,16 @@ pub fn run_girc(
             transform_margin,
             ..Default::default()
         };
-        let result = encode(&picture, &config)?;
-        let psnr = psnr(&picture.samples, &result.reconstruction.samples);
+        let result = encode(&pictures, &config)?;
+
+        // The distortion is the mean over the frames, so the curve is
+        // comparable with the anchors', which also code every frame.
+        let mut total_mse = 0f64;
+        for (original, reconstruction) in pictures.iter().zip(result.reconstructions.iter()) {
+            total_mse += mse(&original.samples, &reconstruction.samples);
+        }
+        let psnr = mse_to_psnr(total_mse / pictures.len() as f64);
+
         points.push(RatePoint {
             qp: *qp,
             bits: (result.bitstream.len() * 8) as u64,
@@ -322,8 +356,9 @@ pub fn run_anchor(
     sequence: &Path,
     qps: &[i32],
     work_dir: &Path,
+    frames: usize,
 ) -> Result<CodecResult> {
-    let frame = Yuv4Frame::read(sequence)?;
+    let read = Yuv4Frame::read_many(sequence, frames.max(1))?;
     let mut points = Vec::new();
 
     for qp in qps {
@@ -331,10 +366,17 @@ pub fn run_anchor(
             "{}-{qp}.out",
             sequence.file_stem().unwrap_or_default().to_string_lossy()
         ));
-        run_anchor_command(anchor, sequence, *qp, &output)?;
+        run_anchor_command(anchor, sequence, *qp, &output, frames.max(1))?;
         let bits = file_size_bits(&output)?;
-        let reconstruction = decode_with_anchor(anchor, sequence, &output, work_dir, *qp)?;
-        let psnr = psnr(&frame.y, &reconstruction);
+        let reconstruction =
+            decode_with_anchor(anchor, sequence, &output, work_dir, *qp, frames.max(1))?;
+        // The distortion is the mean over the frames, the same way the
+        // GIRC curve is computed.
+        let mut total_mse = 0f64;
+        for (original, decoded) in read.iter().zip(reconstruction.iter()) {
+            total_mse += mse(&original.y, decoded);
+        }
+        let psnr = mse_to_psnr(total_mse / read.len() as f64);
         points.push(RatePoint {
             qp: *qp,
             bits,
@@ -349,8 +391,8 @@ pub fn run_anchor(
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default(),
-        width: frame.width,
-        height: frame.height,
+        width: read[0].width,
+        height: read[0].height,
         points,
         prediction_mismatches: None,
         block_count: None,
@@ -365,14 +407,21 @@ fn file_size_bits(path: &Path) -> Result<u64> {
 }
 
 /// Run the anchor encoder's command line.
-fn run_anchor_command(anchor: Anchor, sequence: &Path, qp: i32, output: &Path) -> Result<()> {
+fn run_anchor_command(
+    anchor: Anchor,
+    sequence: &Path,
+    qp: i32,
+    output: &Path,
+    frames: usize,
+) -> Result<()> {
+    let frames = frames.to_string();
     let status = match anchor {
         Anchor::X265 => Command::new("ffmpeg")
             .args(["-hide_banner", "-loglevel", "error", "-y", "-i"])
             .arg(sequence)
             .args([
                 "-frames:v",
-                "1",
+                &frames,
                 "-c:v",
                 "libx265",
                 "-preset",
@@ -388,7 +437,7 @@ fn run_anchor_command(anchor: Anchor, sequence: &Path, qp: i32, output: &Path) -
             .arg(sequence)
             .args([
                 "-frames:v",
-                "1",
+                &frames,
                 "-c:v",
                 "libsvtav1",
                 "-preset",
@@ -407,7 +456,7 @@ fn run_anchor_command(anchor: Anchor, sequence: &Path, qp: i32, output: &Path) -
             .args(["--output"])
             .arg(output)
             .args(["--preset", "medium", "-q", &qp.to_string()])
-            .args(["--frames", "1"])
+            .args(["--frames", &frames])
             .status(),
         Anchor::GircExplicit | Anchor::GircInferred => {
             bail!("GIRC anchors are run in-process, not through a command line")
@@ -428,18 +477,21 @@ fn decode_with_anchor(
     encoded: &Path,
     work_dir: &Path,
     qp: i32,
-) -> Result<Vec<u8>> {
+    frames: usize,
+) -> Result<Vec<Vec<u8>>> {
     let output = work_dir.join(format!(
         "{}-{qp}.decoded.y4m",
         sequence.file_stem().unwrap_or_default().to_string_lossy()
     ));
+    let frame_count = frames;
+    let frames = frames.to_string();
     let status = match anchor {
         Anchor::X265 => Command::new("ffmpeg")
             .args(["-hide_banner", "-loglevel", "error", "-y", "-i"])
             .arg(encoded)
             .args([
                 "-frames:v",
-                "1",
+                &frames,
                 "-pix_fmt",
                 "yuv420p",
                 "-f",
@@ -452,7 +504,7 @@ fn decode_with_anchor(
             .arg(encoded)
             .args([
                 "-frames:v",
-                "1",
+                &frames,
                 "-pix_fmt",
                 "yuv420p",
                 "-f",
@@ -473,7 +525,7 @@ fn decode_with_anchor(
                 .args(["--output"])
                 .arg(&bitstream)
                 .args(["--preset", "medium", "-q", &qp.to_string()])
-                .args(["--frames", "1"])
+                .args(["--frames", &frames])
                 .status();
             let encoded = encoded.with_context(|| format!("decoding with {}", anchor.name()))?;
             if !encoded.success() {
@@ -487,7 +539,7 @@ fn decode_with_anchor(
                 .arg(&bitstream)
                 .args([
                     "-frames:v",
-                    "1",
+                    &frames,
                     "-pix_fmt",
                     "yuv420p",
                     "-f",
@@ -507,9 +559,9 @@ fn decode_with_anchor(
             anchor.name()
         );
     }
-    let frame = Yuv4Frame::read(&output)?;
+    let decoded = Yuv4Frame::read_many(&output, frame_count)?;
     let _ = std::fs::remove_file(&output);
-    Ok(frame.y)
+    Ok(decoded.into_iter().map(|f| f.y).collect())
 }
 
 /// The benchmark command-line arguments.
@@ -522,6 +574,14 @@ struct Args {
     /// The quantization parameters to sweep.
     #[arg(long, value_delimiter = ',')]
     qps: Option<Vec<i32>>,
+    /// How many frames of each sequence to code.
+    ///
+    /// The first frame is coded as an intra frame and the rest as inter
+    /// frames, each predicted from the reconstruction of the one before
+    /// it. The anchors are given the same number of frames, so the
+    /// comparison is frame-count matched.
+    #[arg(long, default_value_t = 1)]
+    frames: usize,
     /// A trained predictor model for the inferred mode.
     #[arg(long)]
     model: Option<PathBuf>,
@@ -594,6 +654,7 @@ fn run_margin_sweep(
     qps: &[i32],
     predictor: &TransformPredictor,
     margins: &[f32],
+    frames: usize,
 ) -> Result<Vec<MarginPoint>> {
     let mut points = Vec::new();
 
@@ -616,8 +677,8 @@ fn run_margin_sweep(
             let mut seconds = 0.0;
 
             for signalling in [TransformSignalling::Explicit, TransformSignalling::Inferred] {
-                let frame = Yuv4Frame::read(sequence)?;
-                let picture = frame.luma_picture();
+                let read = Yuv4Frame::read_many(sequence, frames.max(1))?;
+                let pictures: Vec<_> = read.iter().map(|f| f.luma_picture()).collect();
                 let mut points_for_mode = Vec::new();
                 for qp in qps {
                     let config = EncoderConfig {
@@ -628,12 +689,18 @@ fn run_margin_sweep(
                         ..Default::default()
                     };
                     let start = std::time::Instant::now();
-                    let result = encode(&picture, &config)?;
+                    let result = encode(&pictures, &config)?;
                     seconds += start.elapsed().as_secs_f64();
+                    let mut total_mse = 0f64;
+                    for (original, reconstruction) in
+                        pictures.iter().zip(result.reconstructions.iter())
+                    {
+                        total_mse += mse(&original.samples, &reconstruction.samples);
+                    }
                     points_for_mode.push(RatePoint {
                         qp: *qp,
                         bits: (result.bitstream.len() * 8) as u64,
-                        psnr_db: psnr(&picture.samples, &result.reconstruction.samples),
+                        psnr_db: mse_to_psnr(total_mse / pictures.len() as f64),
                     });
                     if signalling == TransformSignalling::Inferred {
                         mismatches += result.prediction_mismatches as u64;
@@ -714,6 +781,7 @@ fn main() -> Result<()> {
             TransformSignalling::Explicit,
             &predictor,
             args.margin,
+            args.frames,
         )?);
         results.push(run_girc(
             sequence,
@@ -721,6 +789,7 @@ fn main() -> Result<()> {
             TransformSignalling::Inferred,
             &predictor,
             args.margin,
+            args.frames,
         )?);
 
         for anchor_name in &args.anchors {
@@ -735,7 +804,7 @@ fn main() -> Result<()> {
                 "vvenc" => Anchor::VVenC,
                 other => bail!("unknown anchor encoder {other}"),
             };
-            match run_anchor(anchor, sequence, &qps, &args.work_dir) {
+            match run_anchor(anchor, sequence, &qps, &args.work_dir, args.frames) {
                 Ok(result) => results.push(result),
                 Err(error) => {
                     // A missing anchor must not sink the whole report; it is
@@ -782,7 +851,13 @@ fn main() -> Result<()> {
     // so the main report stays a single configuration.
     let margin_sweep = match &args.margin_sweep {
         None => None,
-        Some(margins) => Some(run_margin_sweep(&args.sequence, &qps, &predictor, margins)?),
+        Some(margins) => Some(run_margin_sweep(
+            &args.sequence,
+            &qps,
+            &predictor,
+            margins,
+            args.frames,
+        )?),
     };
 
     let report = Report {

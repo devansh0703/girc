@@ -49,6 +49,13 @@ enum Command {
         /// A trained predictor model, required for inferred signalling.
         #[arg(long)]
         model: Option<PathBuf>,
+        /// How many frames of the input to code.
+        ///
+        /// The first frame is coded as an intra frame and the rest as
+        /// inter frames, each predicted from the reconstruction of the
+        /// one before it.
+        #[arg(long, default_value_t = 1)]
+        frames: usize,
         /// The rate-distortion margin, in bits.
         ///
         /// The encoder may take a transform the decoder will infer, when
@@ -69,6 +76,12 @@ enum Command {
         /// How the transform type is signalled; must match the encoder.
         #[arg(long, value_enum, default_value_t = Signalling::Explicit)]
         signalling: Signalling,
+        /// How many frames the bitstream holds.
+        ///
+        /// The count is in the bitstream's header, so the decoder does
+        /// not need it.
+        #[arg(long, default_value_t = 0)]
+        frames: usize,
         /// A trained predictor model; must match the encoder's.
         ///
         /// The margin is not needed here: it decides which transform the
@@ -161,26 +174,29 @@ fn run() -> Result<()> {
             signalling,
             qp,
             model,
+            frames,
             margin,
         } => {
-            let frame = Yuv4Frame::read(&input)
-                .with_context(|| format!("reading the input frame at {}", input.display()))?;
+            let read = Yuv4Frame::read_many(&input, frames.max(1))
+                .with_context(|| format!("reading the input frames at {}", input.display()))?;
             let config = build_config(signalling, qp, model.as_ref(), margin)?;
-            let picture = frame.luma_picture();
-            let result = encode(&picture, &config)?;
+            let pictures: Vec<_> = read.iter().map(|f| f.luma_picture()).collect();
+            let result = encode(&pictures, &config)?;
             fs::write(&output, &result.bitstream)
                 .with_context(|| format!("writing the bitstream to {}", output.display()))?;
 
             eprintln!(
-                "encoded {}x{} qp={} signalling={} blocks={} payload={} bytes mismatches={} signalling_bits={}",
-                picture.width,
-                picture.height,
+                "encoded {}x{} qp={} signalling={} frames={} blocks={} payload={} bytes mismatches={} signalling_bits={} inter_blocks={}",
+                pictures[0].width,
+                pictures[0].height,
                 qp,
                 signalling_name(signalling),
+                pictures.len(),
                 result.block_count,
                 result.payload_bytes,
                 result.prediction_mismatches,
                 result.transform_signalling_bins,
+                result.inter_blocks,
             );
         }
         Command::Decode {
@@ -188,22 +204,26 @@ fn run() -> Result<()> {
             output,
             signalling,
             model,
+            frames: _,
         } => {
             let bitstream = fs::read(&input)
                 .with_context(|| format!("reading the bitstream at {}", input.display()))?;
             let (header, _) = BitstreamHeader::read(&bitstream)?;
             let config = build_config(signalling, header.qp as i32, model.as_ref(), 0.0)?;
-            let picture = decode(&bitstream, &config)?;
-            let frame = Yuv4Frame::from_luma_picture(&picture, 128);
-            frame
-                .write(&output)
-                .with_context(|| format!("writing the frame to {}", output.display()))?;
+            let pictures = decode(&bitstream, &config)?;
+            let frames: Vec<_> = pictures
+                .iter()
+                .map(|p| Yuv4Frame::from_luma_picture(p, 128))
+                .collect();
+            Yuv4Frame::write_many(&frames, &output)
+                .with_context(|| format!("writing the frames to {}", output.display()))?;
             eprintln!(
-                "decoded {}x{} qp={} signalling={}",
-                picture.width,
-                picture.height,
+                "decoded {}x{} qp={} signalling={} frames={}",
+                pictures[0].width,
+                pictures[0].height,
                 header.qp,
                 signalling_name(signalling),
+                pictures.len(),
             );
         }
         Command::Collect { input, qp } => {
@@ -213,7 +233,8 @@ fn run() -> Result<()> {
                 qp,
                 ..Default::default()
             };
-            let examples = collect_training_examples(&frame.luma_picture(), &config)?;
+            let pictures: Vec<_> = vec![frame.luma_picture()];
+            let examples = collect_training_examples(&pictures, &config)?;
             let stdout = std::io::stdout();
             let mut out = stdout.lock();
             for example in examples {
@@ -237,7 +258,8 @@ fn run() -> Result<()> {
                 predictor,
                 ..Default::default()
             };
-            let result = encode(&frame.luma_picture(), &config)?;
+            let pictures: Vec<_> = vec![frame.luma_picture()];
+            let result = encode(&pictures, &config)?;
             let payload = serde_json::json!({
                 "sequence": input.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(),
                 "qp": qp,

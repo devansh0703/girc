@@ -12,6 +12,8 @@
 //! * [`transform`] -- the VVC integer transforms (DCT-II, DCT-VIII, DST-VII),
 //!   bit-exact against Fraunhofer HHI's reference implementation.
 //! * [`intra`] -- intra prediction.
+//! * [`inter`] -- inter prediction: motion vectors, motion compensation
+//!   and the motion search.
 //! * [`quant`] -- quantization.
 //! * [`bitstream`] -- the container and the entropy coder.
 //! * [`geometry`] -- the geometry-inference mechanism itself.
@@ -21,6 +23,7 @@
 pub mod bitstream;
 pub mod codec;
 pub mod geometry;
+pub mod inter;
 pub mod intra;
 pub mod quant;
 pub mod transform;

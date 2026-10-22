@@ -54,6 +54,7 @@
 //! the rate-distortion cost of the occasional wrong prediction is paid in
 //! quality rather than in bits. The benchmark measures both effects.
 
+use crate::inter::MotionVector;
 use crate::intra::IntraMode;
 use crate::transform::{TransformKind, TransformMode};
 
@@ -125,12 +126,35 @@ pub struct GeometryFeatures {
     /// neighbouring units' types, and the VVC implicit multiple
     /// transform selection proposals do the same.
     pub neighbour_transforms: [f32; NEIGHBOUR_TRANSFORM_SLOTS * MODE_COUNT],
+    /// Whether the block is predicted from the previous frame.
+    ///
+    /// An inter block has no intra prediction mode, so the mode feature
+    /// is empty for one, and the predictor has to know that.
+    pub is_inter: f32,
+    /// The motion context: the block's own motion vector and the motion
+    /// vectors of the blocks to its left and above.
+    ///
+    /// Each vector contributes its two components, scaled so a large
+    /// vector does not dominate the feature.
+    ///
+    /// A motion-compensated residual carries the motion vector's
+    /// structure, and the decoder knows the vector because it decoded
+    /// it. This is the context that makes the prediction of an inter
+    /// block's transform mode better than the prediction of an intra
+    /// block's.
+    pub motion: [f32; MOTION_FEATURE_COUNT],
 }
 
 impl GeometryFeatures {
     /// The number of features in the vector.
-    pub const LEN: usize =
-        8 + 4 + 3 + 1 + IntraMode::COUNT + NEIGHBOUR_TRANSFORM_SLOTS * MODE_COUNT;
+    pub const LEN: usize = 8
+        + 4
+        + 3
+        + 1
+        + IntraMode::COUNT
+        + NEIGHBOUR_TRANSFORM_SLOTS * MODE_COUNT
+        + 1
+        + MOTION_FEATURE_COUNT;
 
     /// The feature vector in the order the trained model expects.
     pub fn to_vec(&self) -> Vec<f32> {
@@ -146,6 +170,8 @@ impl GeometryFeatures {
         out.push(self.quantization_parameter);
         out.extend_from_slice(&self.intra_mode);
         out.extend_from_slice(&self.neighbour_transforms);
+        out.push(self.is_inter);
+        out.extend_from_slice(&self.motion);
         out
     }
 }
@@ -162,6 +188,102 @@ pub const NEIGHBOUR_TRANSFORM_SLOTS: usize = 4;
 ///
 /// The plain DCT-II and the four multiple transform selection modes.
 pub const MODE_COUNT: usize = 5;
+
+/// The per-block context the features are extracted in.
+///
+/// The features of a block depend on what the decoder already knows
+/// about it: the block's intra mode, the quantization parameter, the
+/// transform modes of its neighbours and its motion context. They are
+/// bundled so the extraction functions take one context rather than
+/// four separate arguments.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BlockContext {
+    /// The block's intra prediction mode.
+    pub mode: IntraMode,
+    /// The quantization parameter.
+    pub qp: i32,
+    /// The transform modes of the blocks to the left, above, above-left
+    /// and above-right.
+    pub neighbours: NeighbourTransforms,
+    /// The block's motion context.
+    pub motion: MotionContext,
+}
+
+impl BlockContext {
+    /// The context of an intra block.
+    pub fn intra(mode: IntraMode, qp: i32) -> Self {
+        Self {
+            mode,
+            qp,
+            neighbours: NeighbourTransforms::default(),
+            motion: MotionContext::intra(),
+        }
+    }
+}
+
+/// The number of motion features.
+///
+/// The block's own motion vector and the motion vectors of the blocks
+/// to its left and above, two components each.
+pub const MOTION_FEATURE_COUNT: usize = 6;
+
+/// The motion context of a block.
+///
+/// The block's own motion vector and the motion vectors of the blocks to
+/// its left and above, plus the flag that says whether the block is
+/// predicted from the previous frame at all.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MotionContext {
+    /// Whether the block is predicted from the previous frame.
+    pub is_inter: f32,
+    /// The features: the block's vector, then the left and above ones.
+    pub features: [f32; MOTION_FEATURE_COUNT],
+}
+
+impl Default for MotionContext {
+    fn default() -> Self {
+        Self {
+            is_inter: 0.0,
+            features: [0.0; MOTION_FEATURE_COUNT],
+        }
+    }
+}
+
+impl MotionContext {
+    /// The context of a block that is not predicted from the previous
+    /// frame.
+    pub fn intra() -> Self {
+        Self::default()
+    }
+
+    /// The context of a block that is, with its own motion vector and
+    /// the motion vectors of the blocks to its left and above.
+    ///
+    /// The components are scaled by a sixteenth and clipped, so a large
+    /// vector is a large number rather than an unbounded one.
+    pub fn inter(
+        own: MotionVector,
+        left: Option<MotionVector>,
+        above: Option<MotionVector>,
+    ) -> Self {
+        let scale = |value: i32| (value as f32 / 16.0).clamp(-4.0, 4.0);
+        let mut features = [0.0f32; MOTION_FEATURE_COUNT];
+        features[0] = scale(own.dx);
+        features[1] = scale(own.dy);
+        if let Some(left) = left {
+            features[2] = scale(left.dx);
+            features[3] = scale(left.dy);
+        }
+        if let Some(above) = above {
+            features[4] = scale(above.dx);
+            features[5] = scale(above.dy);
+        }
+        Self {
+            is_inter: 1.0,
+            features,
+        }
+    }
+}
 
 /// The transform on one axis of a mode.
 ///
@@ -272,10 +394,14 @@ impl NeighbourTransforms {
 pub fn extract_features(
     left: &[Option<i32>],
     top: &[Option<i32>],
-    mode: IntraMode,
-    qp: i32,
-    neighbours: NeighbourTransforms,
+    context: BlockContext,
 ) -> GeometryFeatures {
+    let BlockContext {
+        mode,
+        qp,
+        neighbours,
+        motion,
+    } = context;
     let mut histogram = [0f32; ORIENTATION_BINS];
     let mut total = 0f32;
     let mut horizontal = 0f32;
@@ -342,6 +468,8 @@ pub fn extract_features(
             quantization_parameter: qp as f32 / 51.0,
             intra_mode,
             neighbour_transforms: neighbours.one_hot(),
+            is_inter: motion.is_inter,
+            motion: motion.features,
         };
     }
 
@@ -383,6 +511,8 @@ pub fn extract_features(
         quantization_parameter: qp as f32 / 51.0,
         intra_mode,
         neighbour_transforms: neighbours.one_hot(),
+        is_inter: motion.is_inter,
+        motion: motion.features,
     }
 }
 
@@ -403,10 +533,14 @@ pub fn extract_features_from_window(
     stride: usize,
     origin: (usize, usize),
     window: usize,
-    mode: IntraMode,
-    qp: i32,
-    neighbours: NeighbourTransforms,
+    context: BlockContext,
 ) -> GeometryFeatures {
+    let BlockContext {
+        mode,
+        qp,
+        neighbours,
+        motion,
+    } = context;
     let (origin_x, origin_y) = origin;
     let mut histogram = [0f32; ORIENTATION_BINS];
     let mut total = 0f32;
@@ -434,6 +568,8 @@ pub fn extract_features_from_window(
                 modes
             },
             neighbour_transforms: neighbours.one_hot(),
+            is_inter: motion.is_inter,
+            motion: motion.features,
         };
     }
 
@@ -470,6 +606,8 @@ pub fn extract_features_from_window(
             quantization_parameter: qp as f32 / 51.0,
             intra_mode,
             neighbour_transforms: neighbours.one_hot(),
+            is_inter: motion.is_inter,
+            motion: motion.features,
         };
     }
 
@@ -506,6 +644,8 @@ pub fn extract_features_from_window(
         quantization_parameter: qp as f32 / 51.0,
         intra_mode,
         neighbour_transforms: neighbours.one_hot(),
+        is_inter: motion.is_inter,
+        motion: motion.features,
     }
 }
 
@@ -924,13 +1064,7 @@ mod tests {
     fn features_are_length_and_normalised() {
         let left = vec![Some(0), Some(10), Some(20), Some(30)];
         let top = vec![Some(0), Some(5), Some(10), Some(15)];
-        let features = extract_features(
-            &left,
-            &top,
-            IntraMode::Planar,
-            27,
-            NeighbourTransforms::default(),
-        );
+        let features = extract_features(&left, &top, BlockContext::intra(IntraMode::Planar, 27));
         assert_eq!(features.to_vec().len(), GeometryFeatures::LEN);
         let sum: f32 = features.orientation_histogram.iter().sum();
         assert!((sum - 1.0).abs() < 1e-5, "histogram sums to 1, got {sum}");
@@ -942,13 +1076,7 @@ mod tests {
     fn flat_neighbourhood_is_isotropic() {
         let left = vec![Some(5); 8];
         let top = vec![Some(5); 8];
-        let features = extract_features(
-            &left,
-            &top,
-            IntraMode::Planar,
-            27,
-            NeighbourTransforms::default(),
-        );
+        let features = extract_features(&left, &top, BlockContext::intra(IntraMode::Planar, 27));
         assert_eq!(features.gradient_energy, 0.0);
         assert_eq!(features.isotropy, 1.0);
     }
@@ -965,9 +1093,7 @@ mod tests {
         let features = extract_features(
             &[Some(1), Some(2)],
             &[Some(3), Some(4)],
-            IntraMode::Planar,
-            27,
-            NeighbourTransforms::default(),
+            BlockContext::intra(IntraMode::Planar, 27),
         );
         let a = predictor.predict(&features);
         let b = predictor.predict(&features);

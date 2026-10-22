@@ -9,9 +9,14 @@
 //! width             u32, little endian
 //! height            u32, little endian
 //! qp                u8
+//! frames            u8
 //! payload length    u32, little endian
 //! payload           range-coded bytes
 //! ```
+//!
+//! The payload holds the coded frames in order. The first is an intra
+//! frame and the rest are inter frames, each predicted from the
+//! reconstruction of the one before it.
 //!
 //! # Payload
 //!
@@ -63,6 +68,12 @@ pub struct BitstreamHeader {
     pub width: u32,
     pub height: u32,
     pub qp: u8,
+    /// The number of frames in the payload.
+    ///
+    /// The first is coded as an intra frame and the rest as inter
+    /// frames. The count is in the header so a decoder knows how many
+    /// frames to expect before it starts decoding them.
+    pub frames: u8,
     /// The signalling mode the payload uses.
     ///
     /// The mode has to be in the header rather than out of band: an
@@ -77,7 +88,7 @@ const FLAG_INFERRED: u16 = 1;
 
 impl BitstreamHeader {
     /// The size of the header in bytes, excluding the payload.
-    pub const SIZE: usize = 4 + 2 + 2 + 4 + 4 + 1 + 4;
+    pub const SIZE: usize = 4 + 2 + 2 + 4 + 4 + 1 + 1 + 4;
 
     /// Write a complete bitstream: the header followed by the payload.
     pub fn write(&self, out: &mut Vec<u8>, payload: &[Word]) {
@@ -91,6 +102,7 @@ impl BitstreamHeader {
         out.extend_from_slice(&self.width.to_le_bytes());
         out.extend_from_slice(&self.height.to_le_bytes());
         out.push(self.qp);
+        out.push(self.frames);
         out.extend_from_slice(&(payload.len() as u32).to_le_bytes());
         for word in payload {
             out.extend_from_slice(&word.to_le_bytes());
@@ -113,19 +125,21 @@ impl BitstreamHeader {
         let width = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
         let height = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]);
         let qp = bytes[16];
+        let frames = bytes[17];
         let flags = u16::from_le_bytes([bytes[6], bytes[7]]);
         let signalling = if flags & FLAG_INFERRED != 0 {
             TransformSignalling::Inferred
         } else {
             TransformSignalling::Explicit
         };
-        let payload_len = u32::from_le_bytes([bytes[17], bytes[18], bytes[19], bytes[20]]) as usize;
+        let payload_len = u32::from_le_bytes([bytes[18], bytes[19], bytes[20], bytes[21]]) as usize;
         Ok((
             Self {
                 version,
                 width,
                 height,
                 qp,
+                frames,
                 signalling,
             },
             Self::SIZE + payload_len * 4,
@@ -312,6 +326,7 @@ mod tests {
             width: 352,
             height: 288,
             qp: 27,
+            frames: 3,
             signalling: TransformSignalling::Inferred,
         };
         let payload = vec![1u32, 2, 3, 4];

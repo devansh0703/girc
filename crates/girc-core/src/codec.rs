@@ -24,9 +24,10 @@
 
 use crate::bitstream::{BinDecoder, BinEncoder, BitstreamError, BitstreamHeader};
 use crate::geometry::{
-    extract_features, extract_features_from_window, GeometryFeatures, NeighbourTransforms,
-    TransformPredictor, TransformSignal, TransformSignalling,
+    extract_features, extract_features_from_window, BlockContext, GeometryFeatures, MotionContext,
+    NeighbourTransforms, TransformPredictor, TransformSignal, TransformSignalling,
 };
+use crate::inter::{compensate, search, MotionField, MotionVector};
 use crate::intra::{predict, IntraMode, ReferenceSamples};
 use crate::quant::{dequantize, dequantize_with, quantize_with, sse, QuantParams};
 use crate::transform::{forward_mode, inverse_mode, TransformMode};
@@ -102,6 +103,8 @@ impl TransformMap {
 // Context indices.
 const CTX_INTRA_MODE: usize = 0;
 const CTX_SKIP: usize = 1;
+/// Whether the block is predicted from the previous picture.
+const CTX_INTER: usize = 11;
 const CTX_COEF_SIGNIFICANT: usize = 2;
 const CTX_COEF_GREATER1: usize = 3;
 const CTX_COEF_GREATER2: usize = 4;
@@ -182,6 +185,13 @@ pub struct EncoderConfig {
     /// encoder follow the prediction almost always, at the cost of
     /// distortion.
     pub transform_margin: f32,
+    /// How far the motion search looks around the motion vector
+    /// predictor, in whole samples.
+    ///
+    /// The predictor is where the motion is most likely to be, so a
+    /// small radius is enough; a wide one costs the benchmark a great
+    /// deal of time for a fraction of a percent.
+    pub motion_search_radius: i32,
 }
 
 impl Default for EncoderConfig {
@@ -192,6 +202,7 @@ impl Default for EncoderConfig {
             predictor: TransformPredictor::constant_dct2(),
             lambda: 0.85,
             transform_margin: 0.0,
+            motion_search_radius: 4,
         }
     }
 }
@@ -201,8 +212,8 @@ impl Default for EncoderConfig {
 pub struct EncodeResult {
     /// The encoded bitstream.
     pub bitstream: Vec<u8>,
-    /// The encoder's reconstruction.
-    pub reconstruction: Picture,
+    /// The encoder's reconstruction of each frame.
+    pub reconstructions: Vec<Picture>,
     /// The number of bytes the payload occupies.
     pub payload_bytes: usize,
     /// How many blocks the encoder coded.
@@ -221,6 +232,9 @@ pub struct EncodeResult {
     /// In explicit mode this is always zero, because there is no
     /// prediction to differ from.
     pub prediction_mismatches: usize,
+    /// How many blocks were predicted from the previous frame rather
+    /// than from the current frame's causal neighbourhood.
+    pub inter_blocks: usize,
 }
 
 /// Errors produced by the encoder or decoder.
@@ -232,6 +246,8 @@ pub enum CodecError {
     Dimensions { width: usize, height: usize },
     /// The predictor's features did not match the model's expectations.
     Predictor(String),
+    /// The sequence had no frames to code.
+    NoFrames,
 }
 
 impl std::fmt::Display for CodecError {
@@ -243,6 +259,7 @@ impl std::fmt::Display for CodecError {
                 "picture {width}x{height} is not a multiple of the {BLOCK_SIZE}x{BLOCK_SIZE} block size"
             ),
             CodecError::Predictor(msg) => write!(f, "predictor error: {msg}"),
+            CodecError::NoFrames => write!(f, "the sequence has no frames to code"),
         }
     }
 }
@@ -255,103 +272,165 @@ impl From<BitstreamError> for CodecError {
     }
 }
 
-/// Encode a picture.
-pub fn encode(picture: &Picture, config: &EncoderConfig) -> Result<EncodeResult, CodecError> {
-    if picture.width % BLOCK_SIZE != 0 || picture.height % BLOCK_SIZE != 0 {
-        return Err(CodecError::Dimensions {
-            width: picture.width,
-            height: picture.height,
-        });
+/// Encode a sequence of pictures.
+///
+/// The first picture is coded as an intra picture. The rest are coded as
+/// inter pictures, each predicted from the reconstruction of the picture
+/// before it, with a per-block choice between intra and inter
+/// prediction.
+///
+/// The transform mode signalling is the same in both, and the two modes
+/// differ in nothing else, so a difference in the measured bitrate is
+/// attributable to the signalling mechanism alone.
+pub fn encode(frames: &[Picture], config: &EncoderConfig) -> Result<EncodeResult, CodecError> {
+    let Some(first) = frames.first() else {
+        return Err(CodecError::NoFrames);
+    };
+    for picture in frames {
+        if picture.width % BLOCK_SIZE != 0 || picture.height % BLOCK_SIZE != 0 {
+            return Err(CodecError::Dimensions {
+                width: picture.width,
+                height: picture.height,
+            });
+        }
     }
 
-    let blocks_x = picture.width / BLOCK_SIZE;
-    let blocks_y = picture.height / BLOCK_SIZE;
+    let blocks_x = first.width / BLOCK_SIZE;
+    let blocks_y = first.height / BLOCK_SIZE;
     let block_count = blocks_x * blocks_y;
 
     let mut encoder = BinEncoder::new(NUM_CONTEXTS);
-    let mut reconstruction = Picture::filled(picture.width, picture.height, 0);
-    let mut transforms = TransformMap::new(blocks_x, blocks_y);
-
+    let mut reconstructions: Vec<Picture> = Vec::with_capacity(frames.len());
     let mut mismatches = 0usize;
     let mut signalling_bins = 0usize;
+    let mut inter_blocks = 0usize;
 
-    for by in 0..blocks_y {
-        for bx in 0..blocks_x {
-            let reference = reference_samples(&reconstruction, bx, by);
-            let original = block_samples(picture, bx, by);
+    for (index, picture) in frames.iter().enumerate() {
+        // The reference for an inter picture is the reconstruction of the
+        // picture before it, which is what the decoder will have.
+        let reference_picture = if index == 0 {
+            None
+        } else {
+            Some(&reconstructions[index - 1])
+        };
+        let mut reconstruction = Picture::filled(picture.width, picture.height, 0);
+        let mut transforms = TransformMap::new(blocks_x, blocks_y);
+        let mut motion = MotionField::new(blocks_x, blocks_y);
 
-            // The search runs in the decoder's order: the intra mode is
-            // chosen first, because the transform type is signalled after
-            // it and the predictor's features depend on it.
-            let mode = choose_mode(&original, &reference, config);
+        for by in 0..blocks_y {
+            for bx in 0..blocks_x {
+                let original = block_samples(picture, bx, by);
 
-            // The decoder's prediction, which the encoder must match. The
-            // intra mode is decoded before the transform type, so it is
-            // available on both sides.
-            //
-            // The prediction is computed from the encoder's own
-            // reconstruction, which is what the decoder will have.
-            // The explicit mode always takes the rate-distortion optimal
-            // transform and signals it; the margin only applies to the
-            // inferred mode, where it is the mechanism's trade.
-            let predicted = if config.signalling == TransformSignalling::Inferred {
-                let features =
-                    predict_features(&reconstruction, &transforms, bx, by, mode, config.qp);
-                Some(config.predictor.predict_with_margin(&features).0)
-            } else {
-                None
-            };
+                // The prediction mode comes first in the syntax, so the
+                // decoder knows it before the transform mode.
+                //
+                // An intra picture has no choice: every block is intra. An
+                // inter picture chooses per block, and the choice is made by
+                // rate-distortion cost over the two predictions.
+                let (is_inter, vector, mode, prediction) = choose_prediction(
+                    picture,
+                    reference_picture,
+                    &reconstruction,
+                    &motion,
+                    bx,
+                    by,
+                    config,
+                );
+                if is_inter {
+                    inter_blocks += 1;
+                }
 
-            let (chosen_transform, chosen_levels, chosen_reconstruction, chosen_cost) =
-                choose_transform(&original, &reference, config, mode, predicted);
+                // The decoder's prediction, which the encoder must match. The
+                // intra mode is decoded before the transform type, so it is
+                // available on both sides.
+                //
+                // The prediction is computed from the encoder's own
+                // reconstruction, which is what the decoder will have.
+                // The explicit mode always takes the rate-distortion optimal
+                // transform and signals it; the margin only applies to the
+                // inferred mode, where it is the mechanism's trade.
+                let predicted = if config.signalling == TransformSignalling::Inferred {
+                    let features = predict_features(&PredictionContext {
+                        picture: &reconstruction,
+                        transforms: &transforms,
+                        motion: &motion,
+                        block: (bx, by),
+                        mode,
+                        is_inter,
+                        qp: config.qp,
+                    });
+                    Some(config.predictor.predict_with_margin(&features).0)
+                } else {
+                    None
+                };
 
-            let signal = match (config.signalling, predicted) {
-                (TransformSignalling::Explicit, _) => TransformSignal::Explicit(chosen_transform),
-                (TransformSignalling::Inferred, Some(predicted)) => {
-                    if predicted == chosen_transform {
-                        TransformSignal::Predicted
-                    } else {
-                        mismatches += 1;
-                        TransformSignal::Override {
-                            predicted,
-                            actual: chosen_transform,
+                let (chosen_transform, chosen_levels, chosen_reconstruction, chosen_cost) =
+                    choose_transform(&original, &prediction, config, predicted);
+
+                let signal = match (config.signalling, predicted) {
+                    (TransformSignalling::Explicit, _) => {
+                        TransformSignal::Explicit(chosen_transform)
+                    }
+                    (TransformSignalling::Inferred, Some(predicted)) => {
+                        if predicted == chosen_transform {
+                            TransformSignal::Predicted
+                        } else {
+                            mismatches += 1;
+                            TransformSignal::Override {
+                                predicted,
+                                actual: chosen_transform,
+                            }
                         }
                     }
-                }
-                (TransformSignalling::Inferred, None) => {
-                    TransformSignal::Explicit(chosen_transform)
-                }
-            };
-            signalling_bins += signal.bin_count();
+                    (TransformSignalling::Inferred, None) => {
+                        TransformSignal::Explicit(chosen_transform)
+                    }
+                };
+                signalling_bins += signal.bin_count();
 
-            // Code the syntax elements.
-            code_intra_mode(&mut encoder, mode);
-            code_transform_signal(&mut encoder, signal);
-            let skip = chosen_levels.iter().all(|l| *l == 0);
-            encoder.encode(CTX_SKIP, skip);
-            if !skip {
-                code_coefficients(&mut encoder, &chosen_levels);
-            }
-
-            // Commit the reconstruction and the transform, so later blocks
-            // can use them.
-            for y in 0..BLOCK_SIZE {
-                for x in 0..BLOCK_SIZE {
-                    let value = chosen_reconstruction[y * BLOCK_SIZE + x].clamp(0, 255) as u8;
-                    reconstruction.set_sample(bx * BLOCK_SIZE + x, by * BLOCK_SIZE + y, value);
+                // Code the syntax elements, in the decoder's order: the
+                // prediction mode, the motion vector, the transform mode and
+                // the residual.
+                encoder.encode(CTX_INTER, is_inter);
+                if is_inter {
+                    let predictor = motion.predict(bx, by);
+                    code_motion_vector(&mut encoder, vector - predictor);
+                } else {
+                    code_intra_mode(&mut encoder, mode);
                 }
+                code_transform_signal(&mut encoder, signal);
+                let skip = chosen_levels.iter().all(|l| *l == 0);
+                encoder.encode(CTX_SKIP, skip);
+                if !skip {
+                    code_coefficients(&mut encoder, &chosen_levels);
+                }
+
+                // Commit the reconstruction and the transform, so later blocks
+                // can use them.
+                for y in 0..BLOCK_SIZE {
+                    for x in 0..BLOCK_SIZE {
+                        let value = chosen_reconstruction[y * BLOCK_SIZE + x].clamp(0, 255) as u8;
+                        reconstruction.set_sample(bx * BLOCK_SIZE + x, by * BLOCK_SIZE + y, value);
+                    }
+                }
+                transforms.set(bx, by, chosen_transform);
+                if is_inter {
+                    motion.set(bx, by, vector);
+                }
+                let _ = chosen_cost;
             }
-            transforms.set(bx, by, chosen_transform);
-            let _ = chosen_cost;
         }
+
+        reconstructions.push(reconstruction);
     }
 
     let payload = encoder.finish();
     let header = BitstreamHeader {
         version: crate::bitstream::VERSION,
-        width: picture.width as u32,
-        height: picture.height as u32,
+        width: first.width as u32,
+        height: first.height as u32,
         qp: config.qp as u8,
+        frames: frames.len() as u8,
         signalling: config.signalling,
     };
     let mut bitstream = Vec::new();
@@ -360,15 +439,16 @@ pub fn encode(picture: &Picture, config: &EncoderConfig) -> Result<EncodeResult,
     Ok(EncodeResult {
         payload_bytes: payload.len() * 4,
         bitstream,
-        reconstruction,
+        reconstructions,
         prediction_mismatches: mismatches,
         block_count,
         transform_signalling_bins: signalling_bins,
+        inter_blocks,
     })
 }
 
-/// Decode a bitstream into a picture.
-pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Picture, CodecError> {
+/// Decode a bitstream into a sequence of pictures.
+pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Vec<Picture>, CodecError> {
     let (header, _) = BitstreamHeader::read(bitstream)?;
     let width = header.width as usize;
     let height = header.height as usize;
@@ -384,53 +464,198 @@ pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Picture, Codec
     }
 
     let mut decoder = BinDecoder::new(&words, NUM_CONTEXTS)?;
-    let mut picture = Picture::filled(width, height, 0);
+    let mut pictures: Vec<Picture> = Vec::with_capacity(header.frames as usize);
 
     let blocks_x = width / BLOCK_SIZE;
     let blocks_y = height / BLOCK_SIZE;
-    let mut transforms = TransformMap::new(blocks_x, blocks_y);
 
-    for by in 0..blocks_y {
-        for bx in 0..blocks_x {
-            let reference = reference_samples(&picture, bx, by);
-            let mode = decode_intra_mode(&mut decoder)?;
-            let transform = decode_transform_signal(
-                &mut decoder,
-                config,
-                header.signalling,
-                &PredictionContext {
-                    picture: &picture,
-                    transforms: &transforms,
-                    block: (bx, by),
-                    mode,
-                    qp: header.qp as i32,
-                },
-            )?;
+    for index in 0..header.frames {
+        let mut picture = Picture::filled(width, height, 0);
+        let mut transforms = TransformMap::new(blocks_x, blocks_y);
+        let mut motion = MotionField::new(blocks_x, blocks_y);
+        let reference_picture = if index == 0 {
+            None
+        } else {
+            Some(&pictures[index as usize - 1])
+        };
 
-            let skip = decoder.decode(CTX_SKIP)?;
-            let levels = if skip {
-                vec![0i32; BLOCK_SIZE * BLOCK_SIZE]
-            } else {
-                decode_coefficients(&mut decoder)?
-            };
+        for by in 0..blocks_y {
+            for bx in 0..blocks_x {
+                let reference = reference_samples(&picture, bx, by);
 
-            let dequantized = dequantize(&levels, header.qp as i32);
-            let samples = inverse_mode(transform, BLOCK_SIZE, &dequantized)
-                .map_err(|e| CodecError::Predictor(e.to_string()))?;
-            let prediction = predict(mode, BLOCK_SIZE, &reference);
+                // The prediction mode and the motion vector come first, so
+                // the prediction is known before the transform mode.
+                let is_inter = decoder.decode(CTX_INTER)?;
+                let (mode, vector, prediction) = if is_inter {
+                    let predictor = motion.predict(bx, by);
+                    let difference = decode_motion_vector(&mut decoder)?;
+                    let vector = predictor + difference;
+                    let prediction = match reference_picture {
+                        Some(reference_picture) => compensate(
+                            reference_picture,
+                            (bx * BLOCK_SIZE) as i32,
+                            (by * BLOCK_SIZE) as i32,
+                            BLOCK_SIZE,
+                            vector,
+                        ),
+                        None => vec![0i32; BLOCK_SIZE * BLOCK_SIZE],
+                    };
+                    (IntraMode::Dc, vector, prediction)
+                } else {
+                    let mode = decode_intra_mode(&mut decoder)?;
+                    let prediction = predict(mode, BLOCK_SIZE, &reference);
+                    (mode, MotionVector::ZERO, prediction)
+                };
 
-            for y in 0..BLOCK_SIZE {
-                for x in 0..BLOCK_SIZE {
-                    let index = y * BLOCK_SIZE + x;
-                    let value = (prediction[index] + samples[index]).clamp(0, 255) as u8;
-                    picture.set_sample(bx * BLOCK_SIZE + x, by * BLOCK_SIZE + y, value);
+                let transform = decode_transform_signal(
+                    &mut decoder,
+                    config,
+                    header.signalling,
+                    &PredictionContext {
+                        picture: &picture,
+                        transforms: &transforms,
+                        motion: &motion,
+                        block: (bx, by),
+                        mode,
+                        is_inter,
+                        qp: header.qp as i32,
+                    },
+                )?;
+
+                let skip = decoder.decode(CTX_SKIP)?;
+                let levels = if skip {
+                    vec![0i32; BLOCK_SIZE * BLOCK_SIZE]
+                } else {
+                    decode_coefficients(&mut decoder)?
+                };
+
+                let dequantized = dequantize(&levels, header.qp as i32);
+                let samples = inverse_mode(transform, BLOCK_SIZE, &dequantized)
+                    .map_err(|e| CodecError::Predictor(e.to_string()))?;
+
+                for y in 0..BLOCK_SIZE {
+                    for x in 0..BLOCK_SIZE {
+                        let index = y * BLOCK_SIZE + x;
+                        let value = (prediction[index] + samples[index]).clamp(0, 255) as u8;
+                        picture.set_sample(bx * BLOCK_SIZE + x, by * BLOCK_SIZE + y, value);
+                    }
+                }
+                transforms.set(bx, by, transform);
+                if is_inter {
+                    motion.set(bx, by, vector);
                 }
             }
-            transforms.set(bx, by, transform);
         }
+        pictures.push(picture);
     }
 
-    Ok(picture)
+    Ok(pictures)
+}
+
+/// Choose the prediction for a block.
+///
+/// An intra picture has no choice: every block is intra. An inter
+/// picture chooses per block, and the choice is made by rate-distortion
+/// cost over the two predictions.
+///
+/// The motion vector is searched before the choice, because the search
+/// is what the inter prediction needs, and the cost of the vector's own
+/// signalling is added to the inter candidate's cost.
+fn choose_prediction(
+    picture: &Picture,
+    reference_picture: Option<&Picture>,
+    reconstruction: &Picture,
+    motion: &MotionField,
+    bx: usize,
+    by: usize,
+    config: &EncoderConfig,
+) -> (bool, MotionVector, IntraMode, Vec<i32>) {
+    let reference = reference_samples(reconstruction, bx, by);
+    let original = block_samples(picture, bx, by);
+    let mode = choose_mode(&original, &reference, config);
+    let intra = predict(mode, BLOCK_SIZE, &reference);
+
+    let Some(reference_picture) = reference_picture else {
+        return (false, MotionVector::ZERO, mode, intra);
+    };
+
+    // The motion search. The radius is small because the predictor is
+    // where the motion is most likely to be, and a wide search would
+    // cost the benchmark far more time than it is worth.
+    let predictor = motion.predict(bx, by);
+    let vector = search(
+        &original,
+        reference_picture,
+        (bx * BLOCK_SIZE) as i32,
+        (by * BLOCK_SIZE) as i32,
+        BLOCK_SIZE,
+        predictor,
+        config.motion_search_radius,
+    );
+    let inter = compensate(
+        reference_picture,
+        (bx * BLOCK_SIZE) as i32,
+        (by * BLOCK_SIZE) as i32,
+        BLOCK_SIZE,
+        vector,
+    );
+
+    // The inter candidate's cost carries the motion vector's own rate,
+    // because a vector that costs many bits is not worth taking.
+    let inter_cost = best_cost(&original, &inter, config)
+        + config.lambda * motion_vector_bits(vector - predictor);
+    let intra_cost = best_cost(&original, &intra, config);
+
+    if inter_cost < intra_cost {
+        (true, vector, mode, inter)
+    } else {
+        (false, MotionVector::ZERO, mode, intra)
+    }
+}
+
+/// The lowest rate-distortion cost over the transform modes, for a given
+/// prediction.
+fn best_cost(original: &[u8], prediction: &[i32], config: &EncoderConfig) -> f32 {
+    let mut best = f32::INFINITY;
+    for transform in TransformMode::ALL {
+        if let Some(candidate) = evaluate(original, prediction, config, transform) {
+            best = best.min(candidate.cost);
+        }
+    }
+    best
+}
+
+/// The number of bits a motion vector difference costs.
+///
+/// Each component is coded as a sign and an exponential-Golomb
+/// magnitude, and the estimate follows the same shape.
+fn motion_vector_bits(difference: MotionVector) -> f32 {
+    let magnitude = |value: i32| {
+        let value = value.unsigned_abs();
+        // The terminating one of the prefix, and the prefix and suffix.
+        1.0 + 2.0 * (32 - value.leading_zeros()) as f32
+    };
+    2.0 + magnitude(difference.dx) + magnitude(difference.dy)
+}
+
+/// Code a motion vector difference.
+fn code_motion_vector(encoder: &mut BinEncoder, difference: MotionVector) {
+    encoder.encode_bypass(difference.dx < 0);
+    encoder.encode_bypass(difference.dy < 0);
+    code_exp_golomb(encoder, difference.dx.unsigned_abs());
+    code_exp_golomb(encoder, difference.dy.unsigned_abs());
+}
+
+/// Decode a motion vector difference.
+fn decode_motion_vector(decoder: &mut BinDecoder) -> Result<MotionVector, CodecError> {
+    let dx_negative = decoder.decode_bypass()?;
+    let dy_negative = decoder.decode_bypass()?;
+    let dx = decode_exp_golomb(decoder)? as i32;
+    let dy = decode_exp_golomb(decoder)? as i32;
+    Ok(MotionVector {
+        dx: if dx_negative { -dx } else { dx },
+        dy: if dy_negative { -dy } else { dy },
+    })
 }
 
 /// The rate-distortion cost of a candidate block.
@@ -447,15 +672,17 @@ struct Candidate {
     cost: f32,
 }
 
-/// Evaluate one intra mode with one transform.
+/// Evaluate one prediction with one transform.
+///
+/// The prediction is the block's samples before the residual is added, so
+/// an intra prediction and a motion-compensated prediction go through
+/// exactly the same path from here on.
 fn evaluate(
     original: &[u8],
-    reference: &ReferenceSamples,
+    prediction: &[i32],
     config: &EncoderConfig,
-    mode: IntraMode,
     transform: TransformMode,
 ) -> Option<Candidate> {
-    let prediction = predict(mode, BLOCK_SIZE, reference);
     let residual: Vec<i32> = original
         .iter()
         .zip(prediction.iter())
@@ -499,9 +726,10 @@ fn choose_mode(original: &[u8], reference: &ReferenceSamples, config: &EncoderCo
     let mut best_mode = IntraMode::Dc;
     let mut best_cost = f32::INFINITY;
     for mode in IntraMode::all() {
+        let prediction = predict(mode, BLOCK_SIZE, reference);
         let mut mode_cost = f32::INFINITY;
         for transform in TransformMode::ALL {
-            if let Some(candidate) = evaluate(original, reference, config, mode, transform) {
+            if let Some(candidate) = evaluate(original, &prediction, config, transform) {
                 mode_cost = mode_cost.min(candidate.cost);
             }
         }
@@ -521,16 +749,15 @@ fn choose_mode(original: &[u8], reference: &ReferenceSamples, config: &EncoderCo
 /// gives up a little distortion to avoid spending the override bit.
 fn choose_transform(
     original: &[u8],
-    reference: &ReferenceSamples,
+    prediction: &[i32],
     config: &EncoderConfig,
-    mode: IntraMode,
     predicted: Option<TransformMode>,
 ) -> (TransformMode, Vec<i32>, Vec<i32>, f32) {
     let mut best: Option<Candidate> = None;
     let mut predicted_candidate: Option<Candidate> = None;
 
     for transform in TransformMode::ALL {
-        let Some(candidate) = evaluate(original, reference, config, mode, transform) else {
+        let Some(candidate) = evaluate(original, prediction, config, transform) else {
             continue;
         };
         if Some(transform) == predicted {
@@ -578,8 +805,9 @@ pub fn search_block(
     config: &EncoderConfig,
 ) -> (IntraMode, TransformMode, Vec<i32>, Vec<i32>, f32) {
     let mode = choose_mode(original, reference, config);
+    let prediction = predict(mode, BLOCK_SIZE, reference);
     let (transform, levels, reconstruction, cost) =
-        choose_transform(original, reference, config, mode, None);
+        choose_transform(original, &prediction, config, None);
     (mode, transform, levels, reconstruction, cost)
 }
 
@@ -742,13 +970,6 @@ fn decode_transform_signal(
     signalling: TransformSignalling,
     context: &PredictionContext<'_>,
 ) -> Result<TransformMode, CodecError> {
-    let PredictionContext {
-        picture,
-        transforms,
-        block,
-        mode,
-        qp,
-    } = *context;
     // The explicit mode has no override flag; the mode is coded
     // directly, with the same syntax the encoder used.
     if signalling == TransformSignalling::Explicit {
@@ -771,7 +992,7 @@ fn decode_transform_signal(
     }
 
     let override_flag = decoder.decode(CTX_TRANSFORM_OVERRIDE)?;
-    let features = predict_features(picture, transforms, block.0, block.1, mode, qp);
+    let features = predict_features(context);
     let (predicted, _) = config.predictor.predict_with_margin(&features);
     if !override_flag {
         return Ok(predicted);
@@ -903,10 +1124,17 @@ pub struct PredictionContext<'a> {
     pub picture: &'a Picture,
     /// The transform mode each coded block used.
     pub transforms: &'a TransformMap,
+    /// The motion vector each coded block used.
+    pub motion: &'a MotionField,
     /// The block's position, in blocks.
     pub block: (usize, usize),
     /// The block's intra prediction mode, decoded before the transform.
+    ///
+    /// An inter block has no intra mode, so the feature is empty for
+    /// one.
     pub mode: IntraMode,
+    /// Whether the block is predicted from the previous frame.
+    pub is_inter: bool,
     /// The quantization parameter, from the bitstream header.
     pub qp: i32,
 }
@@ -916,44 +1144,53 @@ pub struct PredictionContext<'a> {
 /// The encoder and the decoder both call this, on their own
 /// reconstructions, so the two always see the same features. That is what
 /// makes the inference exact rather than approximate.
-pub fn predict_features(
-    picture: &Picture,
-    transforms: &TransformMap,
-    bx: usize,
-    by: usize,
-    mode: IntraMode,
-    qp: i32,
-) -> GeometryFeatures {
+pub fn predict_features(context: &PredictionContext<'_>) -> GeometryFeatures {
+    let (bx, by) = context.block;
     let origin_x = bx * BLOCK_SIZE;
     let origin_y = by * BLOCK_SIZE;
     extract_features_from_window(
-        &picture.samples,
-        picture.width,
+        &context.picture.samples,
+        context.picture.width,
         (origin_x, origin_y),
         CONTEXT_WINDOW,
-        mode,
-        qp,
-        transforms.neighbours(bx, by),
+        BlockContext {
+            mode: context.mode,
+            qp: context.qp,
+            neighbours: context.transforms.neighbours(bx, by),
+            motion: motion_context(context.motion, bx, by, context.is_inter),
+        },
     )
+}
+
+/// The motion context of a block.
+///
+/// The block's own motion vector and the vectors of the blocks to its
+/// left and above. The decoder knows all of them, because it decoded
+/// them.
+fn motion_context(motion: &MotionField, bx: usize, by: usize, is_inter: bool) -> MotionContext {
+    if !is_inter {
+        return MotionContext::intra();
+    }
+    let own = motion.get(bx, by).unwrap_or(MotionVector::ZERO);
+    let left = if bx > 0 { motion.get(bx - 1, by) } else { None };
+    let above = if by > 0 { motion.get(bx, by - 1) } else { None };
+    MotionContext::inter(own, left, above)
 }
 
 /// The features the predictor would see for a block, exposed for the
 /// training pipeline.
-pub fn block_features(
-    picture: &Picture,
-    transforms: &TransformMap,
-    bx: usize,
-    by: usize,
-    mode: IntraMode,
-    qp: i32,
-) -> GeometryFeatures {
-    let reference = reference_samples(picture, bx, by);
+pub fn block_features(context: &PredictionContext<'_>) -> GeometryFeatures {
+    let (bx, by) = context.block;
+    let reference = reference_samples(context.picture, bx, by);
     extract_features(
         &reference.left,
         &reference.top,
-        mode,
-        qp,
-        transforms.neighbours(bx, by),
+        BlockContext {
+            mode: context.mode,
+            qp: context.qp,
+            neighbours: context.transforms.neighbours(bx, by),
+            motion: motion_context(context.motion, bx, by, context.is_inter),
+        },
     )
 }
 
@@ -975,44 +1212,84 @@ pub struct TrainingExample {
 /// gathered any other way would describe a situation the predictor never
 /// meets at inference time.
 pub fn collect_training_examples(
-    picture: &Picture,
+    frames: &[Picture],
     config: &EncoderConfig,
 ) -> Result<Vec<TrainingExample>, CodecError> {
-    if picture.width % BLOCK_SIZE != 0 || picture.height % BLOCK_SIZE != 0 {
-        return Err(CodecError::Dimensions {
-            width: picture.width,
-            height: picture.height,
-        });
+    let Some(first) = frames.first() else {
+        return Err(CodecError::NoFrames);
+    };
+    for picture in frames {
+        if picture.width % BLOCK_SIZE != 0 || picture.height % BLOCK_SIZE != 0 {
+            return Err(CodecError::Dimensions {
+                width: picture.width,
+                height: picture.height,
+            });
+        }
     }
 
-    let blocks_x = picture.width / BLOCK_SIZE;
-    let blocks_y = picture.height / BLOCK_SIZE;
-    let mut reconstruction = Picture::filled(picture.width, picture.height, 0);
-    let mut transforms = TransformMap::new(blocks_x, blocks_y);
-    let mut examples = Vec::with_capacity(blocks_x * blocks_y);
+    let blocks_x = first.width / BLOCK_SIZE;
+    let blocks_y = first.height / BLOCK_SIZE;
+    let mut examples = Vec::with_capacity(frames.len() * blocks_x * blocks_y);
+    let mut reconstructions: Vec<Picture> = Vec::with_capacity(frames.len());
 
-    for by in 0..blocks_y {
-        for bx in 0..blocks_x {
-            let reference = reference_samples(&reconstruction, bx, by);
-            let original = block_samples(picture, bx, by);
-            let (mode, transform, _, reconstruction_block, _) =
-                search_block(&original, &reference, config);
+    for (index, picture) in frames.iter().enumerate() {
+        let reference_picture = if index == 0 {
+            None
+        } else {
+            Some(&reconstructions[index - 1])
+        };
+        let mut reconstruction = Picture::filled(picture.width, picture.height, 0);
+        let mut transforms = TransformMap::new(blocks_x, blocks_y);
+        let mut motion = MotionField::new(blocks_x, blocks_y);
 
-            examples.push(TrainingExample {
-                features: predict_features(&reconstruction, &transforms, bx, by, mode, config.qp),
-                transform,
-            });
+        for by in 0..blocks_y {
+            for bx in 0..blocks_x {
+                let original = block_samples(picture, bx, by);
 
-            // Commit the reconstruction and the transform, so the next
-            // block's features are the ones the decoder will have.
-            for y in 0..BLOCK_SIZE {
-                for x in 0..BLOCK_SIZE {
-                    let value = reconstruction_block[y * BLOCK_SIZE + x].clamp(0, 255) as u8;
-                    reconstruction.set_sample(bx * BLOCK_SIZE + x, by * BLOCK_SIZE + y, value);
+                // The prediction is chosen the same way the encoder
+                // chooses it, so the example describes the situation the
+                // predictor meets at inference time.
+                let (is_inter, vector, mode, prediction) = choose_prediction(
+                    picture,
+                    reference_picture,
+                    &reconstruction,
+                    &motion,
+                    bx,
+                    by,
+                    config,
+                );
+                let (transform, _, reconstruction_block, _) =
+                    choose_transform(&original, &prediction, config, None);
+
+                examples.push(TrainingExample {
+                    features: predict_features(&PredictionContext {
+                        picture: &reconstruction,
+                        transforms: &transforms,
+                        motion: &motion,
+                        block: (bx, by),
+                        mode,
+                        is_inter,
+                        qp: config.qp,
+                    }),
+                    transform,
+                });
+
+                // Commit the reconstruction, the transform and the
+                // motion vector, so the next block's features are the
+                // ones the decoder will have.
+                for y in 0..BLOCK_SIZE {
+                    for x in 0..BLOCK_SIZE {
+                        let value = reconstruction_block[y * BLOCK_SIZE + x].clamp(0, 255) as u8;
+                        reconstruction.set_sample(bx * BLOCK_SIZE + x, by * BLOCK_SIZE + y, value);
+                    }
+                }
+                transforms.set(bx, by, transform);
+                if is_inter {
+                    motion.set(bx, by, vector);
                 }
             }
-            transforms.set(bx, by, transform);
         }
+        reconstructions.push(reconstruction);
     }
 
     Ok(examples)
@@ -1044,10 +1321,10 @@ mod tests {
                 signalling,
                 ..Default::default()
             };
-            let encoded = encode(&picture, &config).unwrap();
+            let encoded = encode(std::slice::from_ref(&picture), &config).unwrap();
             let decoded = decode(&encoded.bitstream, &config).unwrap();
             assert_eq!(
-                decoded, encoded.reconstruction,
+                decoded[0], encoded.reconstructions[0],
                 "{signalling:?}: decoder output differs from the encoder's reconstruction"
             );
         }
@@ -1060,9 +1337,9 @@ mod tests {
         for size in [8usize, 16, 32] {
             let picture = test_picture(size, size);
             let config = EncoderConfig::default();
-            let encoded = encode(&picture, &config).unwrap();
+            let encoded = encode(std::slice::from_ref(&picture), &config).unwrap();
             let decoded = decode(&encoded.bitstream, &config).unwrap();
-            assert_eq!(decoded, encoded.reconstruction, "size {size}");
+            assert_eq!(decoded[0], encoded.reconstructions[0], "size {size}");
         }
     }
 
@@ -1073,7 +1350,7 @@ mod tests {
         let picture = Picture::filled(12, 16, 0);
         let config = EncoderConfig::default();
         assert!(matches!(
-            encode(&picture, &config),
+            encode(std::slice::from_ref(&picture), &config),
             Err(CodecError::Dimensions { .. })
         ));
     }
@@ -1088,13 +1365,13 @@ mod tests {
             signalling: TransformSignalling::Inferred,
             ..Default::default()
         };
-        let encoded = encode(&picture, &config).unwrap();
+        let encoded = encode(std::slice::from_ref(&picture), &config).unwrap();
         assert!(encoded.block_count > 0);
         assert!(encoded.prediction_mismatches <= encoded.block_count);
         // With a constant predictor, every block that did not pick DCT-II
         // must have been overridden.
         let decoded = decode(&encoded.bitstream, &config).unwrap();
-        assert_eq!(decoded, encoded.reconstruction);
+        assert_eq!(decoded[0], encoded.reconstructions[0]);
     }
 
     /// Every residual magnitude must survive the coefficient binarisation.
@@ -1146,6 +1423,76 @@ mod tests {
         );
     }
 
+    /// A sequence of frames must round-trip through the bitstream, and
+    /// the decoder must reproduce every frame's reconstruction exactly.
+    #[test]
+    fn a_sequence_round_trips() {
+        let frames: Vec<Picture> = (0..4)
+            .map(|index| {
+                let mut picture = Picture::filled(32, 32, 0);
+                for y in 0..32 {
+                    for x in 0..32 {
+                        let value = (((x + index) / 4 + y / 4) % 2) as u8 * 200 + 20;
+                        picture.set_sample(x, y, value);
+                    }
+                }
+                picture
+            })
+            .collect();
+
+        for signalling in [TransformSignalling::Explicit, TransformSignalling::Inferred] {
+            let config = EncoderConfig {
+                signalling,
+                ..Default::default()
+            };
+            let encoded = encode(&frames, &config).unwrap();
+            let decoded = decode(&encoded.bitstream, &config).unwrap();
+            assert_eq!(decoded.len(), frames.len());
+            for (index, (decoded, reconstruction)) in decoded
+                .iter()
+                .zip(encoded.reconstructions.iter())
+                .enumerate()
+            {
+                assert_eq!(
+                    decoded, reconstruction,
+                    "{signalling:?}: frame {index} differs from the encoder's reconstruction"
+                );
+            }
+        }
+    }
+
+    /// A moving picture must be predicted from the previous frame rather
+    /// than from the current frame's own neighbourhood.
+    ///
+    /// This is the case the mechanism is for: the inter residual carries
+    /// the motion's structure, which is what the transform predictor reads.
+    #[test]
+    fn moving_content_uses_inter_prediction() {
+        let mut first = Picture::filled(32, 32, 0);
+        for y in 4..20 {
+            for x in 4..20 {
+                first.set_sample(x, y, 220);
+            }
+        }
+        // The second frame is the first one moved two samples to the
+        // right, which is exactly what inter prediction is for.
+        let mut second = Picture::filled(32, 32, 0);
+        for y in 4..20 {
+            for x in 6..22 {
+                second.set_sample(x, y, 220);
+            }
+        }
+
+        let config = EncoderConfig::default();
+        let encoded = encode(&[first, second], &config).unwrap();
+        assert!(
+            encoded.inter_blocks > 0,
+            "a picture that moved should be predicted from the previous frame"
+        );
+        let decoded = decode(&encoded.bitstream, &config).unwrap();
+        assert_eq!(decoded[1], encoded.reconstructions[1]);
+    }
+
     /// The explicit mode must never use the override-only path, so its
     /// signalling cost is the transform type for every block.
     #[test]
@@ -1155,7 +1502,7 @@ mod tests {
             signalling: TransformSignalling::Explicit,
             ..Default::default()
         };
-        let encoded = encode(&picture, &config).unwrap();
+        let encoded = encode(std::slice::from_ref(&picture), &config).unwrap();
         assert_eq!(encoded.prediction_mismatches, 0);
         // The explicit mode's truncated binary code costs one bin for a
         // DCT-II block and two for the others.
