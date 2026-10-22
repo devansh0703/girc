@@ -168,6 +168,35 @@ def capture_reference_modes(
     return counts
 
 
+def write_pattern(path: Path) -> None:
+    """Write a small Y4M the reference encoder will accept.
+
+    The pattern is a superposition of a horizontal and a vertical
+    grating with a diagonal one on top, which is what makes the
+    encoder reach for the sine transforms as well as the plain
+    DCT-II. A flat picture would only ever produce the DCT-II, and
+    the check would be weaker than it looks.
+    """
+    import numpy as np
+
+    width, height = 352, 288
+    y, x = np.mgrid[0:height, 0:width]
+    luma = (
+        128
+        + 40 * np.sin(2 * np.pi * x / 16.0)
+        + 40 * np.sin(2 * np.pi * y / 16.0)
+        + 30 * np.sin(2 * np.pi * (x + y) / 24.0)
+    ).clip(0, 255).astype(np.uint8)
+    chroma = np.full((height // 2, width // 2), 128, dtype=np.uint8)
+
+    with path.open("wb") as handle:
+        handle.write(f"YUV4MPEG2 W{width} H{height} F25:1 Ip A1:1 C420jpeg\n".encode())
+        handle.write(b"FRAME\n")
+        handle.write(luma.tobytes())
+        handle.write(chroma.tobytes())
+        handle.write(chroma.tobytes())
+
+
 def encode_reference(
     vvenc: Path,
     sequence: Path,
@@ -217,8 +246,8 @@ def encode_reference(
 def main() -> int:
     root = Path(__file__).resolve().parent.parent
     vvenc = root / "data/tools/vvenc-src/bin/release-static/vvencFFapp"
-    sequence = root / "data/seq/akiyo_cif.y4m"
     work = root / "bench-out/mts-check"
+    sequence = work / "pattern.y4m"
 
     if not vvenc.exists():
         print(
@@ -231,18 +260,15 @@ def main() -> int:
         )
         return 2
 
-    # The sequences are not in the repository, so the one the check
-    # needs is fetched if it is not there.
+    # The content the reference encoder is given is generated, rather
+    # than fetched. The test sequences are large and the mirror is slow,
+    # and the check only needs content that makes the encoder choose
+    # more than one transform mode, which a directional pattern does.
+    work = root / "bench-out/mts-check"
+    work.mkdir(parents=True, exist_ok=True)
+    sequence = work / "pattern.y4m"
     if not sequence.exists():
-        print(f"fetching {sequence.name}")
-        fetch = subprocess.run(
-            [str(root / "tools/fetch_sequences.sh"), str(sequence.parent), sequence.stem],
-            capture_output=True,
-            text=True,
-        )
-        if fetch.returncode != 0 or not sequence.exists():
-            print(f"the sequence could not be fetched:\n{fetch.stderr[-1000:]}", file=sys.stderr)
-            return 2
+        write_pattern(sequence)
 
     # The check itself: the two algorithms agree for every mode.
     print("the syntax, mode by mode:")
