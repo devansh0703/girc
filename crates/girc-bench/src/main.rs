@@ -89,15 +89,23 @@ pub fn bd_rate(reference: &[RatePoint], test: &[RatePoint]) -> Option<f64> {
         return None;
     }
 
+    // A rate-distortion sweep normally runs from low quality to high, so
+    // the points are ordered by PSNR before the fit rather than in the
+    // order they were measured in.
+    let mut ref_points: Vec<&RatePoint> = reference.iter().collect();
+    let mut test_points: Vec<&RatePoint> = test.iter().collect();
+    ref_points.sort_by(|a, b| a.psnr_db.partial_cmp(&b.psnr_db).unwrap());
+    test_points.sort_by(|a, b| a.psnr_db.partial_cmp(&b.psnr_db).unwrap());
+
     // The two curves must be monotone in PSNR for the fit to be meaningful.
-    let ref_psnr: Vec<f64> = reference.iter().map(|p| p.psnr_db).collect();
-    let test_psnr: Vec<f64> = test.iter().map(|p| p.psnr_db).collect();
+    let ref_psnr: Vec<f64> = ref_points.iter().map(|p| p.psnr_db).collect();
+    let test_psnr: Vec<f64> = test_points.iter().map(|p| p.psnr_db).collect();
     if !ref_psnr.windows(2).all(|w| w[1] > w[0]) || !test_psnr.windows(2).all(|w| w[1] > w[0]) {
         return None;
     }
 
-    let ref_log: Vec<f64> = reference.iter().map(|p| (p.bits as f64).ln()).collect();
-    let test_log: Vec<f64> = test.iter().map(|p| (p.bits as f64).ln()).collect();
+    let ref_log: Vec<f64> = ref_points.iter().map(|p| (p.bits as f64).ln()).collect();
+    let test_log: Vec<f64> = test_points.iter().map(|p| (p.bits as f64).ln()).collect();
 
     // Fit log-bitrate as a cubic polynomial in PSNR for each curve, over the
     // overlapping PSNR range.
@@ -360,6 +368,8 @@ fn run_anchor_command(anchor: Anchor, sequence: &Path, qp: i32, output: &Path) -
             .args(["-hide_banner", "-loglevel", "error", "-y", "-i"])
             .arg(sequence)
             .args([
+                "-frames:v",
+                "1",
                 "-c:v",
                 "libx265",
                 "-preset",
@@ -374,6 +384,8 @@ fn run_anchor_command(anchor: Anchor, sequence: &Path, qp: i32, output: &Path) -
             .args(["-hide_banner", "-loglevel", "error", "-y", "-i"])
             .arg(sequence)
             .args([
+                "-frames:v",
+                "1",
                 "-c:v",
                 "libsvtav1",
                 "-preset",
@@ -422,13 +434,27 @@ fn decode_with_anchor(
         Anchor::X265 => Command::new("ffmpeg")
             .args(["-hide_banner", "-loglevel", "error", "-y", "-i"])
             .arg(encoded)
-            .args(["-pix_fmt", "yuv420p", "-f", "yuv4mpegpipe"])
+            .args([
+                "-frames:v",
+                "1",
+                "-pix_fmt",
+                "yuv420p",
+                "-f",
+                "yuv4mpegpipe",
+            ])
             .arg(&output)
             .status(),
         Anchor::SvtAv1 => Command::new("ffmpeg")
             .args(["-hide_banner", "-loglevel", "error", "-y", "-i"])
             .arg(encoded)
-            .args(["-pix_fmt", "yuv420p", "-f", "yuv4mpegpipe"])
+            .args([
+                "-frames:v",
+                "1",
+                "-pix_fmt",
+                "yuv420p",
+                "-f",
+                "yuv4mpegpipe",
+            ])
             .arg(&output)
             .status(),
         Anchor::VVenC => Command::new("vvencapp")
@@ -720,9 +746,10 @@ mod tests {
         assert!((rate + 10.0).abs() < 0.5, "expected about -10%, got {rate}");
     }
 
-    /// A curve that is not monotone in PSNR cannot be fitted.
+    /// Two points at the same quality cannot be fitted, because the
+    /// polynomial would be singular.
     #[test]
-    fn non_monotone_curves_are_rejected() {
+    fn degenerate_curves_are_rejected() {
         let points = vec![
             RatePoint {
                 qp: 20,
@@ -732,7 +759,7 @@ mod tests {
             RatePoint {
                 qp: 25,
                 bits: 2000,
-                psnr_db: 28.0,
+                psnr_db: 30.0,
             },
             RatePoint {
                 qp: 30,
@@ -746,6 +773,26 @@ mod tests {
             },
         ];
         assert!(bd_rate(&points, &points).is_none());
+    }
+
+    /// The points may be given in any order; the fit sorts them.
+    #[test]
+    fn the_point_order_does_not_matter() {
+        let points: Vec<RatePoint> = (0..4)
+            .map(|i| RatePoint {
+                qp: 20 + i * 5,
+                bits: 1000 * (i as u64 + 1),
+                psnr_db: 30.0 + i as f64 * 2.0,
+            })
+            .collect();
+        let mut reversed = points.clone();
+        reversed.reverse();
+        let forward_rate = bd_rate(&points, &points).unwrap();
+        let reversed_rate = bd_rate(&reversed, &reversed).unwrap();
+        assert!(
+            (forward_rate - reversed_rate).abs() < 1e-9,
+            "{forward_rate} vs {reversed_rate}"
+        );
     }
 
     /// Identical planes have infinite PSNR; different planes have a finite

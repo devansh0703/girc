@@ -27,7 +27,7 @@ use crate::geometry::{
     extract_features, GeometryFeatures, TransformPredictor, TransformSignal, TransformSignalling,
 };
 use crate::intra::{predict, IntraMode, ReferenceSamples};
-use crate::quant::{dequantize, quantize, sse};
+use crate::quant::{dequantize, dequantize_with, quantize_with, sse, QuantParams};
 use crate::transform::{forward, inverse, TransformKind};
 
 /// The block size GIRC codes, in samples.
@@ -42,7 +42,8 @@ const CTX_SKIP: usize = 1;
 const CTX_COEF_SIGNIFICANT: usize = 2;
 const CTX_COEF_GREATER1: usize = 3;
 const CTX_COEF_GREATER2: usize = 4;
-const CTX_COEF_LEVEL: usize = 5;
+const CTX_COEF_SIGN: usize = 5;
+const CTX_COEF_EXP_GOLOMB: usize = 8;
 const CTX_TRANSFORM_OVERRIDE: usize = 6;
 const CTX_TRANSFORM_TYPE: usize = 7;
 
@@ -199,7 +200,10 @@ pub fn encode(picture: &Picture, config: &EncoderConfig) -> Result<EncodeResult,
                         TransformSignal::Predicted
                     } else {
                         mismatches += 1;
-                        TransformSignal::Override(chosen_transform)
+                        TransformSignal::Override {
+                            predicted,
+                            actual: chosen_transform,
+                        }
                     }
                 }
             };
@@ -324,6 +328,7 @@ fn best_block(
     config: &EncoderConfig,
 ) -> (IntraMode, TransformKind, Vec<i32>, Vec<i32>, f32) {
     let mut best: Option<(IntraMode, TransformKind, Vec<i32>, Vec<i32>, f32)> = None;
+    let quant_params = QuantParams::new(config.qp, BLOCK_SIZE);
 
     for mode in IntraMode::all() {
         let prediction = predict(mode, BLOCK_SIZE, reference);
@@ -337,8 +342,8 @@ fn best_block(
             let Ok(coefficients) = forward(transform, BLOCK_SIZE, &residual) else {
                 continue;
             };
-            let levels = quantize(&coefficients, config.qp);
-            let dequantized = dequantize(&levels, config.qp);
+            let levels = quantize_with(&coefficients, &quant_params);
+            let dequantized = dequantize_with(&levels, &quant_params);
             let Ok(samples) = inverse(transform, BLOCK_SIZE, &dequantized) else {
                 continue;
             };
@@ -373,6 +378,11 @@ fn best_block(
 }
 
 /// An estimate of the bits needed to code a set of quantized levels.
+///
+/// The estimate has to match the binarisation in [`code_coefficients`],
+/// because the rate-distortion search optimises against it: a cost model
+/// that disagrees with the bitstream would make the encoder choose
+/// transforms that are not the ones the real coder rewards.
 fn estimate_level_bits(levels: &[i32]) -> f32 {
     let mut bits = 0.0;
     for level in levels {
@@ -380,14 +390,22 @@ fn estimate_level_bits(levels: &[i32]) -> f32 {
         if magnitude == 0 {
             continue;
         }
-        // One significant flag, one sign, and a Golomb-Rice style remainder.
-        bits += 2.0 + (magnitude as f32).log2();
+        // The significance flag, the sign, and the two magnitude flags.
+        bits += 4.0;
+        if magnitude > 2 {
+            // The exponential-Golomb remainder: a prefix of zeros, a
+            // terminating one, and the same number of bypassed suffix
+            // bits.
+            let remainder = magnitude - 3;
+            let prefix_len = 31 - (remainder + 1).leading_zeros();
+            bits += 2.0 * prefix_len as f32 + 1.0;
+        }
     }
     bits
 }
 
 /// The samples of the block at `(bx, by)`.
-fn block_samples(picture: &Picture, bx: usize, by: usize) -> Vec<u8> {
+pub fn block_samples(picture: &Picture, bx: usize, by: usize) -> Vec<u8> {
     let mut out = Vec::with_capacity(BLOCK_SIZE * BLOCK_SIZE);
     for y in 0..BLOCK_SIZE {
         for x in 0..BLOCK_SIZE {
@@ -454,30 +472,45 @@ fn decode_intra_mode(decoder: &mut BinDecoder) -> Result<IntraMode, CodecError> 
 }
 
 /// Code the transform signal.
+///
+/// The explicit mode codes the transform type with a truncated binary code:
+/// the first type in the canonical order costs one bin and the other two
+/// cost two.
+///
+/// The inferred mode codes one bin saying whether the decoder's prediction
+/// was right. When it was wrong, one further bin selects between the two
+/// transforms the prediction ruled out, so an override costs two bins
+/// rather than the three a naive design would need.
 fn code_transform_signal(encoder: &mut BinEncoder, signal: TransformSignal) {
     match signal {
         TransformSignal::Explicit(kind) => {
-            // The explicit mode codes the transform type directly.
-            encoder.encode(CTX_TRANSFORM_OVERRIDE, true);
-            code_transform_type(encoder, kind);
+            let index = kind.as_index();
+            encoder.encode(CTX_TRANSFORM_TYPE, index > 0);
+            if index > 0 {
+                encoder.encode(CTX_TRANSFORM_TYPE, index > 1);
+            }
         }
         TransformSignal::Predicted => {
             encoder.encode(CTX_TRANSFORM_OVERRIDE, false);
         }
-        TransformSignal::Override(kind) => {
+        TransformSignal::Override { predicted, actual } => {
             encoder.encode(CTX_TRANSFORM_OVERRIDE, true);
-            code_transform_type(encoder, kind);
+            encoder.encode(CTX_TRANSFORM_TYPE, override_bit(predicted, actual));
         }
     }
 }
 
-/// Code the transform type in two bits.
-fn code_transform_type(encoder: &mut BinEncoder, kind: TransformKind) {
-    let index = kind.as_index();
-    for bit in 0..2 {
-        let value = (index >> bit) & 1 == 1;
-        encoder.encode(CTX_TRANSFORM_TYPE, value);
-    }
+/// The bit that selects between the two transforms a prediction rules out.
+///
+/// The transforms are ordered canonically, and the predicted one is
+/// removed, so the two that remain have a well-defined order.
+fn override_bit(predicted: TransformKind, actual: TransformKind) -> bool {
+    let remaining: Vec<TransformKind> = TransformKind::ALL
+        .iter()
+        .copied()
+        .filter(|k| *k != predicted)
+        .collect();
+    remaining[1] == actual
 }
 
 /// Decode the transform signal, reconstructing the decoder's prediction when
@@ -487,25 +520,50 @@ fn decode_transform_signal(
     config: &EncoderConfig,
     reference: &ReferenceSamples,
 ) -> Result<TransformKind, CodecError> {
+    // The explicit mode has no override flag; the transform type is coded
+    // directly.
+    if config.signalling == TransformSignalling::Explicit {
+        let first = decoder.decode(CTX_TRANSFORM_TYPE)?;
+        let index = if first {
+            if decoder.decode(CTX_TRANSFORM_TYPE)? {
+                2
+            } else {
+                1
+            }
+        } else {
+            0
+        };
+        return TransformKind::from_index(index)
+            .ok_or_else(|| CodecError::Predictor(format!("unknown transform type {index}")));
+    }
+
     let override_flag = decoder.decode(CTX_TRANSFORM_OVERRIDE)?;
+    let features = extract_features(&reference.left, &reference.top);
+    let (predicted, _) = config.predictor.predict_with_margin(&features);
     if !override_flag {
-        // The decoder's prediction is used. This is only possible in
-        // inferred mode; in explicit mode the flag is always set.
-        let features = extract_features(&reference.left, &reference.top);
-        let (predicted, _) = config.predictor.predict_with_margin(&features);
         return Ok(predicted);
     }
-    let mut index = 0u8;
-    for bit in 0..2 {
-        if decoder.decode(CTX_TRANSFORM_TYPE)? {
-            index |= 1 << bit;
-        }
-    }
-    TransformKind::from_index(index)
-        .ok_or_else(|| CodecError::Predictor(format!("unknown transform type {index}")))
+    let bit = decoder.decode(CTX_TRANSFORM_TYPE)?;
+    let remaining: Vec<TransformKind> = TransformKind::ALL
+        .iter()
+        .copied()
+        .filter(|k| *k != predicted)
+        .collect();
+    Ok(if bit { remaining[1] } else { remaining[0] })
 }
 
 /// Code the quantized residual levels.
+///
+/// The binarisation follows the shape ITU-T H.265 uses for residual
+/// coefficients: a significance flag, a "greater than one" flag, a "greater
+/// than two" flag, and then an exponential-Golomb remainder for the
+/// magnitude above two. The sign is coded with its own context.
+///
+/// The exponential-Golomb code matters. A unary prefix would cost one bin
+/// per unit of magnitude, so a single large coefficient could cost over a
+/// thousand bins; the Golomb remainder costs about `log2(magnitude)` bins
+/// instead, which is what makes the coded size a meaningful measure of
+/// rate.
 fn code_coefficients(encoder: &mut BinEncoder, levels: &[i32]) {
     for level in levels {
         let magnitude = level.unsigned_abs();
@@ -516,19 +574,43 @@ fn code_coefficients(encoder: &mut BinEncoder, levels: &[i32]) {
         }
         encoder.encode(CTX_COEF_GREATER1, magnitude > 1);
         encoder.encode(CTX_COEF_GREATER2, magnitude > 2);
-        encoder.encode(CTX_COEF_LEVEL, *level < 0);
+        encoder.encode(CTX_COEF_SIGN, *level < 0);
 
-        // The magnitude above 2, coded as a unary prefix of zeros followed
-        // by a one.
-        let excess = magnitude - 2;
-        for _ in 0..excess {
-            encoder.encode(CTX_COEF_LEVEL, false);
+        // The magnitude above two, as an exponential-Golomb code. The
+        // magnitude is known to be at least three here, so the subtraction
+        // cannot underflow.
+        if magnitude > 2 {
+            let remainder = magnitude - 3;
+            code_exp_golomb(encoder, remainder);
         }
-        encoder.encode(CTX_COEF_LEVEL, true);
+    }
+}
+
+/// Code a value with the exponential-Golomb order-0 code.
+///
+/// The value `v` is written as a prefix of `floor(log2(v + 1))` zeros
+/// followed by a one, and then the remaining information is written as
+/// `floor(log2(v + 1))` bypassed bits. This is the same construction
+/// ITU-T H.265 uses for `coeff_abs_level_remaining`.
+fn code_exp_golomb(encoder: &mut BinEncoder, value: u32) {
+    let prefix_len = 31 - (value + 1).leading_zeros();
+    for _ in 0..prefix_len {
+        encoder.encode(CTX_COEF_EXP_GOLOMB, false);
+    }
+    encoder.encode(CTX_COEF_EXP_GOLOMB, true);
+    if prefix_len > 0 {
+        // The suffix carries the value's low bits, offset so that the
+        // prefix and suffix together determine it uniquely.
+        let suffix = value + 1 - (1u32 << prefix_len);
+        for bit in (0..prefix_len).rev() {
+            encoder.encode_bypass((suffix >> bit) & 1 == 1);
+        }
     }
 }
 
 /// Decode the quantized residual levels.
+///
+/// This is the exact inverse of [`code_coefficients`].
 fn decode_coefficients(decoder: &mut BinDecoder) -> Result<Vec<i32>, CodecError> {
     let mut levels = Vec::with_capacity(BLOCK_SIZE * BLOCK_SIZE);
     for _ in 0..BLOCK_SIZE * BLOCK_SIZE {
@@ -538,31 +620,45 @@ fn decode_coefficients(decoder: &mut BinDecoder) -> Result<Vec<i32>, CodecError>
         }
         let greater1 = decoder.decode(CTX_COEF_GREATER1)?;
         let greater2 = decoder.decode(CTX_COEF_GREATER2)?;
-        let negative = decoder.decode(CTX_COEF_LEVEL)?;
+        let negative = decoder.decode(CTX_COEF_SIGN)?;
 
-        let mut magnitude = 0u32;
-        if greater2 {
-            magnitude = 2;
+        // The magnitude is one, two, or three plus the Golomb remainder.
+        let mut magnitude = if greater2 {
+            3 + decode_exp_golomb(decoder)?
         } else if greater1 {
-            magnitude = 1;
-        }
-        // The unary suffix: zeros until a one.
-        loop {
-            let bit = decoder.decode(CTX_COEF_LEVEL)?;
-            if bit {
-                break;
-            }
-            magnitude += 1;
-            if magnitude > 1_000_000 {
-                return Err(CodecError::Predictor(
-                    "residual level is implausibly large".into(),
-                ));
-            }
+            2
+        } else {
+            1
+        };
+        if magnitude > 1_000_000 {
+            return Err(CodecError::Predictor(
+                "residual level is implausibly large".into(),
+            ));
         }
         let value = magnitude as i32;
         levels.push(if negative { -value } else { value });
     }
     Ok(levels)
+}
+
+/// Decode a value coded with the exponential-Golomb order-0 code.
+///
+/// This is the exact inverse of [`code_exp_golomb`].
+fn decode_exp_golomb(decoder: &mut BinDecoder) -> Result<u32, CodecError> {
+    let mut prefix_len = 0u32;
+    while !decoder.decode(CTX_COEF_EXP_GOLOMB)? {
+        prefix_len += 1;
+        if prefix_len > 31 {
+            return Err(CodecError::Predictor(
+                "the exponential-Golomb prefix is implausibly long".into(),
+            ));
+        }
+    }
+    let mut suffix = 0u32;
+    for _ in 0..prefix_len {
+        suffix = (suffix << 1) | u32::from(decoder.decode_bypass()?);
+    }
+    Ok(suffix + (1u32 << prefix_len) - 1)
 }
 
 /// The features the predictor would see for a block, exposed for the
@@ -651,6 +747,55 @@ mod tests {
         assert_eq!(decoded, encoded.reconstruction);
     }
 
+    /// Every residual magnitude must survive the coefficient binarisation.
+    ///
+    /// The binarisation is the part of the bitstream most likely to break
+    /// silently: a small change to the flags changes how the magnitude is
+    /// reconstructed. This test drives the coder directly over a full range
+    /// of magnitudes rather than relying on content to reach them.
+    #[test]
+    fn coefficient_magnitudes_round_trip() {
+        for magnitude in 0..4096u32 {
+            for negative in [false, true] {
+                let level = if negative {
+                    -(magnitude as i32)
+                } else {
+                    magnitude as i32
+                };
+                let levels = vec![level; BLOCK_SIZE * BLOCK_SIZE];
+
+                let mut encoder = BinEncoder::new(NUM_CONTEXTS);
+                code_coefficients(&mut encoder, &levels);
+                let compressed = encoder.finish();
+
+                let mut decoder = BinDecoder::new(&compressed, NUM_CONTEXTS).unwrap();
+                let decoded = decode_coefficients(&mut decoder).unwrap();
+                assert_eq!(
+                    decoded, levels,
+                    "magnitude {magnitude} negative {negative} did not round trip"
+                );
+            }
+        }
+    }
+
+    /// A single coefficient with a large magnitude must not cost a bin per
+    /// unit of magnitude.
+    ///
+    /// The exponential-Golomb remainder is what keeps this true; a unary
+    /// prefix would need thousands of bins here.
+    #[test]
+    fn large_magnitudes_are_coded_compactly() {
+        let levels = vec![4096i32; BLOCK_SIZE * BLOCK_SIZE];
+        let mut encoder = BinEncoder::new(NUM_CONTEXTS);
+        code_coefficients(&mut encoder, &levels);
+        let compressed = encoder.finish();
+        let bits = compressed.len() * 8;
+        assert!(
+            bits < 64 * 16,
+            "64 coefficients of magnitude 4096 took {bits} bits, which is too many"
+        );
+    }
+
     /// The explicit mode must never use the override-only path, so its
     /// signalling cost is the transform type for every block.
     #[test]
@@ -662,10 +807,15 @@ mod tests {
         };
         let encoded = encode(&picture, &config).unwrap();
         assert_eq!(encoded.prediction_mismatches, 0);
-        assert_eq!(
-            encoded.transform_signalling_bits,
-            encoded.block_count * 2,
-            "explicit mode codes two bits per block"
+        // The explicit mode's truncated binary code costs one bin for a
+        // DCT-II block and two for the others.
+        assert!(
+            encoded.transform_signalling_bits >= encoded.block_count,
+            "explicit mode codes at least one bin per block"
+        );
+        assert!(
+            encoded.transform_signalling_bits <= encoded.block_count * 2,
+            "explicit mode codes at most two bins per block"
         );
     }
 }

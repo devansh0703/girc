@@ -201,11 +201,7 @@ fn run() -> Result<()> {
                 writeln!(out, "{record}").context("writing the collection records")?;
             }
         }
-        Command::Evaluate {
-            input,
-            qp,
-            model,
-        } => {
+        Command::Evaluate { input, qp, model } => {
             let frame = Yuv4Frame::read(&input)
                 .with_context(|| format!("reading the input frame at {}", input.display()))?;
             let text = fs::read_to_string(&model)
@@ -249,7 +245,10 @@ fn run() -> Result<()> {
 /// Each record holds the block's geometry features and the transform the
 /// rate-distortion search chose, so the training pipeline learns the
 /// encoder's actual decision rather than an approximation of it.
-fn collect_records(picture: &girc_core::codec::Picture, config: &EncoderConfig) -> Result<Vec<String>> {
+fn collect_records(
+    picture: &girc_core::codec::Picture,
+    config: &EncoderConfig,
+) -> Result<Vec<String>> {
     use girc_core::codec::BLOCK_SIZE;
 
     let blocks_x = picture.width / BLOCK_SIZE;
@@ -265,13 +264,17 @@ fn collect_records(picture: &girc_core::codec::Picture, config: &EncoderConfig) 
                 .flat_map(|y| {
                     (0..BLOCK_SIZE).map(move |x| {
                         picture
-                            .sample((bx * BLOCK_SIZE + x) as isize, (by * BLOCK_SIZE + y) as isize)
+                            .sample(
+                                (bx * BLOCK_SIZE + x) as isize,
+                                (by * BLOCK_SIZE + y) as isize,
+                            )
                             .unwrap_or(0)
                     })
                 })
                 .collect();
             let reference = girc_core::codec::reference_samples_for(picture, bx, by);
-            let (_, transform, _, _, _) = girc_core::codec::search_block(&original, &reference, config);
+            let (_, transform, _, _, _) =
+                girc_core::codec::search_block(&original, &reference, config);
 
             let payload = serde_json::json!({
                 "features": features.to_vec(),

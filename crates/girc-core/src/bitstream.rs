@@ -178,11 +178,13 @@ impl BinEncoder {
             .expect("writing to a Vec cannot fail");
 
         // Adapt the context probability toward the coded value, in the
-        // manner of ITU-T H.264 clause 9.3.2.1.
+        // manner of ITU-T H.264 clause 9.3.2.1: the probability of the
+        // symbol that was coded moves a sixteenth of the way toward
+        // certainty.
         let updated = if bin {
-            p.saturating_sub(1) + 1
+            p + ((256 - p) >> 4)
         } else {
-            p.saturating_sub(1)
+            p - (p >> 4)
         };
         self.contexts[context] = updated.clamp(1, 255);
     }
@@ -251,10 +253,12 @@ impl BinDecoder {
             .decode_symbol(model)
             .map_err(|e| BitstreamError::Entropy(e.to_string()))?;
 
+        // The context adapts the same way as the encoder's, so the two
+        // stay in step.
         let updated = if bin {
-            p.saturating_sub(1) + 1
+            p + ((256 - p) >> 4)
         } else {
-            p.saturating_sub(1)
+            p - (p >> 4)
         };
         self.contexts[context] = updated.clamp(1, 255);
         Ok(bin)
@@ -340,6 +344,33 @@ mod tests {
         for expected in [true, false, true, true, false] {
             assert_eq!(decoder.decode_bypass().unwrap(), expected);
         }
+    }
+
+    /// The context probability must track the observed rate.
+    ///
+    /// An estimator that adapts by a fixed increment rather than a
+    /// proportional one treats the probability as a signed count, so a
+    /// context that sees a one-in-three rate drifts to the opposite
+    /// extreme and every "one" bin becomes very expensive. The cost of
+    /// coding a skewed stream must instead reflect its actual entropy.
+    #[test]
+    fn the_context_tracks_the_observed_rate() {
+        let mut encoder = BinEncoder::new(1);
+        let mut ones = 0u32;
+        let total = 60_000u32;
+        for i in 0..total {
+            let bin = i % 3 == 0;
+            ones += u32::from(bin);
+            encoder.encode(0, bin);
+        }
+        let compressed = encoder.finish();
+        // The entropy of a one-in-three source is about 0.918 bits per bin.
+        let bits_per_bin = compressed.len() as f64 * 8.0 / total as f64;
+        assert!(
+            bits_per_bin < 1.05,
+            "a one-in-three source cost {bits_per_bin} bits per bin"
+        );
+        assert!(ones > 0);
     }
 
     #[test]

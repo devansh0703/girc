@@ -390,17 +390,35 @@ pub enum TransformSignal {
     Explicit(TransformKind),
     /// The decoder's prediction was correct; nothing else to send.
     Predicted,
-    /// The decoder's prediction was wrong; the actual transform follows.
-    Override(TransformKind),
+    /// The decoder's prediction was wrong; the actual transform follows,
+    /// coded relative to the prediction.
+    Override {
+        /// The transform the decoder predicted.
+        predicted: TransformKind,
+        /// The transform the encoder chose.
+        actual: TransformKind,
+    },
 }
 
 impl TransformSignal {
     /// The syntax elements this signal contributes to the bitstream.
+    ///
+    /// The explicit mode always sends the transform type, which costs one
+    /// bin for the first type and two for the others. The inferred mode
+    /// sends one bin saying whether the prediction was right, and when it
+    /// was wrong one further bin selecting between the two transforms the
+    /// prediction ruled out.
     pub fn bin_count(self) -> usize {
         match self {
-            TransformSignal::Explicit(_) => 2,
-            TransformSignal::Predicted => 0,
-            TransformSignal::Override(_) => 3,
+            TransformSignal::Explicit(kind) => {
+                if kind == TransformKind::Dct2 {
+                    1
+                } else {
+                    2
+                }
+            }
+            TransformSignal::Predicted => 1,
+            TransformSignal::Override { .. } => 2,
         }
     }
 }
@@ -469,14 +487,26 @@ mod tests {
 
     #[test]
     fn signal_costs_are_as_documented() {
+        // The explicit mode uses a truncated binary code: one bin for the
+        // first transform, two for the others.
         assert_eq!(
             TransformSignal::Explicit(TransformKind::Dct2).bin_count(),
+            1
+        );
+        assert_eq!(
+            TransformSignal::Explicit(TransformKind::Dct8).bin_count(),
             2
         );
-        assert_eq!(TransformSignal::Predicted.bin_count(), 0);
+        // The inferred mode always spends one bin on the override flag,
+        // and one more when the prediction was wrong.
+        assert_eq!(TransformSignal::Predicted.bin_count(), 1);
         assert_eq!(
-            TransformSignal::Override(TransformKind::Dst7).bin_count(),
-            3
+            TransformSignal::Override {
+                predicted: TransformKind::Dct2,
+                actual: TransformKind::Dst7,
+            }
+            .bin_count(),
+            2
         );
     }
 }
