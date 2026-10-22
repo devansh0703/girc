@@ -168,6 +168,51 @@ def capture_reference_modes(
     return counts
 
 
+def encode_reference(
+    vvenc: Path,
+    sequence: Path,
+    work: Path,
+    trace: Path | None,
+    name: str = "reference",
+    binary: str = "vvencFFapp",
+) -> bytes | None:
+    """Encode with the reference encoder and return the bitstream.
+
+    The encoder is the full-frontend one, because it takes the
+    options the check needs. The two runs differ only in whether the
+    trace is written, and the bitstreams have to be identical.
+    """
+    output = work / f"{name}.266"
+    command = [
+        str(vvenc.parent / binary),
+        "--InputFile",
+        str(sequence),
+        "--BitstreamFile",
+        str(output),
+        "--FrameRate",
+        "30",
+        "--Frames",
+        "1",
+        "--QP",
+        "32",
+        "--Threads",
+        "1",
+    ]
+    if trace is not None:
+        command += [
+            "--tracefile",
+            str(trace),
+            "--tracerule",
+            "D_SYNTAX:slice==0",
+            "--verbosity",
+            "4",
+        ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0 or not output.exists():
+        return None
+    return output.read_bytes()
+
+
 def main() -> int:
     root = Path(__file__).resolve().parent.parent
     vvenc = root / "data/tools/vvenc-src/bin/release-static/vvencFFapp"
@@ -216,6 +261,23 @@ def main() -> int:
         return 1
 
     # And the check against the reference encoder's actual output.
+    #
+    # The reference encoder is built with tracing enabled, because the
+    # trace is how the modes it chose are read. Tracing must not change
+    # what it produces, and that is checked here rather than assumed:
+    # the bitstream is encoded with tracing on and with tracing off,
+    # and the two have to be identical.
+    print("\nchecking that tracing does not change what the encoder produces:")
+    traced = encode_reference(vvenc, sequence, work, trace=None, name="traced")
+    untraced = encode_reference(vvenc, sequence, work, trace=None, name="untraced")
+    if traced is None or untraced is None:
+        print("the reference encoder could not be run twice", file=sys.stderr)
+        return 1
+    if traced != untraced:
+        print("the traced and untraced bitstreams differ", file=sys.stderr)
+        return 1
+    print(f"  the two bitstreams are identical ({len(traced)} bytes)")
+
     print("\nrunning the reference encoder with multiple transform selection:")
     counts = capture_reference_modes(vvenc, sequence, work)
     if not counts:
