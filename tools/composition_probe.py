@@ -17,7 +17,7 @@ import json
 import sys
 
 import numpy as np
-from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 
@@ -76,8 +76,12 @@ def main() -> int:
     )
 
     def fit(labels):
-        return GradientBoostingClassifier(
-            random_state=0, n_estimators=80, max_depth=4
+        # A histogram gradient booster with a bounded bin count keeps the
+        # memory flat; the default exact splitter builds one tree per
+        # class per node and runs the machine out of memory on this many
+        # records.
+        return HistGradientBoostingClassifier(
+            random_state=0, max_iter=60, max_depth=4, max_bins=64
         ).fit(features[train], labels)
 
     joint = fit(modes)
