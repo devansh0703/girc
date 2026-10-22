@@ -23,9 +23,9 @@ each and four quantization parameters, with the margin at 50:
 The last row is the one that matters most. The constant predictor
 always answers the plain DCT-II and needs no training and no model, so
 it is the alternative any claim about a trained predictor has to beat.
-The learned model is ahead on nine of the twelve sequences, and the gap
-between them is 0.119 percentage points of BD-rate, which is twice the
-mechanism's own effect.
+The learned model is ahead on six of the twelve sequences, and the gap
+between them is 0.116 percentage points of BD-rate, which is about half
+the mechanism's own effect.
 
 ## What is in the box
 
