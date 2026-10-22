@@ -22,7 +22,7 @@
 //! the entropy coder -- is identical, so a difference in the measured
 //! bitrate or quality is attributable to the signalling mechanism alone.
 
-use crate::bitstream::{BinDecoder, BinEncoder, BitstreamError, BitstreamHeader, Word};
+use crate::bitstream::{BinDecoder, BinEncoder, BitstreamError, BitstreamHeader};
 use crate::geometry::{
     extract_features, GeometryFeatures, TransformPredictor, TransformSignal, TransformSignalling,
 };
@@ -305,6 +305,19 @@ fn rd_cost(distortion: i64, bits: f32, lambda: f32) -> f32 {
 
 /// Search the intra modes and transform types for a block, and return the
 /// best candidate.
+///
+/// Exposed so the training pipeline can recover the encoder's chosen
+/// transform for a block.
+pub fn search_block(
+    original: &[u8],
+    reference: &ReferenceSamples,
+    config: &EncoderConfig,
+) -> (IntraMode, TransformKind, Vec<i32>, Vec<i32>, f32) {
+    best_block(original, reference, config)
+}
+
+/// Search the intra modes and transform types for a block, and return the
+/// best candidate.
 fn best_block(
     original: &[u8],
     reference: &ReferenceSamples,
@@ -389,6 +402,14 @@ fn block_samples(picture: &Picture, bx: usize, by: usize) -> Vec<u8> {
         }
     }
     out
+}
+
+/// The causal reference samples available to the block at `(bx, by)`.
+///
+/// Exposed so the training pipeline can reproduce the encoder's view of a
+/// block's neighbourhood.
+pub fn reference_samples_for(picture: &Picture, bx: usize, by: usize) -> ReferenceSamples {
+    reference_samples(picture, bx, by)
 }
 
 /// The causal reference samples available to the block at `(bx, by)`.

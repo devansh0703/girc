@@ -167,6 +167,7 @@ dependencies = [
 name = "girc-core"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "constriction",
  "serde",
  "serde_json",
