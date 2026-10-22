@@ -21,6 +21,14 @@ WORD = re.compile(
     r' xMax="(?P<xmax>[\d.]+)" yMax="(?P<ymax>[\d.]+)">(?P<text>[^<]*)</word>'
 )
 
+#: A block of text, with where it sits on the page.
+BLOCK = re.compile(
+    r'<block xMin="(?P<xmin>[\d.]+)" yMin="(?P<ymin>[\d.]+)"'
+    r' xMax="(?P<xmax>[\d.]+)" yMax="(?P<ymax>[\d.]+)">(?P<body>.*?)</block>',
+    re.S,
+)
+BLOCK_WORD = re.compile(r"<word[^>]*>(?P<text>[^<]*)</word>")
+
 #: A numbered claim, which is how the claims column is recognised.
 CLAIM_START = re.compile(
     r"^\d+\.\s*(?:A\s*|The\s*)?(?:method|decoding|encoding|apparatus|computer|system|"
@@ -60,12 +68,79 @@ def page_words(pdf: Path, page: int) -> list[dict]:
     return found
 
 
+def page_blocks(pdf: Path, page: int) -> list[dict]:
+    """The blocks of a page, with the text of each.
+
+    A block is a line of one column, so the blocks give the columns
+    directly where the words' positions do not.
+    """
+    result = subprocess.run(
+        [
+            "pdftotext",
+            "-bbox-layout",
+            "-f",
+            str(page),
+            "-l",
+            str(page),
+            str(pdf),
+            "-",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    found = []
+    for match in BLOCK.finditer(result.stdout):
+        words = [w.group("text") for w in WORD.finditer(match.group("body"))]
+        found.append(
+            {
+                "xmin": float(match.group("xmin")),
+                "ymin": float(match.group("ymin")),
+                "xmax": float(match.group("xmax")),
+                "text": " ".join(words),
+            }
+        )
+    return found
+
+
 def page_number(pdf: Path) -> int:
     info = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True).stdout
     match = re.search(r"Pages:\s+(\d+)", info)
     if match is None:
         raise SystemExit(f"{pdf} has no page count")
     return int(match.group(1))
+
+
+def gutter(words: list[dict]) -> float | None:
+    """The x of the gutter between the two columns of a page.
+
+    The gutter is the widest band of x that no word's middle falls in,
+    which is where the two columns of a patent page meet.
+    """
+    if not words:
+        return None
+    middles = [(w["xmin"] + w["xmax"]) / 2 for w in words]
+    low = min(middles)
+    high = max(middles)
+    bucket = 4.0
+    occupied = {int(m // bucket) for m in middles}
+
+    best = None
+    index = int(low // bucket)
+    while index <= int(high // bucket):
+        if index not in occupied:
+            start = index
+            while index + 1 not in occupied and index + 1 <= int(high // bucket):
+                index += 1
+            span = (index - start) * bucket
+            if best is None or span > best:
+                best = span
+                best_start = start
+        index += 1
+
+    if best is None or best < 12.0:
+        return None
+    return (best_start + best / bucket) * bucket
 
 
 def claims_column(pdf: Path, pages: int) -> tuple[float, float] | None:
@@ -78,6 +153,7 @@ def claims_column(pdf: Path, pages: int) -> tuple[float, float] | None:
     """
     for page in range(1, pages + 1):
         words = page_words(pdf, page)
+        split = gutter(words)
         for index, word in enumerate(words):
             if not re.fullmatch(r"\d+\.", word["text"]):
                 continue
@@ -92,18 +168,80 @@ def claims_column(pdf: Path, pages: int) -> tuple[float, float] | None:
                 re.I,
             ):
                 continue
-            run = words[index : index + 12]
-            left = word["xmin"]
-            # The column runs from the claim's text to the right margin,
-            # which the widest word on the page gives.
-            right = max(w["xmax"] for w in words)
-            return (left, right)
+            if split is None:
+                # A single-column page: the claims run to the margin.
+                return (word["xmin"], max(w["xmax"] for w in words))
+            # The claims are in the column the claim's number is in.
+            if word["xmin"] < split:
+                return (0.0, split)
+            return (split, max(w["xmax"] for w in words))
     return None
+
+
+def claims_column_from_blocks(pdf: Path, pages: int) -> tuple[float, float] | None:
+    """The x range of the claims column, from the page's blocks.
+
+    Some PDFs have a layout that the word positions do not separate
+    into columns, but whose blocks do.
+    """
+    for page in range(1, pages + 1):
+        blocks = page_blocks(pdf, page)
+        if not blocks:
+            continue
+        for index, block in enumerate(blocks):
+            # The block may hold the claim's number on its own, or the
+            # number and the claim's first words together.
+            text = block["text"]
+            if not re.match(r"^\d+\.\s", text):
+                continue
+            following = [
+                other["text"]
+                for other in blocks[index + 1 : index + 6]
+                if abs(other["xmin"] - block["xmin"]) < 20
+            ]
+            candidate = text + " " + " ".join(following)
+            if not re.search(
+                r"\d+\.\s*(?:A|An|The)?\s*(?:method|decoding|encoding|apparatus|"
+                r"computer|system|media|storage)",
+                candidate,
+                re.I,
+            ):
+                continue
+            # The column runs to the gutter. The gutter is the gap in
+            # the blocks' starting positions that no block crosses, so
+            # it is the widest gap in the middle of the page.
+            starts = sorted({round(b["xmin"], 1) for b in blocks})
+            best = None
+            for position in range(1, len(starts)):
+                gap = starts[position] - starts[position - 1]
+                if gap < 10.0:
+                    continue
+                # The gutter is between the two halves of the page.
+                middle = (starts[position - 1] + starts[position]) / 2
+                if middle < 0.4 * max(starts) or middle > 0.6 * max(starts):
+                    continue
+                if best is None or gap > best[0]:
+                    best = (gap, starts[position - 1])
+            if best is None:
+                right = max(b["xmax"] for b in blocks)
+            else:
+                right = best[1]
+            return (block["xmin"], right)
+    return None
+
+
+def block_text(blocks: list[dict], left: float, right: float) -> str:
+    """The text of the claims column, in reading order."""
+    selected = [b for b in blocks if left - 2 <= b["xmin"] < right]
+    if not selected:
+        return ""
+    selected.sort(key=lambda b: (round(b["ymin"], 1), b["xmin"]))
+    return "\n".join(b["text"] for b in selected)
 
 
 def column_text(words: list[dict], left: float, right: float) -> str:
     """The text of one column, line by line."""
-    selected = [w for w in words if left - 2 <= w["xmin"] <= right + 2]
+    selected = [w for w in words if left <= (w["xmin"] + w["xmax"]) / 2 < right]
     if not selected:
         return ""
     selected.sort(key=lambda w: (round(w["ymin"], 1), w["xmin"]))
@@ -131,20 +269,38 @@ def claims_of(pdf: Path) -> str:
     claims, so the search is for the last marker rather than the first.
     """
     pages = page_number(pdf)
-    column = claims_column(pdf, pages)
-    if column is None:
-        return ""
-    left, right = column
 
-    text = "\n".join(
-        column_text(page_words(pdf, page), left, right) for page in range(1, pages + 1)
-    )
+    # The block route is tried first, because a block is a line of one
+    # column and the blocks separate the columns where the words'
+    # positions do not.
+    block_column = claims_column_from_blocks(pdf, pages)
+    word_column = claims_column(pdf, pages)
+    if block_column is not None and word_column is None:
+        left, right = block_column
+        text = "\n".join(
+            block_text(page_blocks(pdf, page), left, right) for page in range(1, pages + 1)
+        )
+    elif word_column is not None:
+        left, right = word_column
+        text = "\n".join(
+            column_text(page_words(pdf, page), left, right) for page in range(1, pages + 1)
+        )
+    elif block_column is not None:
+        left, right = block_column
+        text = "\n".join(
+            block_text(page_blocks(pdf, page), left, right) for page in range(1, pages + 1)
+        )
+    else:
+        return ""
 
     markers = [
         r"What is claimed is\s*:",
         r"What is claimed\s*:",
         r"^\s*Claims\s*$",
         r"^\s*We claim:",
+        # Some patents have no marker at all, and the claims start at the
+        # first numbered claim.
+        r"(?m)^\s*1\.\s+(?:A|An|The)\s+(?:method|decoding|encoding|apparatus|computer|system)\b",
     ]
     starts = []
     for marker in markers:

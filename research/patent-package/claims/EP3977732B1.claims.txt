@@ -1,4 +1,3 @@
-Claims
 1. A method, comprising:
 obtaining, for at least one video block, syntax information indicative of use of an implicit multiple transform
 selection mode;

@@ -1,6 +1,5 @@
-What is claimed is :
 1. A method of video decoding for a decoder , the method
-:
+comprising :
 decoding prediction information of a current block in a
 current picture from a coded video bitstream , the pre
 diction information being indicative of an inter predic
@@ -14,8 +13,8 @@ applied on the current block , performing , based on the
 filtering process , a primary transform for a transform
 block that is partitioned from the current block .
 2. The method of claim 1. wherein the filtering process is
-based on a position dependent prediction combi
-( PDPC ) mode or a combined inter and intra predic
+operated based on a position dependent prediction combi
+nation ( PDPC ) mode or a combined inter and intra predic
 ( CIIP ) mode .
 3. The method of claim 1 , wherein :
 the primary transform is a type - 7 discrete sine transform
@@ -60,7 +59,7 @@ mation indicating whether the primary transform
 includes one of a transform skip mode ( TSM ) , a DCT - 2
 mode , a DST - 7 mode , and a DCT - 8 mode .
 13. A method of video decoding for a decoder , the method
-:
+comprising :
 acquiring prediction information of a current block from
 a coded video bitstream ,
 determining whether the prediction information indicates
@@ -87,8 +86,8 @@ prediction information and the weighting factor ; and
 reconstructing a sample of the current block according to
 the CIIP prediction information .
 14. The method of claim 13 , wherein the weighted inter
-information is based on the inter prediction
-and a constant value minus the weighting factor ,
+prediction information is based on the inter prediction
+information and a constant value minus the weighting factor ,
 constant value including one of number values 2 , 4 , 8 , or
 .
 15. The method of claim 14 , wherein :
@@ -112,12 +111,12 @@ the second transform is based on a property of the
 second transform block .
 18. The method of claim 17 , wherein the first value of the
 information is equal to 1 and the second value of the
-information is equal to 1 .
+second information is equal to 1 .
 19. The method of claim 17 , wherein the first value of the
 information is greater than 0 , and the second value of
 second information is equal to 1 .
 20. The method of claim 17 , wherein the transforming the
-transform block comprises :
+second transform block comprises :
 transforming the second transform block coded in the
 intra prediction mode according to the second value ,
 the second transform in the implicit MTS mode , and a

@@ -16,8 +16,26 @@ import tempfile
 from pathlib import Path
 
 
-def render(pdf: Path, first: int, last: int, directory: Path) -> list[Path]:
-    """The pages as images."""
+#: The two columns of a patent page, in points, and the gutter between
+#: them.
+COLUMNS = {
+    "left": (78.0, 295.0),
+    "right": (321.0, 528.0),
+}
+
+
+def render(
+    pdf: Path,
+    first: int,
+    last: int,
+    directory: Path,
+    column: str | None = None,
+) -> list[Path]:
+    """The pages as images.
+
+    A patent page is two columns, and reading the whole page interleaves
+    them, so a column is cropped out of the rendered page.
+    """
     prefix = directory / "page"
     subprocess.run(
         [
@@ -34,7 +52,32 @@ def render(pdf: Path, first: int, last: int, directory: Path) -> list[Path]:
         ],
         check=True,
     )
-    return sorted(directory.glob("page-*.png"))
+    images = sorted(directory.glob("page-*.png"))
+    if column is None:
+        return images
+
+    left, right = COLUMNS[column]
+    # The crop is in the rendered image's pixels, and the page is 612
+    # points wide.
+    scale = 200 / 72.0
+    cropped = []
+    for index, image in enumerate(images):
+        destination = directory / f"column-{index}.png"
+        subprocess.run(
+            [
+                "python3",
+                "-c",
+                (
+                    "from PIL import Image;"
+                    f"im=Image.open({str(image)!r});"
+                    f"im.crop(({int(left * scale)},0,{int(right * scale)},im.height))"
+                    f".save({str(destination)!r})"
+                ),
+            ],
+            check=True,
+        )
+        cropped.append(destination)
+    return cropped
 
 
 def ocr(image: Path) -> str:
@@ -73,6 +116,7 @@ def main() -> int:
     pdf = Path(sys.argv[1])
     first = int(sys.argv[2]) if len(sys.argv) > 2 else 1
     last = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+    column = sys.argv[4] if len(sys.argv) > 4 else None
 
     if not last:
         info = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True).stdout
@@ -82,7 +126,7 @@ def main() -> int:
         last = int(pages_match.group(1))
 
     with tempfile.TemporaryDirectory(dir="/home/devansh/.hermes/cache/scratch") as directory:
-        images = render(pdf, first, last, Path(directory))
+        images = render(pdf, first, last, Path(directory), column)
         text = "\n".join(ocr(image) for image in images)
 
     claims = claims_of(text)

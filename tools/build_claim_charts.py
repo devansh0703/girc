@@ -53,6 +53,7 @@ REFERENCES = {
     "US11297348B2": {
         "title": "Implicit transform settings for coding a block of pixels",
         "assignee": "MediaTek",
+        "priority": "2018-04-13",
         "source": "pdf",
         "elements": {
             "E1_implicit": (
@@ -66,9 +67,9 @@ REFERENCES = {
                 "from the set of transform types for a horizontal transform, and when the "
                 "horizontal splitting orientation is used, the position is used to determine "
                 "the transform type for a vertical transform'. The horizontal and the vertical "
-                "transform are chosen separately, but from the block's partitioning "
-                "orientation and the transformed sub-block's position, not from the "
-                "neighbourhood's geometry."
+                "transform are chosen separately, but from the partitioning orientation of the "
+                "block and the position of the transformed sub-block, not from the geometry of "
+                "the neighbourhood."
             ),
         },
         "notes": (
@@ -81,6 +82,7 @@ REFERENCES = {
     "EP3977732B1": {
         "title": "Implicit multiple transform selection",
         "assignee": "InterDigital",
+        "priority": "2019-05-31",
         "source": "pdf",
         "elements": {
             "E1_implicit": (
@@ -100,23 +102,24 @@ REFERENCES = {
         ),
     },
     "US12219138B2": {
-        "title": "Method and apparatus for implicit transform selection",
-        "assignee": "InterDigital",
+        "title": "Simplified transform coding tools",
+        "assignee": "ByteDance",
+        "priority": "2020-06-08",
         "source": "ocr",
         "elements": {
             "E1_implicit": (
                 "Claim 1: 'determining, for a current transform block of a video, whether to "
-                "apply a transform coefficient zero-out based on an implicit selected transform "
-                "of a multiple transform selection process for a primary transform; and ... "
-                "wherein the implicit selected transform of the multiple transform selection "
-                "process is in an absence of one or more transform indices'."
+                "apply a transform coefficient zero-out based on ... an implicit selected "
+                "transform ... of a multiple transform selection process for a primary "
+                "transform; and ... wherein the implicit selected transform of the multiple "
+                "transform selection process is in an absence of one or more transform indices'."
             ),
             "E3_per_axis": (
-                "Claim 1: 'wherein one or more transform matrices applied to the current "
-                "transform block comprise at least one of a horizontal transform matrix or a "
-                "vertical transform matrix that is based on a set of representative "
-                "coefficients of the current transform block'. The horizontal and the vertical "
-                "matrix are addressed separately, but they are a function of the block's own "
+                "Claim 1: 'one or more transform matrices applied to the ... current transform "
+                "block comprise at least one of a horizontal transform matrix or a vertical "
+                "transform matrix that is based on a set of representative coefli- cients of "
+                "the current transform block'. The horizontal and the vertical matrix are "
+                "addressed separately, but they are a function of the block's own "
                 "coefficients, not of a prediction."
             ),
         },
@@ -126,8 +129,9 @@ REFERENCES = {
         ),
     },
     "US11134275B2": {
-        "title": "Implicit transform type signalling",
-        "assignee": "Qualcomm",
+        "title": "Method and apparatus for performing primary transform based on filtering of blocks",
+        "assignee": "Tencent America",
+        "priority": "2019-06-04",
         "source": "pdf",
         "elements": {
             "E1_implicit": (
@@ -142,13 +146,13 @@ REFERENCES = {
                 "current block based on neighboring reconstructed samples of the current "
                 "block'. The neighbouring reconstructed samples are read, but they are used to "
                 "filter the prediction, and the transform is chosen from the filtering mode "
-                "and the block's size, not from the samples' geometry."
+                "and the size of the block, rather than from the geometry of the samples."
             ),
             "E3_per_axis": (
-                "Claim 3: 'the primary transform is a type-7 discrete sine transform (DST-7) "
+                "Claim 3: 'the primary transform is a type - 7 discrete sine transform ( DST - 7 ) "
                 "mode for a horizontal transform that is applied to the transform block "
                 "responsive to a width of the current block being smaller than or equal to a "
-                "threshold value, the primary transform is the DST-7 mode for a vertical "
+                "threshold value, the primary transform is the DST - 7 mode for a vertical "
                 "transform that is applied to the transform block responsive to a height of "
                 "the current block being smaller than or equal to the threshold value'. The "
                 "horizontal and the vertical transforms are chosen separately, but each is a "
@@ -163,8 +167,9 @@ REFERENCES = {
         ),
     },
     "US20230086769A1": {
-        "title": "Implicit transform type signalling",
-        "assignee": "Qualcomm",
+        "title": "High-level syntax control on implicit transform",
+        "assignee": "Tencent America",
+        "priority": "2021-09-01",
         "source": "ocr",
         "elements": {
             "E1_implicit": (
@@ -183,7 +188,8 @@ REFERENCES = {
     },
     "US11785254B2": {
         "title": "Implicit mode dependent primary transforms",
-        "assignee": "Apple and Qualcomm",
+        "assignee": "Tencent America",
+        "priority": "2020-05-29",
         "source": "ocr",
         "elements": {
             "E1_implicit": (
@@ -212,18 +218,21 @@ REFERENCES = {
     "HK40058354A": {
         "title": "Implicit transform selection in video coding",
         "assignee": "Qualcomm",
+        "priority": "2020-03-12",
         "source": "chinese",
         "elements": {
             "E1_implicit": (
-                "Claim 1: inferring the transform type for the current transform block from a "
-                "plurality of transform types comprising one or more discrete cosine transforms "
-                "(DCTs) and one or more discrete sine transforms (DSTs), where the inference "
-                "is of the current transform block's type rather than a signalled index."
+                "Claim 1, in Chinese: '针对当前视频块的当前变换块，从包括一个或多个离散余弦变换"
+                "(DCT)和一个或多个离散正弦变换(DST)的多个变换类型中推断变换类型'. The claim "
+                "infers the transform type of the current transform block from the plurality "
+                "of transform types; the type is inferred rather than signalled."
             ),
             "E3_per_axis": (
-                "Claim 10: 'selecting the transform type comprises: selecting the transform "
-                "type for horizontal use and selecting the transform type for vertical use'. "
-                "The horizontal and the vertical transforms are selected separately."
+                "Claim 10, in Chinese: '选择所述变换类型包括：选择用于水平使用的变换类型和选择用于"
+                "垂直使用的变换类型'. The English reading is \"selecting the transform type "
+                "comprises: selecting the transform type for horizontal use and selecting the "
+                "transform type for vertical use\". The horizontal and the vertical "
+                "transforms are selected separately."
             ),
         },
         "notes": (
@@ -236,6 +245,7 @@ REFERENCES = {
     "EP2991352A1": {
         "title": "Methods and apparatus for transform selection in video encoding and decoding",
         "assignee": "Thomson Licensing",
+        "priority": "2009-01-27",
         "source": "epo",
         "elements": {
             "E1_implicit": (
@@ -275,6 +285,7 @@ REFERENCES = {
     "US9357221B2": {
         "title": "Methods and apparatus for adaptive transform selection for video encoding and decoding",
         "assignee": "Thomson Licensing",
+        "priority": "2009-07-23",
         "source": "pdf",
         "elements": {
             "E1_implicit": (
@@ -292,18 +303,21 @@ REFERENCES = {
                 "derived from the residual of already-coded pictures."
             ),
             "E5_learned": (
-                "Claim 23: 'wherein the plurality of transforms are adaptively updated to "
-                "obtain a trained plurality of transforms, and a selection of the subset is "
-                "based on the trained plurality of transforms'."
+                "Claim 23: 'the plurality of ... nsforms are adaptively updated to obtain a "
+                "trained plurality of ... transforms, and wherein a selection of the subset is "
+                "based on ... the plurality of transforms and the trained plurality of'. The "
+                "quotation marks the recognition's reading of the words it dropped at the "
+                "edge of the column."
             ),
             "E6_correction": (
-                "Claim 20: 'wherein the video encoder is further configured to transmit the "
-                "selected transform to a corresponding decoder when the selected transform is "
-                "not present at the corresponding decoder, to identify the selected transform "
-                "... when the selected transform is already present at the corresponding "
-                "decoder'. The encoder signals the transform only when the decoder's "
-                "plurality does not already contain it, and otherwise the decoder regenerates "
-                "it. This is the correction-relative-to-a-prediction arrangement."
+                "Claim 20: 'the video encoder is ... ther configured to transmit the selected "
+                "transform to a ... rresponding decoder when the selected transform is not ... "
+                "2sent at the corresponding decoder, to identify the selected ... nsform to "
+                "the corresponding decoder when the selected ... nsform is already present at "
+                "the corresponding decoder'. The encoder "
+                "signals the transform only when the decoder's plurality does not already "
+                "contain it, and otherwise the decoder regenerates it. This is the "
+                "correction-relative-to-a-prediction arrangement."
             ),
         },
         "notes": (
@@ -316,47 +330,43 @@ REFERENCES = {
     "US20240040151A1": {
         "title": "Coefficient-based transform and mode signaling",
         "assignee": "Apple",
+        "priority": "2022-07-28",
         "source": "ocr",
         "elements": {
             "E1_implicit": (
                 "Claim 7: 'when the determined pattern matches a pre-defined pattern, "
                 "determining whether a transform type used in coding matches a default "
-                "transform type associated with the pre-defined pattern; and when the "
-                "determined pattern matches the pre-determined pattern, the transmitted coded "
-                "data of the transform unit omits an identification of a transform type "
-                "applied during the transforming'. The transform type is inferred at the "
-                "decoder and not signalled."
-            ),
-            "E2_geometry": (
-                "The abstract: 'based on the spatial locations of decoded coefficients, the "
-                "spatial patterns of coefficients, or the correlation with the coefficients "
-                "in neighboring blocks, various syntax elements such as the transform type "
-                "and related flags/indices ... may be disabled or constrained'. The "
-                "correlation with the neighbouring blocks' coefficients is the neighbourhood "
-                "context."
+                "transform type associated with the pre-defined pattern'. The transform type "
+                "is inferred at the decoder and not signalled: the claim then provides that "
+                "'the transmitted coded data of the transform unit omits an identification of "
+                "a transform type applied during the transforming'."
             ),
             "E6_correction": (
-                "Claim 2: 'comparing a transform type applied during the transforming to a "
-                "default transform type defined by the coding protocol and, when a transform "
-                "type applied during the transforming and the default transform type defined "
-                "by the coding protocol are the same, omitting an identifier of the transform "
-                "type from the coded data'. The signalling is relative to a default, and it "
-                "is omitted when the default matches."
+                "Claim 8: 'wherein, when the determined pattern matches the pre-determined, "
+                "the transmitted coded data of the transform unit identifies an array of "
+                "candidate transform types, the array being smaller than an entirety of "
+                "transform types supported by the coding protocol'. The signalling is "
+                "relative to a set the decoder can narrow, and the array is smaller than "
+                "the whole set."
             ),
         },
         "notes": (
             "Priority 2022-07-28, so this is the most recent reference. It derives the "
             "transform type, and a range of other syntax elements, from the pattern of the "
             "decoded coefficients and their correlation with the neighbouring blocks, and it "
-            "omits the signalling when the inferred value matches a default. The inference "
-            "is from the coefficients rather than from the reconstructed pixels' geometry, "
-            "and the omission is a match against a default rather than a rate-distortion "
-            "trade."
+            "omits the signalling when the inferred value matches a default. The claims do "
+            "not reach the neighbouring blocks: claim 7 reads the block's own coefficient "
+            "pattern, \"determining a pattern of quantized transform coefficients of the "
+            "transform unit based on coefficient values of the transform unit\". The "
+            "description is wider than the claims, and anticipation is judged on the claims, "
+            "so the element is not recorded as disclosed. The omission is a match against a "
+            "default rather than a rate-distortion trade."
         ),
     },
     "US11363302B2": {
         "title": "Neural post-filter for video coding",
         "assignee": "MediaTek",
+        "priority": "2018-05-11",
         "source": "pdf",
         "elements": {},
         "notes": (
@@ -398,6 +408,7 @@ def main() -> int:
         charts[number] = {
             "title": reference["title"],
             "assignee": reference["assignee"],
+            "priority": reference.get("priority", ""),
             "source": reference["source"],
             "claim_characters": len(claims),
             "elements_present": sorted(elements),

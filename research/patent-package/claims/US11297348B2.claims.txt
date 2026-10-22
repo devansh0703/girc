@@ -1,4 +1,3 @@
-What is claimed is :
 1. A decoding method comprising :
 decoding transform coefficients for a block of pixels
 coded by inter mode from a bitstream ;
@@ -17,30 +16,30 @@ Transform ( SBT ) operation that partitions the block of
 pixels into a plurality of sub - blocks and performs
 B2
 28
-vector difference , and wherein deriving the trans
+motion vector difference , and wherein deriving the trans
 setting comprises selecting a transform mode from a
-of transform modes based on the resolution selec
+plurality of transform modes based on the resolution selec
 index .
 11. The method of claim 1 , wherein the block processing
-controls an Overlapped Block Motion Compensation
-) operation for smoothing boundaries between par
-of the block of pixels using different motion vectors ,
-the block processing setting comprises a OBMC
+setting controls an Overlapped Block Motion Compensation
+OBMC ) operation for smoothing boundaries between par
+titions of the block of pixels using different motion vectors ,
+wherein the block processing setting comprises a OBMC
 for enabling the OBMC operation , and wherein deriving
 transform setting comprises selecting a transform mode
 a plurality of transform modes based on the OBMC
 12. The method of claim 1 , wherein the block processing
-controls an inter - prediction operation , wherein the
-processing setting comprises a merge candidate index
+setting controls an inter - prediction operation , wherein the
+block processing setting comprises a merge candidate index
 selects one of a set of one or more Merge candidates ,
 wherein deriving the transform setting comprises select
 a transform mode from a plurality of transform modes
-on the merge index .
+based on the merge index .
 13. The method of claim 1 , wherein the block processing
-controls a prediction direction of a motion candidate ,
+setting controls a prediction direction of a motion candidate ,
 wherein deriving the transform setting comprises select
 a transform mode from a plurality of transform modes
-on the prediction direction .
+based on the prediction direction .
 14. The encoding method of claim 1 , wherein the trans
 setting specifies whether the SBT operation is applied
 not .
@@ -111,16 +110,16 @@ the plurality of transform modes based on a temporal
 .
 19. The method of claim 16 , wherein when at least one of
 height or the width of the block of pixels is less than the
-, implicitly assigning the transform setting in the
-one of the horizontal or the vertical transform
+threshold , implicitly assigning the transform setting in the
+corresponding one of the horizontal or the vertical transform
 based on the predetermined table having a fixed equation
-Bi - prediction ( GBi ) index % N = n ) , where N
+Generalized Bi - prediction ( GBi ) index % N = n ) , where N
 n are predetermined integers where even - number GBi
-are implicitly mapped to a first transform group and
+indices are implicitly mapped to a first transform group and
 - number GBi indices are implicitly mapped to second
-group .
+transform group .
 20. The method of claim 1 , wherein the vertical splitting
-and the horizontal splitting orientation vary with
+orientation and the horizontal splitting orientation vary with
 width and / or height of the block , respectively .
 21. The method of claim 1 , wherein the position is
-parsed or signaled from or in the bitstream .
+explicitly parsed or signaled from or in the bitstream .
