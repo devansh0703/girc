@@ -22,7 +22,7 @@ results.
 | `crates/girc-core` | The codec: VVC-exact integer transforms, intra prediction, quantization, a context-adaptive entropy coder, and both signalling modes |
 | `crates/girc-cli` | `encode`, `decode`, `inspect`, `collect`, `evaluate` |
 | `crates/girc-bench` | The benchmark: both modes and three anchor codecs, the Bjontegaard implementation, and the margin sweep |
-| `python/girc-train` | The training pipeline: collects the encoder's own decisions, fits the predictor, reports the predictability ceiling |
+| `python/girc-train` | The training pipeline: collects the encoder's own decisions, fits the two per-axis predictors, reports the predictability ceiling |
 | `apps/portal` | The confidential evaluation environment |
 | `web/girc-site` | The product site |
 | `web/eval-site` | The evaluation site |

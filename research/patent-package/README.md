@@ -151,16 +151,10 @@ Each of these is outside what GIRC can test and inside what an evaluation
 with a real codec can:
 
 - **A larger transform set.** The overhead removed grows with the number
-  of choices to signal and with how evenly they are distributed. Three
-  types over a skewed distribution is close to the least favourable case.
-- **Inter prediction.** A motion-compensated residual carries the motion
-  vector's structure, which is more directional and more predictable from
-  the causal neighbourhood than an intra residual.
-- **Coarser signalling grain.** One transform per region rather than per
-  block makes the inference easier and the overhead larger.
-- **A richer causal window.** The features read a 16-sample window. A
-  larger one, or a learned representation of the neighbourhood, would
-  raise the predictability ceiling.
+  of choices to signal and with how evenly they are distributed. Five
+  modes over a skewed distribution is close to the least favourable case.
+- **Coarser signalling grain.** One mode per region rather than per block
+  makes the inference easier and the overhead larger.
 
 ---
 
@@ -268,18 +262,22 @@ starting point for counsel, not a filing-ready set.
 > (b) determining, from the causal neighbourhood, a plurality of geometric
 >     features comprising at least a gradient orientation distribution over
 >     the neighbourhood;
-> (c) applying a trained prediction function to the features to obtain a
->     predicted transform type from a plurality of candidate transform
->     types;
+> (c) applying a first trained prediction function to the features to
+>     obtain a predicted transform type for a horizontal axis of the
+>     current block, and applying a second trained prediction function to
+>     the features to obtain a predicted transform type for a vertical
+>     axis of the current block, and combining the two to obtain a
+>     predicted transform mode, in which a predicted DCT-II on either axis
+>     yields a predicted transform mode of the plain DCT-II on both axes;
 > (d) reading from the coded representation a signal indicating whether
->     the predicted transform type was used;
-> (e) when the signal indicates that the predicted transform type was
+>     the predicted transform mode was used;
+> (e) when the signal indicates that the predicted transform mode was
 >     used, transforming the current block using the predicted transform
->     type; and
-> (f) when the signal indicates that the predicted transform type was not
->     used, reading an indication of which of the candidate transform types
->     other than the predicted transform type was used, and transforming
->     the current block using that transform type.
+>     mode; and
+> (f) when the signal indicates that the predicted transform mode was not
+>     used, reading an indication of which of the candidate transform modes
+>     other than the predicted transform mode was used, and transforming
+>     the current block using that transform mode.
 
 ### Claim 7 — training
 
@@ -288,13 +286,17 @@ starting point for counsel, not a filing-ready set.
 >
 > (a) encoding a training set of pictures with a reference encoder, the
 >     reference encoder performing rate-distortion optimisation over the
->     candidate transform types;
+>     candidate transform modes;
 > (b) for each block of the training set, recording the geometric features
 >     of the block's causal neighbourhood as reconstructed by the
->     reference encoder, and the transform type the reference encoder
->     selected for the block; and
-> (c) fitting the prediction function to the recorded features and
->     transform types.
+>     reference encoder, the transform type the reference encoder selected
+>     for the block on the horizontal axis, and the transform type the
+>     reference encoder selected for the block on the vertical axis; and
+> (c) fitting the prediction function to the recorded features and the
+>     recorded transform type of the horizontal axis, and fitting a
+>     second prediction function to the recorded features and the recorded
+>     transform type of the vertical axis, the two prediction functions
+>     being fitted separately.
 
 ### Claim 8 — the margin
 
@@ -307,14 +309,15 @@ starting point for counsel, not a filing-ready set.
 
 | Claim | Closest reference | Why the reference does not anticipate the claim |
 |---|---|---|
-| 1 | EP3977732B1 (InterDigital) | The reference derives the transform from the block's width and height by table lookup. Claim 1 derives it from a gradient orientation distribution over reconstructed samples, and adds the rate-distortion margin of element (d), which the reference has no counterpart for. |
-| 1 | US11363302B2 (MediaTek) | The reference's neural network takes the current block's own reconstruction as input, which the decoder does not have at the point the transform is needed. Claim 1's features come from a *causal* neighbourhood that excludes the current block, and the reference has no margin. |
+| 1 | EP3977732B1 (InterDigital) | The reference derives the transform from the block's width and height by table lookup. Claim 1 derives it from a gradient orientation distribution over reconstructed samples, predicts the two axes separately and composes them, and adds the rate-distortion margin of element (e), which the reference has no counterpart for. |
+| 1 | US11363302B2 (MediaTek) | The reference's neural network takes the current block's own reconstruction as input, which the decoder does not have at the point the transform is needed. Claim 1's features come from a *causal* neighbourhood that excludes the current block, the two axes are predicted by separately trained functions, and the reference has no margin. |
 | 2 | any | No reference found forms a gradient orientation distribution over a causal window. |
 | 3 | US12143605 | That reference uses side information associated with the prediction, not a spatial window of reconstructed samples. |
-| 4 | any | No reference found codes a correction relative to a predicted value in a canonical order. |
+| 4 | any | No reference found codes a correction relative to a predicted value in a canonical order. The correction here selects among the four modes the prediction ruled out, in two bins. |
 | 5 | US11363302B2 | The reference trains a network, but not on the encoder's own rate-distortion decisions, and its output is not a transform type chosen by a margin. |
-| 6 | EP3977732B1 | The reference's decoder derives the transform from syntax alone. Claim 6's decoder derives it from geometry and resolves a mismatch against a canonical ordering. |
-| 7 | US11363302B2 | The reference does not disclose collecting the encoder's own rate-distortion decisions over a causal neighbourhood. |
+| 5, 7 | none found | No reference found trains two prediction functions separately, one per axis, and composes them into the mode. The measurement behind the split is in §1.4: the joint mode is barely predictable while each axis is not. |
+| 6 | EP3977732B1 | The reference's decoder derives the transform from syntax alone. Claim 6's decoder derives it from geometry, composes two per-axis predictions, and resolves a mismatch against a canonical ordering. |
+| 7 | US11363302B2 | The reference does not disclose collecting the encoder's own rate-distortion decisions over a causal neighbourhood, nor fitting the two axes separately. |
 | 8 | none found | No reference found expresses the signalling-versus-distortion trade as a rate-denominated margin. |
 
 ---
@@ -325,21 +328,21 @@ Three facts a counsel will want to hear from the inventor rather than
 discover later.
 
 **The concept of implicit transform selection is not new.** Four families
-of reference do it. A claim whose novelty rests on "the transform type is
+of reference do it. A claim whose novelty rests on "the transform mode is
 derived rather than signalled" would not survive §2. The claims above are
-drafted to rest on the geometric features, the causal neighbourhood and
-the rate-distortion margin instead.
+drafted to rest on the geometric features, the causal neighbourhood, the
+per-axis prediction and composition, and the rate-distortion margin
+instead.
 
-**The measured result is close to break-even, and the closest prior art
-reports a loss.** InterDigital's EP3977732B1 reports +0.34% overall for
-its implicit transform design against an MTS-disabled anchor: their
-approach also did not pay. The present disclosure's −0.064% at a margin of
-10 bits is a slightly better result by a slightly different mechanism,
-and both are far from a decisive win. A filing that claimed a large
-coding gain would be contradicted by the reference implementation in this
-repository.
+**The measured result is a small win, and the closest prior art reports a
+loss.** InterDigital's EP3977732B1 reports +0.34% overall for its
+implicit transform design against an MTS-disabled anchor: their approach
+did not pay. The present disclosure's −0.226% at a margin of 50 bits is
+a better result by a different mechanism, and it is still far from a
+decisive win. A filing that claimed a large coding gain would be
+contradicted by the reference implementation in this repository.
 
-**The negative result is itself the package's strongest asset.** A
+**The measured envelope is itself the package's strongest asset.** A
 mechanism whose envelope has been measured — the margin at which it pays,
 the predictability ceiling of its features, the content on which it helps
 and the content on which it does not — is a much more useful evaluation

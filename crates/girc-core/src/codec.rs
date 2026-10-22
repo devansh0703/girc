@@ -398,11 +398,13 @@ pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Picture, Codec
                 &mut decoder,
                 config,
                 header.signalling,
-                &picture,
-                &transforms,
-                (bx, by),
-                mode,
-                header.qp as i32,
+                &PredictionContext {
+                    picture: &picture,
+                    transforms: &transforms,
+                    block: (bx, by),
+                    mode,
+                    qp: header.qp as i32,
+                },
             )?;
 
             let skip = decoder.decode(CTX_SKIP)?;
@@ -738,12 +740,15 @@ fn decode_transform_signal(
     decoder: &mut BinDecoder,
     config: &EncoderConfig,
     signalling: TransformSignalling,
-    picture: &Picture,
-    transforms: &TransformMap,
-    block: (usize, usize),
-    mode: IntraMode,
-    qp: i32,
+    context: &PredictionContext<'_>,
 ) -> Result<TransformMode, CodecError> {
+    let PredictionContext {
+        picture,
+        transforms,
+        block,
+        mode,
+        qp,
+    } = *context;
     // The explicit mode has no override flag; the mode is coded
     // directly, with the same syntax the encoder used.
     if signalling == TransformSignalling::Explicit {
@@ -888,6 +893,24 @@ fn decode_exp_golomb(decoder: &mut BinDecoder) -> Result<u32, CodecError> {
     Ok(suffix + (1u32 << prefix_len) - 1)
 }
 
+/// The context the predictor reads: the reconstruction, the transform map
+/// and the block's own decoded state.
+///
+/// The predictor needs all of these together, and bundling them keeps the
+/// signalling functions' argument lists short.
+pub struct PredictionContext<'a> {
+    /// The reconstruction so far.
+    pub picture: &'a Picture,
+    /// The transform mode each coded block used.
+    pub transforms: &'a TransformMap,
+    /// The block's position, in blocks.
+    pub block: (usize, usize),
+    /// The block's intra prediction mode, decoded before the transform.
+    pub mode: IntraMode,
+    /// The quantization parameter, from the bitstream header.
+    pub qp: i32,
+}
+
 /// The features the predictor would see for a block.
 ///
 /// The encoder and the decoder both call this, on their own
@@ -906,8 +929,7 @@ pub fn predict_features(
     extract_features_from_window(
         &picture.samples,
         picture.width,
-        origin_x,
-        origin_y,
+        (origin_x, origin_y),
         CONTEXT_WINDOW,
         mode,
         qp,

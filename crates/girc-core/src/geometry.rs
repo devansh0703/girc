@@ -401,13 +401,13 @@ pub fn extract_features(
 pub fn extract_features_from_window(
     samples: &[u8],
     stride: usize,
-    origin_x: usize,
-    origin_y: usize,
+    origin: (usize, usize),
     window: usize,
     mode: IntraMode,
     qp: i32,
     neighbours: NeighbourTransforms,
 ) -> GeometryFeatures {
+    let (origin_x, origin_y) = origin;
     let mut histogram = [0f32; ORIENTATION_BINS];
     let mut total = 0f32;
     let mut horizontal = 0f32;
@@ -900,13 +900,10 @@ mod tests {
         let one_hot = neighbours.one_hot();
         assert_eq!(one_hot.len(), NEIGHBOUR_TRANSFORM_SLOTS * MODE_COUNT);
         // Left is DST-VII/DST-VII.
-        assert_eq!(
-            one_hot[0 * MODE_COUNT + TransformMode::MTS[0].as_index() as usize],
-            1.0
-        );
+        assert_eq!(one_hot[TransformMode::MTS[0].as_index() as usize], 1.0);
         // Above is the plain DCT-II.
         assert_eq!(
-            one_hot[1 * MODE_COUNT + TransformMode::DCT2.as_index() as usize],
+            one_hot[MODE_COUNT + TransformMode::DCT2.as_index() as usize],
             1.0
         );
         // Above-left does not exist, so its slot is empty.
