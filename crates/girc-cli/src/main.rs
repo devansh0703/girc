@@ -15,7 +15,7 @@ use std::process::ExitCode;
 use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use girc_core::bitstream::BitstreamHeader;
-use girc_core::codec::{collect_training_examples, decode, encode, EncoderConfig};
+use girc_core::codec::{collect_training_examples, decode, encode, encode_luma, EncoderConfig};
 use girc_core::geometry::{TransformPredictor, TransformSignalling};
 use girc_core::yuv::Yuv4Frame;
 
@@ -190,19 +190,21 @@ fn run() -> Result<()> {
             let read = Yuv4Frame::read_many(&input, frames.max(1))
                 .with_context(|| format!("reading the input frames at {}", input.display()))?;
             let config = build_config(signalling, qp, model.as_ref(), margin)?;
-            let pictures: Vec<_> = read.iter().map(|f| f.luma_picture()).collect();
-            let result = encode(&pictures, &config)?;
+            let frames: Vec<_> = read.iter().map(|f| f.frame()).collect();
+            let result = encode(&frames, &config)?;
             fs::write(&output, &result.bitstream)
                 .with_context(|| format!("writing the bitstream to {}", output.display()))?;
 
             eprintln!(
-                "encoded {}x{} qp={} signalling={} frames={} blocks={} payload={} bytes mismatches={} signalling_bits={} inter_blocks={}",
-                pictures[0].width,
-                pictures[0].height,
+                "encoded {}x{} qp={} signalling={} frames={} blocks={} luma={} bytes chroma={} bytes total={} bytes mismatches={} signalling_bits={} inter_blocks={}",
+                frames[0].width(),
+                frames[0].height(),
                 qp,
                 signalling_name(signalling),
-                pictures.len(),
+                frames.len(),
                 result.block_count,
+                result.luma_bytes,
+                result.chroma_bytes,
                 result.payload_bytes,
                 result.prediction_mismatches,
                 result.transform_signalling_bins,
@@ -220,20 +222,20 @@ fn run() -> Result<()> {
                 .with_context(|| format!("reading the bitstream at {}", input.display()))?;
             let (header, _) = BitstreamHeader::read(&bitstream)?;
             let config = build_config(signalling, header.qp as i32, model.as_ref(), 0.0)?;
-            let pictures = decode(&bitstream, &config)?;
-            let frames: Vec<_> = pictures
+            let decoded = decode(&bitstream, &config)?;
+            let frames: Vec<_> = decoded
                 .iter()
-                .map(|p| Yuv4Frame::from_luma_picture(p, 128))
+                .map(|frame| Yuv4Frame::from_frame(frame, 25, 1))
                 .collect();
             Yuv4Frame::write_many(&frames, &output)
                 .with_context(|| format!("writing the frames to {}", output.display()))?;
             eprintln!(
                 "decoded {}x{} qp={} signalling={} frames={}",
-                pictures[0].width,
-                pictures[0].height,
+                decoded[0].width(),
+                decoded[0].height(),
                 header.qp,
                 signalling_name(signalling),
-                pictures.len(),
+                decoded.len(),
             );
         }
         Command::Collect { input, qp, frames } => {
@@ -274,7 +276,7 @@ fn run() -> Result<()> {
                 ..Default::default()
             };
             let pictures: Vec<_> = read.iter().map(|f| f.luma_picture()).collect();
-            let result = encode(&pictures, &config)?;
+            let result = encode_luma(&pictures, &config)?;
             let payload = serde_json::json!({
                 "sequence": input.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(),
                 "qp": qp,
@@ -308,7 +310,8 @@ fn run() -> Result<()> {
             println!("size:       {}x{}", header.width, header.height);
             println!("qp:         {}", header.qp);
             println!("total:      {total} bytes");
-            println!("payload:    {} bytes", total - BitstreamHeader::SIZE);
+            println!("luma:       {} bytes", header.luma_words as usize * 4);
+            println!("chroma:     {} bytes", header.chroma_words as usize * 4);
         }
     }
     Ok(())

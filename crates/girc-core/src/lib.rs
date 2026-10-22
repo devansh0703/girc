@@ -17,11 +17,17 @@
 //! * [`quant`] -- quantization.
 //! * [`bitstream`] -- the container and the entropy coder.
 //! * [`geometry`] -- the geometry-inference mechanism itself.
+//! * [`chroma`] -- the 4:2:0 chroma planes.
+//! * [`chroma_qp`] -- the chroma quantization parameter mapping.
 //! * [`codec`] -- the encoder and decoder.
 //! * [`yuv`] -- YUV4MPEG2 input and output.
 
 pub mod bitstream;
+pub mod chroma;
+pub mod chroma_qp;
+pub mod chroma_qp_oracle_vectors;
 pub mod codec;
+pub mod frame;
 pub mod geometry;
 pub mod inter;
 pub mod intra;

@@ -27,7 +27,7 @@ use std::process::Command;
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
-use girc_core::codec::{encode, EncoderConfig};
+use girc_core::codec::{encode, encode_luma, EncoderConfig};
 use girc_core::geometry::{TransformPredictor, TransformSignalling};
 use girc_core::yuv::Yuv4Frame;
 use serde::{Deserialize, Serialize};
@@ -37,8 +37,31 @@ use serde::{Deserialize, Serialize};
 pub struct RatePoint {
     pub qp: i32,
     /// The coded size in bits.
+    ///
+    /// For GIRC this is the whole frame, luma and chroma, which is the
+    /// rate the anchor codecs are compared against. For an anchor it is
+    /// the size of the file the anchor wrote, which is also the whole
+    /// frame.
     pub bits: u64,
     /// The peak signal-to-noise ratio in decibels.
+    ///
+    /// The luma plane's, as the JVET common test conditions specify.
+    pub psnr_db: f64,
+}
+
+/// A rate-distortion point on the luma plane alone.
+///
+/// The mechanism changes the luma signalling and nothing else, so the
+/// luma rate is the axis its own effect is measured on. The chroma
+/// planes are identical in both signalling modes, so including them in
+/// the mechanism's measurement would dilute the effect by a constant
+/// factor that has nothing to do with the mechanism.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LumaRatePoint {
+    pub qp: i32,
+    /// The luma payload's size in bits.
+    pub bits: u64,
+    /// The luma plane's peak signal-to-noise ratio in decibels.
     pub psnr_db: f64,
 }
 
@@ -50,6 +73,13 @@ pub struct CodecResult {
     pub width: usize,
     pub height: usize,
     pub points: Vec<RatePoint>,
+    /// The rate-distortion points on the luma plane alone.
+    ///
+    /// Only GIRC has them: an anchor's luma rate cannot be separated
+    /// from its chroma rate without decoding its bitstream, which is
+    /// not what the anchor comparison is for.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub luma_points: Option<Vec<LumaRatePoint>>,
     /// The number of blocks whose transform differed from the decoder's
     /// prediction, when the codec is GIRC in inferred mode.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -227,6 +257,31 @@ fn solve(a: &mut [[f64; 4]; 4], b: &[f64; 4]) -> Option<[f64; 4]> {
     Some(solution)
 }
 
+/// The Bjontegaard delta rate on the luma plane alone.
+///
+/// The mechanism changes the luma signalling and nothing else: the
+/// chroma planes are coded identically in both signalling modes, so
+/// the luma rate is the axis the mechanism's effect is measured on.
+pub fn bd_rate_luma(reference: &[LumaRatePoint], test: &[LumaRatePoint]) -> Option<f64> {
+    let reference: Vec<RatePoint> = reference
+        .iter()
+        .map(|point| RatePoint {
+            qp: point.qp,
+            bits: point.bits,
+            psnr_db: point.psnr_db,
+        })
+        .collect();
+    let test: Vec<RatePoint> = test
+        .iter()
+        .map(|point| RatePoint {
+            qp: point.qp,
+            bits: point.bits,
+            psnr_db: point.psnr_db,
+        })
+        .collect();
+    bd_rate(&reference, &test)
+}
+
 /// The peak signal-to-noise ratio between two luma planes.
 /// The mean squared error between two planes.
 pub fn mse(reference: &[u8], test: &[u8]) -> f64 {
@@ -311,9 +366,10 @@ pub fn run_girc(
     frames: usize,
 ) -> Result<CodecResult> {
     let read = Yuv4Frame::read_many(sequence, frames.max(1))?;
-    let pictures: Vec<_> = read.iter().map(|f| f.luma_picture()).collect();
-    let picture = &pictures[0];
+    let frames: Vec<_> = read.iter().map(|f| f.frame()).collect();
+    let picture = &read[0];
     let mut points = Vec::new();
+    let mut luma_points = Vec::new();
     let mut mismatches = 0u64;
     let mut blocks = 0u64;
     let mut intra_mismatches = 0u64;
@@ -329,19 +385,28 @@ pub fn run_girc(
             transform_margin,
             ..Default::default()
         };
-        let result = encode(&pictures, &config)?;
+        let result = encode(&frames, &config)?;
 
         // The distortion is the mean over the frames, so the curve is
         // comparable with the anchors', which also code every frame.
+        // The luma plane's PSNR is the one the JVET common test
+        // conditions specify.
         let mut total_mse = 0f64;
-        for (original, reconstruction) in pictures.iter().zip(result.reconstructions.iter()) {
-            total_mse += mse(&original.samples, &reconstruction.samples);
+        for (original, reconstruction) in frames.iter().zip(result.reconstructions.iter()) {
+            total_mse += mse(&original.luma.samples, &reconstruction.luma.samples);
         }
-        let psnr = mse_to_psnr(total_mse / pictures.len() as f64);
+        let psnr = mse_to_psnr(total_mse / frames.len() as f64);
 
         points.push(RatePoint {
             qp: *qp,
             bits: (result.bitstream.len() * 8) as u64,
+            psnr_db: psnr,
+        });
+        // The luma payload's own rate-distortion point, on the luma
+        // plane alone.
+        luma_points.push(LumaRatePoint {
+            qp: *qp,
+            bits: (result.luma_bytes * 8) as u64,
             psnr_db: psnr,
         });
         mismatches += result.prediction_mismatches as u64;
@@ -365,6 +430,7 @@ pub fn run_girc(
         width: picture.width,
         height: picture.height,
         points,
+        luma_points: Some(luma_points),
         prediction_mismatches: Some(mismatches),
         block_count: Some(blocks),
         intra_mismatches: Some(intra_mismatches),
@@ -422,6 +488,7 @@ pub fn run_anchor(
         width: read[0].width,
         height: read[0].height,
         points,
+        luma_points: None,
         prediction_mismatches: None,
         block_count: None,
         intra_mismatches: None,
@@ -653,8 +720,22 @@ pub struct Report {
     pub results: Vec<CodecResult>,
     /// The BD-rate of each codec against the GIRC-explicit baseline.
     pub bd_rate_vs_baseline: BTreeMap<String, BTreeMap<String, f64>>,
-    /// The BD-rate of GIRC-inferred against GIRC-explicit.
+    /// The BD-rate of GIRC-inferred against GIRC-explicit, on the luma
+    /// plane.
+    ///
+    /// The mechanism changes the luma signalling and nothing else, so
+    /// the luma rate is the axis its effect is measured on. The chroma
+    /// planes are identical in both modes, so including them would
+    /// dilute the effect by a constant factor that has nothing to do
+    /// with the mechanism.
     pub mechanism_bd_rate: BTreeMap<String, f64>,
+    /// The BD-rate of GIRC-inferred against GIRC-explicit, on the whole
+    /// frame.
+    ///
+    /// This is the same comparison with the chroma planes included, and
+    /// it is the number that corresponds to what a deployment would
+    /// actually save.
+    pub mechanism_bd_rate_total: BTreeMap<String, f64>,
     /// The margin sweep, when one was run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub margin_sweep: Option<Vec<MarginPoint>>,
@@ -731,7 +812,11 @@ fn run_margin_sweep(
                         ..Default::default()
                     };
                     let start = std::time::Instant::now();
-                    let result = encode(&pictures, &config)?;
+                    // The sweep measures the mechanism, and the mechanism
+                    // is a luma-plane effect, so the sweep codes the luma
+                    // plane only. The chroma planes are identical in both
+                    // modes and would dilute the measurement.
+                    let result = encode_luma(&pictures, &config)?;
                     seconds += start.elapsed().as_secs_f64();
                     let mut total_mse = 0f64;
                     for (original, reconstruction) in
@@ -741,7 +826,7 @@ fn run_margin_sweep(
                     }
                     points_for_mode.push(RatePoint {
                         qp: *qp,
-                        bits: (result.bitstream.len() * 8) as u64,
+                        bits: (result.payload.len() * 4 * 8) as u64,
                         psnr_db: mse_to_psnr(total_mse / pictures.len() as f64),
                     });
                     if signalling == TransformSignalling::Inferred {
@@ -881,6 +966,7 @@ fn main() -> Result<()> {
     // mechanism's own BD-rate.
     let mut bd_rate_vs_baseline: BTreeMap<String, BTreeMap<String, f64>> = BTreeMap::new();
     let mut mechanism_bd_rate: BTreeMap<String, f64> = BTreeMap::new();
+    let mut mechanism_bd_rate_total: BTreeMap<String, f64> = BTreeMap::new();
 
     for sequence in &args.sequence {
         let name = sequence
@@ -902,7 +988,17 @@ fn main() -> Result<()> {
             if let Some(rate) = bd_rate(&baseline.points, &result.points) {
                 per_codec.insert(result.codec.clone(), rate);
                 if result.codec == Anchor::GircInferred.name() {
-                    mechanism_bd_rate.insert(name.clone(), rate);
+                    mechanism_bd_rate_total.insert(name.clone(), rate);
+                }
+            }
+            // The mechanism's own effect, on the luma plane.
+            if result.codec == Anchor::GircInferred.name() {
+                if let (Some(baseline_luma), Some(result_luma)) =
+                    (&baseline.luma_points, &result.luma_points)
+                {
+                    if let Some(rate) = bd_rate_luma(baseline_luma, result_luma) {
+                        mechanism_bd_rate.insert(name.clone(), rate);
+                    }
                 }
             }
         }
@@ -929,6 +1025,7 @@ fn main() -> Result<()> {
         results,
         bd_rate_vs_baseline,
         mechanism_bd_rate,
+        mechanism_bd_rate_total,
         margin_sweep,
     };
 
@@ -938,7 +1035,10 @@ fn main() -> Result<()> {
 
     eprintln!("wrote {}", args.report.display());
     for (sequence, rate) in &report.mechanism_bd_rate {
-        eprintln!("mechanism BD-rate on {sequence}: {rate:+.3}%");
+        eprintln!("mechanism BD-rate on {sequence}: {rate:+.3}% (luma plane)");
+    }
+    for (sequence, rate) in &report.mechanism_bd_rate_total {
+        eprintln!("mechanism BD-rate on {sequence}: {rate:+.3}% (whole frame)");
     }
     Ok(())
 }

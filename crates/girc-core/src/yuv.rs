@@ -20,6 +20,7 @@ use std::path::Path;
 use anyhow::{bail, Context, Result};
 
 use crate::codec::Picture;
+use crate::frame::Frame;
 
 /// A YUV 4:2:0 frame read from a Y4M file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -192,6 +193,26 @@ impl Yuv4Frame {
         }
     }
 
+    /// The frame as a GIRC 4:2:0 frame.
+    ///
+    /// The chroma planes are half the luma plane's size, which is what
+    /// 4:2:0 means.
+    pub fn frame(&self) -> Frame {
+        Frame::new(
+            self.luma_picture(),
+            Picture {
+                width: self.width / 2,
+                height: self.height / 2,
+                samples: self.u.clone(),
+            },
+            Picture {
+                width: self.width / 2,
+                height: self.height / 2,
+                samples: self.v.clone(),
+            },
+        )
+    }
+
     /// Build a frame from a luma picture, filling the chroma planes with a
     /// neutral value.
     pub fn from_luma_picture(picture: &Picture, chroma: u8) -> Self {
@@ -204,6 +225,19 @@ impl Yuv4Frame {
             y: picture.samples.clone(),
             u: vec![chroma; chroma_len],
             v: vec![chroma; chroma_len],
+        }
+    }
+
+    /// Build a frame from a decoded GIRC frame.
+    pub fn from_frame(frame: &Frame, fps_num: u32, fps_den: u32) -> Self {
+        Self {
+            width: frame.luma.width,
+            height: frame.luma.height,
+            fps_num,
+            fps_den,
+            y: frame.luma.samples.clone(),
+            u: frame.cb.samples.clone(),
+            v: frame.cr.samples.clone(),
         }
     }
 

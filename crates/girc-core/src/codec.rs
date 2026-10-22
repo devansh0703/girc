@@ -22,7 +22,9 @@
 //! the entropy coder -- is identical, so a difference in the measured
 //! bitrate or quality is attributable to the signalling mechanism alone.
 
-use crate::bitstream::{BinDecoder, BinEncoder, BitstreamError, BitstreamHeader};
+use crate::bitstream::{BinDecoder, BinEncoder, BitstreamError, BitstreamHeader, Word};
+use crate::chroma;
+use crate::frame::Frame;
 use crate::geometry::{
     extract_features, extract_features_from_window, BlockContext, GeometryFeatures, MotionContext,
     NeighbourTransforms, TransformPredictor, TransformSignal, TransformSignalling,
@@ -101,15 +103,15 @@ impl TransformMap {
 }
 
 // Context indices.
-const CTX_INTRA_MODE: usize = 0;
-const CTX_SKIP: usize = 1;
+pub(crate) const CTX_INTRA_MODE: usize = 0;
+pub(crate) const CTX_SKIP: usize = 1;
 /// Whether the block is predicted from the previous picture.
-const CTX_INTER: usize = 11;
-const CTX_COEF_SIGNIFICANT: usize = 2;
-const CTX_COEF_GREATER1: usize = 3;
-const CTX_COEF_GREATER2: usize = 4;
-const CTX_COEF_SIGN: usize = 5;
-const CTX_COEF_EXP_GOLOMB: usize = 8;
+pub(crate) const CTX_INTER: usize = 11;
+pub(crate) const CTX_COEF_SIGNIFICANT: usize = 2;
+pub(crate) const CTX_COEF_GREATER1: usize = 3;
+pub(crate) const CTX_COEF_GREATER2: usize = 4;
+pub(crate) const CTX_COEF_SIGN: usize = 5;
+pub(crate) const CTX_COEF_EXP_GOLOMB: usize = 8;
 const CTX_TRANSFORM_OVERRIDE: usize = 6;
 /// Whether the block uses a multiple transform selection mode at all.
 const CTX_TRANSFORM_MTS: usize = 7;
@@ -222,14 +224,18 @@ impl Default for EncoderConfig {
     }
 }
 
-/// The result of encoding a picture.
+/// The result of encoding a sequence of frames.
 #[derive(Debug, Clone)]
 pub struct EncodeResult {
     /// The encoded bitstream.
     pub bitstream: Vec<u8>,
     /// The encoder's reconstruction of each frame.
-    pub reconstructions: Vec<Picture>,
-    /// The number of bytes the payload occupies.
+    pub reconstructions: Vec<Frame>,
+    /// The number of bytes the luma payload occupies.
+    pub luma_bytes: usize,
+    /// The number of bytes the chroma payload occupies.
+    pub chroma_bytes: usize,
+    /// The number of bytes both payloads occupy.
     pub payload_bytes: usize,
     /// How many blocks the encoder coded.
     pub block_count: usize,
@@ -273,6 +279,11 @@ pub enum CodecError {
     Predictor(String),
     /// The sequence had no frames to code.
     NoFrames,
+    /// The chroma planes were not half the luma plane's size.
+    ChromaDimensions {
+        luma_width: usize,
+        luma_height: usize,
+    },
 }
 
 impl std::fmt::Display for CodecError {
@@ -285,6 +296,13 @@ impl std::fmt::Display for CodecError {
             ),
             CodecError::Predictor(msg) => write!(f, "predictor error: {msg}"),
             CodecError::NoFrames => write!(f, "the sequence has no frames to code"),
+            CodecError::ChromaDimensions {
+                luma_width,
+                luma_height,
+            } => write!(
+                f,
+                "the chroma planes of a {luma_width}x{luma_height} frame must be half its size"
+            ),
         }
     }
 }
@@ -297,17 +315,66 @@ impl From<BitstreamError> for CodecError {
     }
 }
 
-/// Encode a sequence of pictures.
+/// The luma plane's coding result.
+#[derive(Debug, Clone)]
+pub struct LumaResult {
+    /// The range-coded luma payload.
+    pub payload: Vec<Word>,
+    /// The encoder's reconstruction of each frame's luma plane.
+    pub reconstructions: Vec<Picture>,
+    /// The motion field of each frame.
+    ///
+    /// The chroma planes need it, because H.266 derives the chroma
+    /// motion from the luma motion rather than coding it separately.
+    pub motion: Vec<MotionField>,
+    /// How many blocks the sequence holds.
+    pub block_count: usize,
+    /// The number of syntax elements the transform-type signalling used.
+    ///
+    /// This counts the bins the signalling contributes, not the bits the
+    /// entropy coder charged for them: a context-adaptive coder charges
+    /// less than one bit per bin for a skewed distribution. The rate the
+    /// signalling actually cost is the difference between the two modes'
+    /// bitstreams, which the benchmark measures directly.
+    pub transform_signalling_bins: usize,
+    /// The number of blocks whose transform differed from the decoder's
+    /// prediction.
+    ///
+    /// In explicit mode this is always zero, because there is no
+    /// prediction to differ from.
+    pub prediction_mismatches: usize,
+    /// How many blocks were predicted from the previous frame rather
+    /// than from the current frame's causal neighbourhood.
+    pub inter_blocks: usize,
+    /// The blocks whose transform differed from the decoder's
+    /// prediction, split by whether the block was intra or inter
+    /// predicted.
+    ///
+    /// The split is what tests the claim: an inter residual is more
+    /// structured, so the transform should be more predictable, and the
+    /// mismatch rate should be lower for the inter blocks.
+    pub intra_mismatches: usize,
+    pub inter_mismatches: usize,
+    pub intra_blocks: usize,
+    /// The per-block training examples, when they were collected.
+    pub examples: Vec<TrainingExample>,
+}
+
+/// Encode the luma plane of a sequence of pictures.
 ///
-/// The first picture is coded as an intra picture. The rest are coded as
-/// inter pictures, each predicted from the reconstruction of the picture
-/// before it, with a per-block choice between intra and inter
-/// prediction.
+/// The transform mode signalling is the same in both modes, and the two
+/// modes differ in nothing else, so a difference in the measured bitrate
+/// is attributable to the signalling mechanism alone.
 ///
-/// The transform mode signalling is the same in both, and the two modes
-/// differ in nothing else, so a difference in the measured bitrate is
-/// attributable to the signalling mechanism alone.
-pub fn encode(frames: &[Picture], config: &EncoderConfig) -> Result<EncodeResult, CodecError> {
+/// The training examples are collected when asked for, because the
+/// collection pass runs the same block loop the encoder runs, and a
+/// training set gathered any other way would describe a situation the
+/// predictor never meets at inference time.
+fn encode_luma_sequence(
+    frames: &[Picture],
+    config: &EncoderConfig,
+    collect_examples: bool,
+) -> Result<LumaResult, CodecError> {
     let Some(first) = frames.first() else {
         return Err(CodecError::NoFrames);
     };
@@ -328,6 +395,12 @@ pub fn encode(frames: &[Picture], config: &EncoderConfig) -> Result<EncodeResult
 
     let mut encoder = BinEncoder::new(NUM_CONTEXTS);
     let mut reconstructions: Vec<Picture> = Vec::with_capacity(frames.len());
+    let mut motion_fields: Vec<MotionField> = Vec::with_capacity(frames.len());
+    let mut examples: Vec<TrainingExample> = Vec::with_capacity(if collect_examples {
+        block_count
+    } else {
+        0
+    });
     let mut mismatches = 0usize;
     let mut signalling_bins = 0usize;
     let mut inter_blocks = 0usize;
@@ -396,15 +469,14 @@ pub fn encode(frames: &[Picture], config: &EncoderConfig) -> Result<EncodeResult
                     None
                 };
 
-                let (chosen_transform, chosen_levels, chosen_reconstruction, chosen_cost) =
-                    choose_transform(&original, &prediction, config, predicted);
+                let choice = choose_transform(&original, &prediction, config, predicted);
 
                 let signal = match (config.signalling, predicted) {
                     (TransformSignalling::Explicit, _) => {
-                        TransformSignal::Explicit(chosen_transform)
+                        TransformSignal::Explicit(choice.chosen)
                     }
                     (TransformSignalling::Inferred, Some(predicted)) => {
-                        if predicted == chosen_transform {
+                        if predicted == choice.chosen {
                             TransformSignal::Predicted
                         } else {
                             mismatches += 1;
@@ -415,15 +487,34 @@ pub fn encode(frames: &[Picture], config: &EncoderConfig) -> Result<EncodeResult
                             }
                             TransformSignal::Override {
                                 predicted,
-                                actual: chosen_transform,
+                                actual: choice.chosen,
                             }
                         }
                     }
                     (TransformSignalling::Inferred, None) => {
-                        TransformSignal::Explicit(chosen_transform)
+                        TransformSignal::Explicit(choice.chosen)
                     }
                 };
                 signalling_bins += signal.bin_count();
+
+                if collect_examples {
+                    // The example's label is the strictly optimal transform,
+                    // not the one the margin may have talked the encoder
+                    // into taking: the label describes what the mode set
+                    // prefers, which is what the predictor has to learn.
+                    examples.push(TrainingExample {
+                        features: predict_features(&PredictionContext {
+                            picture: &reconstruction,
+                            transforms: &transforms,
+                            motion: &motion,
+                            block: (bx, by),
+                            mode,
+                            is_inter,
+                            qp: config.qp,
+                        }),
+                        transform: choice.optimal,
+                    });
+                }
 
                 // Code the syntax elements, in the decoder's order: the
                 // prediction mode, the motion vector, the transform mode and
@@ -436,75 +527,160 @@ pub fn encode(frames: &[Picture], config: &EncoderConfig) -> Result<EncodeResult
                     code_intra_mode(&mut encoder, mode);
                 }
                 code_transform_signal(&mut encoder, signal);
-                let skip = chosen_levels.iter().all(|l| *l == 0);
+                let skip = choice.levels.iter().all(|l| *l == 0);
                 encoder.encode(CTX_SKIP, skip);
                 if !skip {
-                    code_coefficients(&mut encoder, &chosen_levels);
+                    code_coefficients(&mut encoder, &choice.levels);
                 }
 
                 // Commit the reconstruction and the transform, so later blocks
                 // can use them.
                 for y in 0..BLOCK_SIZE {
                     for x in 0..BLOCK_SIZE {
-                        let value = chosen_reconstruction[y * BLOCK_SIZE + x].clamp(0, 255) as u8;
+                        let value = choice.reconstruction[y * BLOCK_SIZE + x].clamp(0, 255) as u8;
                         reconstruction.set_sample(bx * BLOCK_SIZE + x, by * BLOCK_SIZE + y, value);
                     }
                 }
-                transforms.set(bx, by, chosen_transform);
+                transforms.set(bx, by, choice.chosen);
                 if is_inter {
                     motion.set(bx, by, vector);
                 }
-                let _ = chosen_cost;
             }
         }
 
         reconstructions.push(reconstruction);
+        motion_fields.push(motion);
     }
 
-    let payload = encoder.finish();
-    let header = BitstreamHeader {
-        version: crate::bitstream::VERSION,
-        width: first.width as u32,
-        height: first.height as u32,
-        qp: config.qp as u8,
-        frames: frames.len() as u8,
-        signalling: config.signalling,
-    };
-    let mut bitstream = Vec::new();
-    header.write(&mut bitstream, &payload);
-
-    Ok(EncodeResult {
-        payload_bytes: payload.len() * 4,
-        bitstream,
+    Ok(LumaResult {
+        payload: encoder.finish(),
         reconstructions,
-        prediction_mismatches: mismatches,
+        motion: motion_fields,
         block_count,
         transform_signalling_bins: signalling_bins,
+        prediction_mismatches: mismatches,
         inter_blocks,
         intra_mismatches,
         inter_mismatches,
         intra_blocks,
+        examples,
     })
 }
 
-/// Decode a bitstream into a sequence of pictures.
-pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Vec<Picture>, CodecError> {
-    let (header, _) = BitstreamHeader::read(bitstream)?;
+/// Encode the luma plane of a sequence of pictures.
+///
+/// This is the entry point the training pipeline uses, and the one that
+/// measures the mechanism on the luma plane alone.
+pub fn encode_luma(
+    frames: &[Picture],
+    config: &EncoderConfig,
+) -> Result<LumaResult, CodecError> {
+    encode_luma_sequence(frames, config, false)
+}
+
+/// Encode a sequence of 4:2:0 frames.
+///
+/// The luma plane and the chroma planes are coded by separate entropy
+/// coders and stored in separate payloads, so the luma rate and the
+/// chroma rate can be measured separately. The mechanism changes the
+/// luma signalling and nothing else, so the luma rate is the axis the
+/// mechanism's own rate-distortion effect is measured on, and the total
+/// rate is the axis the anchor codecs are compared on.
+pub fn encode(frames: &[Frame], config: &EncoderConfig) -> Result<EncodeResult, CodecError> {
+    let Some(first) = frames.first() else {
+        return Err(CodecError::NoFrames);
+    };
+    for frame in frames {
+        if frame.luma.width % BLOCK_SIZE != 0 || frame.luma.height % BLOCK_SIZE != 0 {
+            return Err(CodecError::Dimensions {
+                width: frame.luma.width,
+                height: frame.luma.height,
+            });
+        }
+        if frame.cb.width != frame.luma.width / 2
+            || frame.cb.height != frame.luma.height / 2
+            || frame.cr.width != frame.luma.width / 2
+            || frame.cr.height != frame.luma.height / 2
+        {
+            return Err(CodecError::ChromaDimensions {
+                luma_width: frame.luma.width,
+                luma_height: frame.luma.height,
+            });
+        }
+    }
+
+    let luma: Vec<Picture> = frames.iter().map(|frame| frame.luma.clone()).collect();
+    let luma_result = encode_luma_sequence(&luma, config, false)?;
+
+    let mut chroma_encoder = BinEncoder::new(NUM_CONTEXTS);
+    let chroma_result = chroma::encode_sequence(frames, &luma_result.motion, config, &mut chroma_encoder)?;
+    let chroma_payload = chroma_encoder.finish();
+
+    let header = BitstreamHeader {
+        version: crate::bitstream::VERSION,
+        width: first.luma.width as u32,
+        height: first.luma.height as u32,
+        qp: config.qp as u8,
+        frames: frames.len() as u8,
+        signalling: config.signalling,
+        luma_words: luma_result.payload.len() as u32,
+        chroma_words: chroma_payload.len() as u32,
+    };
+    let mut bitstream = Vec::new();
+    header.write(&mut bitstream, &luma_result.payload, &chroma_payload);
+
+    let luma_bytes = luma_result.payload.len() * 4;
+    let chroma_bytes = chroma_payload.len() * 4;
+    let reconstructions: Vec<Frame> = frames
+        .iter()
+        .enumerate()
+        .map(|(index, _frame)| {
+            let (cb, cr) = &chroma_result.planes[index];
+            Frame::new(
+                luma_result.reconstructions[index].clone(),
+                cb.clone(),
+                cr.clone(),
+            )
+        })
+        .collect();
+
+    Ok(EncodeResult {
+        payload_bytes: luma_bytes + chroma_bytes,
+        luma_bytes,
+        chroma_bytes,
+        bitstream,
+        reconstructions,
+        prediction_mismatches: luma_result.prediction_mismatches,
+        block_count: luma_result.block_count,
+        transform_signalling_bins: luma_result.transform_signalling_bins,
+        inter_blocks: luma_result.inter_blocks,
+        intra_mismatches: luma_result.intra_mismatches,
+        inter_mismatches: luma_result.inter_mismatches,
+        intra_blocks: luma_result.intra_blocks,
+    })
+}
+
+/// The luma plane's decoding result.
+struct DecodedLuma {
+    pictures: Vec<Picture>,
+    motion: Vec<MotionField>,
+}
+
+/// Decode the luma payload of a bitstream.
+fn decode_luma_sequence(
+    words: &[Word],
+    header: &BitstreamHeader,
+    config: &EncoderConfig,
+) -> Result<DecodedLuma, CodecError> {
     let width = header.width as usize;
     let height = header.height as usize;
     if width % BLOCK_SIZE != 0 || height % BLOCK_SIZE != 0 {
         return Err(CodecError::Dimensions { width, height });
     }
 
-    let payload_start = BitstreamHeader::SIZE;
-    let payload_bytes = bitstream.len() - payload_start;
-    let mut words = Vec::with_capacity(payload_bytes / 4);
-    for chunk in bitstream[payload_start..].chunks_exact(4) {
-        words.push(u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
-    }
-
-    let mut decoder = BinDecoder::new(&words, NUM_CONTEXTS)?;
+    let mut decoder = BinDecoder::new(words, NUM_CONTEXTS)?;
     let mut pictures: Vec<Picture> = Vec::with_capacity(header.frames as usize);
+    let mut motion_fields: Vec<MotionField> = Vec::with_capacity(header.frames as usize);
 
     let blocks_x = width / BLOCK_SIZE;
     let blocks_y = height / BLOCK_SIZE;
@@ -587,9 +763,77 @@ pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Vec<Picture>, 
             }
         }
         pictures.push(picture);
+        motion_fields.push(motion);
     }
 
-    Ok(pictures)
+    Ok(DecodedLuma {
+        pictures,
+        motion: motion_fields,
+    })
+}
+
+/// Decode a luma payload into a sequence of pictures.
+///
+/// This is the luma-only counterpart of [`decode`], and the one the
+/// tests and the luma-only tooling use.
+pub fn decode_luma(
+    payload: &[Word],
+    config: &EncoderConfig,
+    width: usize,
+    height: usize,
+    frames: usize,
+) -> Result<Vec<Picture>, CodecError> {
+    let header = BitstreamHeader {
+        version: crate::bitstream::VERSION,
+        width: width as u32,
+        height: height as u32,
+        qp: config.qp as u8,
+        frames: frames as u8,
+        signalling: config.signalling,
+        luma_words: payload.len() as u32,
+        chroma_words: 0,
+    };
+    Ok(decode_luma_sequence(payload, &header, config)?.pictures)
+}
+
+/// Decode a bitstream into a sequence of 4:2:0 frames.
+pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Vec<Frame>, CodecError> {
+    let (header, _) = BitstreamHeader::read(bitstream)?;
+    let width = header.width as usize;
+    let height = header.height as usize;
+    if width % BLOCK_SIZE != 0 || height % BLOCK_SIZE != 0 {
+        return Err(CodecError::Dimensions { width, height });
+    }
+
+    let payload_start = BitstreamHeader::SIZE;
+    let mut words = Vec::new();
+    for chunk in bitstream[payload_start..].chunks_exact(4) {
+        words.push(u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
+    }
+    let luma_words = header.luma_words as usize;
+    if words.len() < luma_words + header.chroma_words as usize {
+        return Err(CodecError::Bitstream(BitstreamError::Truncated));
+    }
+    let (luma_part, chroma_part) = words.split_at(luma_words);
+
+    let luma = decode_luma_sequence(luma_part, &header, config)?;
+
+    let mut chroma_decoder = BinDecoder::new(chroma_part, NUM_CONTEXTS)?;
+    let chroma = chroma::decode_sequence(
+        &luma.motion,
+        config,
+        &mut chroma_decoder,
+        header.frames as usize,
+        width,
+        height,
+    )?;
+
+    Ok((0..header.frames as usize)
+        .map(|index| {
+            let (cb, cr) = &chroma.planes[index];
+            Frame::new(luma.pictures[index].clone(), cb.clone(), cr.clone())
+        })
+        .collect())
 }
 
 /// Choose the prediction for a block.
@@ -669,7 +913,7 @@ fn best_cost(original: &[u8], prediction: &[i32], config: &EncoderConfig) -> f32
 ///
 /// Each component is coded as a sign and an exponential-Golomb
 /// magnitude, and the estimate follows the same shape.
-fn motion_vector_bits(difference: MotionVector) -> f32 {
+pub(crate) fn motion_vector_bits(difference: MotionVector) -> f32 {
     let magnitude = |value: i32| {
         let value = value.unsigned_abs();
         // The terminating one of the prefix, and the prefix and suffix.
@@ -679,7 +923,7 @@ fn motion_vector_bits(difference: MotionVector) -> f32 {
 }
 
 /// Code a motion vector difference.
-fn code_motion_vector(encoder: &mut BinEncoder, difference: MotionVector) {
+pub(crate) fn code_motion_vector(encoder: &mut BinEncoder, difference: MotionVector) {
     encoder.encode_bypass(difference.dx < 0);
     encoder.encode_bypass(difference.dy < 0);
     code_exp_golomb(encoder, difference.dx.unsigned_abs());
@@ -687,7 +931,7 @@ fn code_motion_vector(encoder: &mut BinEncoder, difference: MotionVector) {
 }
 
 /// Decode a motion vector difference.
-fn decode_motion_vector(decoder: &mut BinDecoder) -> Result<MotionVector, CodecError> {
+pub(crate) fn decode_motion_vector(decoder: &mut BinDecoder) -> Result<MotionVector, CodecError> {
     let dx_negative = decoder.decode_bypass()?;
     let dy_negative = decoder.decode_bypass()?;
     let dx = decode_exp_golomb(decoder)? as i32;
@@ -792,7 +1036,7 @@ fn choose_transform(
     prediction: &[i32],
     config: &EncoderConfig,
     predicted: Option<TransformMode>,
-) -> (TransformMode, Vec<i32>, Vec<i32>, f32) {
+) -> TransformChoice {
     let mut best: Option<Candidate> = None;
     let mut predicted_candidate: Option<Candidate> = None;
 
@@ -821,17 +1065,39 @@ fn choose_transform(
             // trades away converted through lambda.
             let rate_given_up = (candidate.cost - best.cost) / config.lambda;
             if candidate.transform != best.transform && rate_given_up <= config.transform_margin {
-                return (
-                    candidate.transform,
-                    candidate.levels,
-                    candidate.reconstruction,
-                    candidate.cost,
-                );
+                return TransformChoice {
+                    chosen: candidate.transform,
+                    optimal: best.transform,
+                    levels: candidate.levels,
+                    reconstruction: candidate.reconstruction,
+                    cost: candidate.cost,
+                };
             }
         }
     }
 
-    (best.transform, best.levels, best.reconstruction, best.cost)
+    TransformChoice {
+        chosen: best.transform,
+        optimal: best.transform,
+        levels: best.levels,
+        reconstruction: best.reconstruction,
+        cost: best.cost,
+    }
+}
+
+/// The transform a block uses, and the one it would have used without
+/// the mechanism's margin.
+///
+/// The two differ when the margin lets the encoder take the decoder's
+/// predicted transform instead of the strictly optimal one. The optimal
+/// transform is the training label, because it is what the mode set
+/// prefers, which is what the predictor has to learn.
+struct TransformChoice {
+    chosen: TransformMode,
+    optimal: TransformMode,
+    levels: Vec<i32>,
+    reconstruction: Vec<i32>,
+    cost: f32,
 }
 
 /// Search the intra modes and transform types for a block, and return the
@@ -846,9 +1112,14 @@ pub fn search_block(
 ) -> (IntraMode, TransformMode, Vec<i32>, Vec<i32>, f32) {
     let mode = choose_mode(original, reference, config);
     let prediction = predict(mode, BLOCK_SIZE, reference);
-    let (transform, levels, reconstruction, cost) =
-        choose_transform(original, &prediction, config, None);
-    (mode, transform, levels, reconstruction, cost)
+    let choice = choose_transform(original, &prediction, config, None);
+    (
+        mode,
+        choice.chosen,
+        choice.levels,
+        choice.reconstruction,
+        choice.cost,
+    )
 }
 
 /// An estimate of the bits needed to code a set of quantized levels.
@@ -857,7 +1128,7 @@ pub fn search_block(
 /// because the rate-distortion search optimises against it: a cost model
 /// that disagrees with the bitstream would make the encoder choose
 /// transforms that are not the ones the real coder rewards.
-fn estimate_level_bits(levels: &[i32]) -> f32 {
+pub(crate) fn estimate_level_bits(levels: &[i32]) -> f32 {
     let mut bits = 0.0;
     for level in levels {
         let magnitude = level.unsigned_abs();
@@ -880,15 +1151,20 @@ fn estimate_level_bits(levels: &[i32]) -> f32 {
 
 /// The samples of the block at `(bx, by)`.
 pub fn block_samples(picture: &Picture, bx: usize, by: usize) -> Vec<u8> {
-    let mut out = Vec::with_capacity(BLOCK_SIZE * BLOCK_SIZE);
-    for y in 0..BLOCK_SIZE {
-        for x in 0..BLOCK_SIZE {
+    block_samples_at(picture, bx, by, BLOCK_SIZE)
+}
+
+/// The samples of the block at `(bx, by)`, for a block of the given size.
+///
+/// The chroma plane's blocks are a quarter the area of the luma
+/// plane's, so the size is a parameter rather than a constant.
+pub fn block_samples_at(picture: &Picture, bx: usize, by: usize, size: usize) -> Vec<u8> {
+    let mut out = Vec::with_capacity(size * size);
+    for y in 0..size {
+        for x in 0..size {
             out.push(
                 picture
-                    .sample(
-                        (bx * BLOCK_SIZE + x) as isize,
-                        (by * BLOCK_SIZE + y) as isize,
-                    )
+                    .sample((bx * size + x) as isize, (by * size + y) as isize)
                     .unwrap_or(0),
             );
         }
@@ -905,14 +1181,28 @@ pub fn reference_samples_for(picture: &Picture, bx: usize, by: usize) -> Referen
 }
 
 /// The causal reference samples available to the block at `(bx, by)`.
-fn reference_samples(picture: &Picture, bx: usize, by: usize) -> ReferenceSamples {
-    let x0 = (bx * BLOCK_SIZE) as isize;
-    let y0 = (by * BLOCK_SIZE) as isize;
+pub(crate) fn reference_samples(picture: &Picture, bx: usize, by: usize) -> ReferenceSamples {
+    reference_samples_at(picture, bx, by, BLOCK_SIZE)
+}
 
-    let left = (0..BLOCK_SIZE)
+/// The causal reference samples available to the block at `(bx, by)`,
+/// for a block of the given size.
+///
+/// The chroma plane's blocks are a quarter the area of the luma
+/// plane's, so the size is a parameter rather than a constant.
+pub(crate) fn reference_samples_at(
+    picture: &Picture,
+    bx: usize,
+    by: usize,
+    size: usize,
+) -> ReferenceSamples {
+    let x0 = (bx * size) as isize;
+    let y0 = (by * size) as isize;
+
+    let left = (0..size)
         .map(|y| picture.sample(x0 - 1, y0 + y as isize).map(|v| v as i32))
         .collect();
-    let top = (0..BLOCK_SIZE)
+    let top = (0..size)
         .map(|x| picture.sample(x0 + x as isize, y0 - 1).map(|v| v as i32))
         .collect();
     let top_left = picture.sample(x0 - 1, y0 - 1).map(|v| v as i32);
@@ -1080,7 +1370,7 @@ fn decode_transform_override(
 /// thousand bins; the Golomb remainder costs about `log2(magnitude)` bins
 /// instead, which is what makes the coded size a meaningful measure of
 /// rate.
-fn code_coefficients(encoder: &mut BinEncoder, levels: &[i32]) {
+pub(crate) fn code_coefficients(encoder: &mut BinEncoder, levels: &[i32]) {
     for level in levels {
         let magnitude = level.unsigned_abs();
         let significant = magnitude > 0;
@@ -1127,9 +1417,20 @@ fn code_exp_golomb(encoder: &mut BinEncoder, value: u32) {
 /// Decode the quantized residual levels.
 ///
 /// This is the exact inverse of [`code_coefficients`].
-fn decode_coefficients(decoder: &mut BinDecoder) -> Result<Vec<i32>, CodecError> {
-    let mut levels = Vec::with_capacity(BLOCK_SIZE * BLOCK_SIZE);
-    for _ in 0..BLOCK_SIZE * BLOCK_SIZE {
+pub(crate) fn decode_coefficients(decoder: &mut BinDecoder) -> Result<Vec<i32>, CodecError> {
+    decode_coefficients_at(decoder, BLOCK_SIZE * BLOCK_SIZE)
+}
+
+/// Decode the given number of quantized residual levels.
+///
+/// The chroma plane's blocks are a quarter the area of the luma
+/// plane's, so the count is a parameter rather than a constant.
+pub(crate) fn decode_coefficients_at(
+    decoder: &mut BinDecoder,
+    count: usize,
+) -> Result<Vec<i32>, CodecError> {
+    let mut levels = Vec::with_capacity(count);
+    for _ in 0..count {
         if !decoder.decode(CTX_COEF_SIGNIFICANT)? {
             levels.push(0);
             continue;
@@ -1278,89 +1579,26 @@ pub fn collect_training_examples(
     frames: &[Picture],
     config: &EncoderConfig,
 ) -> Result<Vec<TrainingExample>, CodecError> {
-    let Some(first) = frames.first() else {
-        return Err(CodecError::NoFrames);
-    };
-    for picture in frames {
-        if picture.width % BLOCK_SIZE != 0 || picture.height % BLOCK_SIZE != 0 {
-            return Err(CodecError::Dimensions {
-                width: picture.width,
-                height: picture.height,
-            });
-        }
-    }
-
-    let blocks_x = first.width / BLOCK_SIZE;
-    let blocks_y = first.height / BLOCK_SIZE;
-    let mut examples = Vec::with_capacity(frames.len() * blocks_x * blocks_y);
-    let mut reconstructions: Vec<Picture> = Vec::with_capacity(frames.len());
-
-    for (index, picture) in frames.iter().enumerate() {
-        let reference_picture = if index == 0 {
-            None
-        } else {
-            Some(&reconstructions[index - 1])
-        };
-        let mut reconstruction = Picture::filled(picture.width, picture.height, 0);
-        let mut transforms = TransformMap::new(blocks_x, blocks_y);
-        let mut motion = MotionField::new(blocks_x, blocks_y);
-
-        for by in 0..blocks_y {
-            for bx in 0..blocks_x {
-                let original = block_samples(picture, bx, by);
-
-                // The prediction is chosen the same way the encoder
-                // chooses it, so the example describes the situation the
-                // predictor meets at inference time.
-                let (is_inter, vector, mode, prediction) = choose_prediction(
-                    picture,
-                    reference_picture,
-                    &reconstruction,
-                    &motion,
-                    bx,
-                    by,
-                    config,
-                );
-                let (transform, _, reconstruction_block, _) =
-                    choose_transform(&original, &prediction, config, None);
-
-                examples.push(TrainingExample {
-                    features: predict_features(&PredictionContext {
-                        picture: &reconstruction,
-                        transforms: &transforms,
-                        motion: &motion,
-                        block: (bx, by),
-                        mode,
-                        is_inter,
-                        qp: config.qp,
-                    }),
-                    transform,
-                });
-
-                // Commit the reconstruction, the transform and the
-                // motion vector, so the next block's features are the
-                // ones the decoder will have.
-                for y in 0..BLOCK_SIZE {
-                    for x in 0..BLOCK_SIZE {
-                        let value = reconstruction_block[y * BLOCK_SIZE + x].clamp(0, 255) as u8;
-                        reconstruction.set_sample(bx * BLOCK_SIZE + x, by * BLOCK_SIZE + y, value);
-                    }
-                }
-                transforms.set(bx, by, transform);
-                if is_inter {
-                    motion.set(bx, by, vector);
-                }
-            }
-        }
-        reconstructions.push(reconstruction);
-    }
-
-    Ok(examples)
+    Ok(encode_luma_sequence(frames, config, true)?.examples)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A 4:2:0 frame with a pattern in every plane.
+    fn test_frame(width: usize, height: usize) -> Frame {
+        let luma = test_picture(width, height);
+        let mut cb = Picture::filled(width / 2, height / 2, 128);
+        let mut cr = Picture::filled(width / 2, height / 2, 128);
+        for y in 0..height / 2 {
+            for x in 0..width / 2 {
+                cb.set_sample(x, y, ((x / 2 + y / 2) % 2) as u8 * 60 + 90);
+                cr.set_sample(x, y, ((x / 4 + y / 4) % 2) as u8 * 40 + 100);
+            }
+        }
+        Frame::new(luma, cb, cr)
+    }
 
     fn test_picture(width: usize, height: usize) -> Picture {
         // A deterministic pattern with edges, so the geometry features have
@@ -1384,8 +1622,8 @@ mod tests {
                 signalling,
                 ..Default::default()
             };
-            let encoded = encode(std::slice::from_ref(&picture), &config).unwrap();
-            let decoded = decode(&encoded.bitstream, &config).unwrap();
+            let encoded = encode_luma(std::slice::from_ref(&picture), &config).unwrap();
+            let decoded = decode_luma(&encoded.payload, &config, 32, 32, 1).unwrap();
             assert_eq!(
                 decoded[0], encoded.reconstructions[0],
                 "{signalling:?}: decoder output differs from the encoder's reconstruction"
@@ -1400,8 +1638,8 @@ mod tests {
         for size in [8usize, 16, 32] {
             let picture = test_picture(size, size);
             let config = EncoderConfig::default();
-            let encoded = encode(std::slice::from_ref(&picture), &config).unwrap();
-            let decoded = decode(&encoded.bitstream, &config).unwrap();
+            let encoded = encode_luma(std::slice::from_ref(&picture), &config).unwrap();
+            let decoded = decode_luma(&encoded.payload, &config, size, size, 1).unwrap();
             assert_eq!(decoded[0], encoded.reconstructions[0], "size {size}");
         }
     }
@@ -1413,7 +1651,7 @@ mod tests {
         let picture = Picture::filled(12, 16, 0);
         let config = EncoderConfig::default();
         assert!(matches!(
-            encode(std::slice::from_ref(&picture), &config),
+            encode_luma(std::slice::from_ref(&picture), &config),
             Err(CodecError::Dimensions { .. })
         ));
     }
@@ -1428,12 +1666,12 @@ mod tests {
             signalling: TransformSignalling::Inferred,
             ..Default::default()
         };
-        let encoded = encode(std::slice::from_ref(&picture), &config).unwrap();
+        let encoded = encode_luma(std::slice::from_ref(&picture), &config).unwrap();
         assert!(encoded.block_count > 0);
         assert!(encoded.prediction_mismatches <= encoded.block_count);
         // With a constant predictor, every block that did not pick DCT-II
         // must have been overridden.
-        let decoded = decode(&encoded.bitstream, &config).unwrap();
+        let decoded = decode_luma(&encoded.payload, &config, 32, 32, 1).unwrap();
         assert_eq!(decoded[0], encoded.reconstructions[0]);
     }
 
@@ -1527,8 +1765,8 @@ mod tests {
                 signalling,
                 ..Default::default()
             };
-            let encoded = encode(&frames, &config).unwrap();
-            let decoded = decode(&encoded.bitstream, &config).unwrap();
+            let encoded = encode_luma(&frames, &config).unwrap();
+            let decoded = decode_luma(&encoded.payload, &config, 32, 32, frames.len()).unwrap();
             assert_eq!(decoded.len(), frames.len());
             for (index, (decoded, reconstruction)) in decoded
                 .iter()
@@ -1566,12 +1804,12 @@ mod tests {
         }
 
         let config = EncoderConfig::default();
-        let encoded = encode(&[first, second], &config).unwrap();
+        let encoded = encode_luma(&[first, second], &config).unwrap();
         assert!(
             encoded.inter_blocks > 0,
             "a picture that moved should be predicted from the previous frame"
         );
-        let decoded = decode(&encoded.bitstream, &config).unwrap();
+        let decoded = decode_luma(&encoded.payload, &config, 32, 32, 2).unwrap();
         assert_eq!(decoded[1], encoded.reconstructions[1]);
     }
 
@@ -1627,6 +1865,69 @@ mod tests {
         }
     }
 
+    /// A 4:2:0 frame must round-trip through the bitstream.
+    ///
+    /// The decoder must reproduce all three planes exactly, and the
+    /// chroma planes must not be a flat fill: a decoder that dropped
+    /// the chroma would still "round-trip" if the test only checked the
+    /// luma.
+    #[test]
+    fn a_frame_round_trips() {
+        let frame = test_frame(32, 32);
+        for signalling in [TransformSignalling::Explicit, TransformSignalling::Inferred] {
+            let config = EncoderConfig {
+                signalling,
+                ..Default::default()
+            };
+            let encoded = encode(std::slice::from_ref(&frame), &config).unwrap();
+            let decoded = decode(&encoded.bitstream, &config).unwrap();
+            assert_eq!(decoded.len(), 1);
+            assert_eq!(decoded[0].luma, encoded.reconstructions[0].luma);
+            assert_eq!(decoded[0].cb, encoded.reconstructions[0].cb);
+            assert_eq!(decoded[0].cr, encoded.reconstructions[0].cr);
+            // The chroma must be a real reconstruction, not the source
+            // passed through and not a flat fill.
+            assert_ne!(decoded[0].cb.samples, frame.cb.samples);
+            assert!(
+                decoded[0].cb.samples.iter().any(|v| *v != 128),
+                "the chroma reconstruction is flat"
+            );
+        }
+    }
+
+    /// The chroma planes must cost bits.
+    ///
+    /// A chroma payload of zero words would mean the chroma planes were
+    /// not coded at all, which would make the total rate the anchor
+    /// codecs are compared against meaningless.
+    #[test]
+    fn the_chroma_planes_cost_bits() {
+        let frame = test_frame(32, 32);
+        let config = EncoderConfig::default();
+        let encoded = encode(std::slice::from_ref(&frame), &config).unwrap();
+        assert!(encoded.chroma_bytes > 0, "the chroma payload is empty");
+        assert!(encoded.luma_bytes > 0, "the luma payload is empty");
+        assert_eq!(
+            encoded.payload_bytes,
+            encoded.luma_bytes + encoded.chroma_bytes
+        );
+    }
+
+    /// A frame whose chroma planes are the wrong size must be rejected.
+    #[test]
+    fn rejects_bad_chroma_dimensions() {
+        let frame = Frame::new(
+            Picture::filled(32, 32, 0),
+            Picture::filled(32, 32, 128),
+            Picture::filled(16, 16, 128),
+        );
+        let config = EncoderConfig::default();
+        assert!(matches!(
+            encode(std::slice::from_ref(&frame), &config),
+            Err(CodecError::ChromaDimensions { .. })
+        ));
+    }
+
     /// The explicit mode must never use the override-only path, so its
     /// signalling cost is the transform type for every block.
     #[test]
@@ -1636,7 +1937,7 @@ mod tests {
             signalling: TransformSignalling::Explicit,
             ..Default::default()
         };
-        let encoded = encode(std::slice::from_ref(&picture), &config).unwrap();
+        let encoded = encode_luma(std::slice::from_ref(&picture), &config).unwrap();
         assert_eq!(encoded.prediction_mismatches, 0);
         // The explicit mode's truncated binary code costs one bin for a
         // DCT-II block and two for the others.

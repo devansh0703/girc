@@ -10,17 +10,34 @@
 //! height            u32, little endian
 //! qp                u8
 //! frames            u8
-//! payload length    u32, little endian
-//! payload           range-coded bytes
+//! luma length       u32, little endian
+//! chroma length     u32, little endian
+//! luma payload      range-coded bytes
+//! chroma payload    range-coded bytes
 //! ```
 //!
-//! The payload holds the coded frames in order. The first is an intra
+//! The payloads hold the coded frames in order. The first is an intra
 //! frame and the rest are inter frames, each predicted from the
 //! reconstruction of the one before it.
 //!
+//! # Why the payloads are separate
+//!
+//! The luma and chroma planes are coded by separate entropy coders and
+//! stored in separate payloads, and the header records each payload's
+//! length. The reason is measurement, not compression: the
+//! geometry-inference mechanism changes the luma transform type
+//! signalling and nothing else, so the luma rate is the axis the
+//! mechanism's own rate-distortion effect has to be measured on. A
+//! single combined payload would make that measurement impossible,
+//! because the chroma bits would dilute the luma difference by an
+//! amount that has nothing to do with the mechanism.
+//!
+//! The total rate is the sum of the two, which is the rate the anchor
+//! codecs are compared against.
+//!
 //! # Payload
 //!
-//! The payload carries the coded picture data. Syntax elements are coded
+//! A payload carries the coded picture data. Syntax elements are coded
 //! with a range coder using context-adaptive binary models, and the residual
 //! coefficients use an exponential-Golomb-style binarisation over the same
 //! coder. The coder itself is `constriction`'s range coder, a well-tested
@@ -64,7 +81,12 @@ pub const MAGIC: &[u8; 4] = b"GIRC";
 /// every mode in the ten-mode set is representable. A version 1 stream
 /// would decode the last two modes wrongly, so the version is checked and
 /// an old stream is rejected rather than mis-decoded.
-pub const VERSION: u16 = 2;
+///
+/// Version 3 splits the payload into a luma payload and a chroma payload,
+/// so that the luma rate and the chroma rate can be measured separately.
+/// A version 2 stream carries one combined payload, so it is rejected
+/// rather than mis-decoded.
+pub const VERSION: u16 = 3;
 
 /// The header of a GIRC bitstream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,17 +108,22 @@ pub struct BitstreamHeader {
     /// different syntax, so a decoder that guessed wrong would
     /// desynchronise. Recording it makes a stream self-describing.
     pub signalling: TransformSignalling,
+    /// The length of the luma payload, in words.
+    pub luma_words: u32,
+    /// The length of the chroma payload, in words.
+    pub chroma_words: u32,
 }
 
 /// The header flag that records the signalling mode.
 const FLAG_INFERRED: u16 = 1;
 
 impl BitstreamHeader {
-    /// The size of the header in bytes, excluding the payload.
-    pub const SIZE: usize = 4 + 2 + 2 + 4 + 4 + 1 + 1 + 4;
+    /// The size of the header in bytes, excluding the payloads.
+    pub const SIZE: usize = 4 + 2 + 2 + 4 + 4 + 1 + 1 + 4 + 4;
 
-    /// Write a complete bitstream: the header followed by the payload.
-    pub fn write(&self, out: &mut Vec<u8>, payload: &[Word]) {
+    /// Write a complete bitstream: the header followed by the two
+    /// payloads.
+    pub fn write(&self, out: &mut Vec<u8>, luma: &[Word], chroma: &[Word]) {
         let flags = match self.signalling {
             TransformSignalling::Explicit => 0,
             TransformSignalling::Inferred => FLAG_INFERRED,
@@ -108,8 +135,12 @@ impl BitstreamHeader {
         out.extend_from_slice(&self.height.to_le_bytes());
         out.push(self.qp);
         out.push(self.frames);
-        out.extend_from_slice(&(payload.len() as u32).to_le_bytes());
-        for word in payload {
+        out.extend_from_slice(&(luma.len() as u32).to_le_bytes());
+        out.extend_from_slice(&(chroma.len() as u32).to_le_bytes());
+        for word in luma {
+            out.extend_from_slice(&word.to_le_bytes());
+        }
+        for word in chroma {
             out.extend_from_slice(&word.to_le_bytes());
         }
     }
@@ -137,7 +168,8 @@ impl BitstreamHeader {
         } else {
             TransformSignalling::Explicit
         };
-        let payload_len = u32::from_le_bytes([bytes[18], bytes[19], bytes[20], bytes[21]]) as usize;
+        let luma_words = u32::from_le_bytes([bytes[18], bytes[19], bytes[20], bytes[21]]) as usize;
+        let chroma_words = u32::from_le_bytes([bytes[22], bytes[23], bytes[24], bytes[25]]) as usize;
         Ok((
             Self {
                 version,
@@ -146,8 +178,10 @@ impl BitstreamHeader {
                 qp,
                 frames,
                 signalling,
+                luma_words: luma_words as u32,
+                chroma_words: chroma_words as u32,
             },
-            Self::SIZE + payload_len * 4,
+            Self::SIZE + (luma_words + chroma_words) * 4,
         ))
     }
 }
@@ -333,13 +367,48 @@ mod tests {
             qp: 27,
             frames: 3,
             signalling: TransformSignalling::Inferred,
+            luma_words: 4,
+            chroma_words: 2,
         };
-        let payload = vec![1u32, 2, 3, 4];
+        let luma = vec![1u32, 2, 3, 4];
+        let chroma = vec![5u32, 6];
         let mut bytes = Vec::new();
-        header.write(&mut bytes, &payload);
+        header.write(&mut bytes, &luma, &chroma);
         let (parsed, consumed) = BitstreamHeader::read(&bytes).unwrap();
         assert_eq!(parsed, header);
         assert_eq!(consumed, bytes.len());
+    }
+
+    /// The two payloads must be separable.
+    ///
+    /// The luma rate is the axis the mechanism's effect is measured on,
+    /// and the chroma rate is what the anchor comparison needs, so the
+    /// container has to keep them apart.
+    #[test]
+    fn the_two_payloads_are_separate() {
+        let header = BitstreamHeader {
+            version: VERSION,
+            width: 352,
+            height: 288,
+            qp: 27,
+            frames: 3,
+            signalling: TransformSignalling::Explicit,
+            luma_words: 4,
+            chroma_words: 2,
+        };
+        let luma = vec![1u32, 2, 3, 4];
+        let chroma = vec![5u32, 6];
+        let mut bytes = Vec::new();
+        header.write(&mut bytes, &luma, &chroma);
+
+        let payload_start = BitstreamHeader::SIZE;
+        let words: Vec<u32> = bytes[payload_start..]
+            .chunks_exact(4)
+            .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+            .collect();
+        let (luma_part, chroma_part) = words.split_at(header.luma_words as usize);
+        assert_eq!(luma_part, &luma[..]);
+        assert_eq!(chroma_part, &chroma[..]);
     }
 
     #[test]
