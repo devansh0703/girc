@@ -27,7 +27,7 @@ use std::process::Command;
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
-use girc_core::codec::{encode, encode_luma, EncoderConfig};
+use girc_core::codec::{decode, encode, encode_luma, EncoderConfig};
 use girc_core::geometry::{TransformPredictor, TransformSignalling};
 use girc_core::yuv::Yuv4Frame;
 use serde::{Deserialize, Serialize};
@@ -423,6 +423,37 @@ pub fn run_girc_named(
             ..Default::default()
         };
         let result = encode(&frames, &config)?;
+
+        // The decoded stream must reproduce the encoder's own
+        // reconstruction exactly.
+        //
+        // The benchmark measures the encoder's reconstruction, so it
+        // cannot see a decoder that disagrees with it. A stream that
+        // was coded with one predictor and decoded with another is the
+        // case that matters, and the whole measurement depends on the
+        // two being the same picture. The check costs a decode per
+        // point, which is a fraction of the encode.
+        let decoded = decode(&result.bitstream, &config)
+            .map_err(|e| anyhow!("decoding the stream back failed: {e}"))?;
+        if decoded.len() != result.reconstructions.len() {
+            bail!(
+                "the decoder returned {} frames and the encoder {}",
+                decoded.len(),
+                result.reconstructions.len()
+            );
+        }
+        for (index, (decoded, reconstruction)) in decoded
+            .iter()
+            .zip(result.reconstructions.iter())
+            .enumerate()
+        {
+            if decoded.luma.samples != reconstruction.luma.samples {
+                bail!(
+                    "frame {index} of the decoded stream differs from the \
+                     encoder's reconstruction"
+                );
+            }
+        }
 
         // The distortion is the mean over the frames, so the curve is
         // comparable with the anchors', which also code every frame.

@@ -1731,6 +1731,66 @@ mod tests {
         assert_eq!(decoded[0], encoded.reconstructions[0]);
     }
 
+
+    /// The encoder and the decoder must agree on a multi-frame
+    /// sequence.
+    ///
+    /// An inter block carries a motion vector instead of an intra mode,
+    /// so the decoder cannot know the mode the encoder would have
+    /// chosen. If a feature were built from that mode, the two sides'
+    /// predictions would differ for every inter block, and the
+    /// correction would be read against the wrong list. The constant
+    /// predictor cannot show this, because it predicts the same mode
+    /// whatever the features are, so the test uses the shipped model.
+    #[test]
+    fn the_shipped_model_keeps_a_sequence_in_step() {
+        let model = std::fs::read_to_string(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../models/girc-predictor.json"),
+        )
+        .expect("the shipped model must be present");
+        let predictor = TransformPredictor::from_json(&model).unwrap();
+
+        // Real content, cropped from the Xiph.Org CIF sequences. A
+        // synthetic pattern is not enough: the divergence needs an
+        // inter block whose intra mode the encoder would have chosen
+        // as something other than the flat mode, and that needs the
+        // mixture of flat and textured areas that real content has.
+        let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../data/test/akiyo-192x192.y4m");
+        let frames: Vec<Picture> = crate::yuv::Yuv4Frame::read_many(&fixture, 3)
+            .expect("the test fixture must be present")
+            .iter()
+            .map(|frame| frame.luma_picture())
+            .collect();
+
+        let config = EncoderConfig {
+            signalling: TransformSignalling::Inferred,
+            predictor,
+            transform_margin: 50.0,
+            ..Default::default()
+        };
+        let encoded = encode_luma(&frames, &config).unwrap();
+        let decoded = decode_luma(&encoded.payload, &config, 192, 192, frames.len()).unwrap();
+        assert_eq!(decoded.len(), frames.len());
+        // The sequence has to have inter blocks, or the test says
+        // nothing about inter prediction.
+        assert!(
+            encoded.inter_blocks > 0,
+            "the sequence has no inter blocks, so it cannot test them"
+        );
+        for (index, (decoded, reconstruction)) in decoded
+            .iter()
+            .zip(encoded.reconstructions.iter())
+            .enumerate()
+        {
+            assert_eq!(
+                decoded, reconstruction,
+                "frame {index} differs from the encoder's reconstruction"
+            );
+        }
+    }
+
     /// A stream coded with one predictor must not be decoded with
     /// another.
     ///

@@ -409,6 +409,27 @@ impl NeighbourTransforms {
     }
 }
 
+
+/// The one-hot encoding of the block's intra mode.
+///
+/// An inter block has no intra prediction mode: the syntax carries a
+/// motion vector instead, and the mode is not in the bitstream. The
+/// feature is therefore empty for one, and the predictor has to know
+/// that from the `is_inter` flag rather than from a mode it cannot
+/// reconstruct.
+///
+/// The encoder and the decoder have to agree on this. The encoder knows
+/// the mode it would have chosen for an inter block, and the decoder
+/// does not, so a feature built from the encoder's mode would make the
+/// two sides' predictions differ for every inter block.
+fn mode_feature(mode: IntraMode, is_inter: f32) -> [f32; IntraMode::COUNT] {
+    let mut out = [0f32; IntraMode::COUNT];
+    if is_inter < 0.5 {
+        out[mode.as_index() as usize] = 1.0;
+    }
+    out
+}
+
 /// Extract the geometry features from a causal neighbourhood.
 ///
 /// `left` holds the reconstructed samples to the left of the block (top to
@@ -483,8 +504,7 @@ pub fn extract_features(
         cross += dx * dy;
     }
 
-    let mut intra_mode = [0f32; IntraMode::COUNT];
-    intra_mode[mode.as_index() as usize] = 1.0;
+    let intra_mode = mode_feature(mode, motion.is_inter);
 
     if total <= 0.0 {
         // A flat neighbourhood carries no orientation information.
@@ -597,11 +617,7 @@ pub fn extract_features_from_window(
             vertical_energy: 0.0,
             axis_correlation: 0.0,
             quantization_parameter: qp as f32 / 51.0,
-            intra_mode: {
-                let mut modes = [0f32; IntraMode::COUNT];
-                modes[mode.as_index() as usize] = 1.0;
-                modes
-            },
+            intra_mode: mode_feature(mode, motion.is_inter),
             neighbour_transforms: neighbours.one_hot(),
             is_inter: motion.is_inter,
             motion: motion.features,
@@ -626,8 +642,7 @@ pub fn extract_features_from_window(
         }
     }
 
-    let mut intra_mode = [0f32; IntraMode::COUNT];
-    intra_mode[mode.as_index() as usize] = 1.0;
+    let intra_mode = mode_feature(mode, motion.is_inter);
 
     if total <= 0.0 || count == 0 {
         return GeometryFeatures {
