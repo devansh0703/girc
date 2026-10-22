@@ -1,0 +1,74 @@
+name: Pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "web/girc-site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+# The deployment is the point of this workflow, so the whole job is
+# serialised: a second push waits rather than racing the first.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that every page links to a page that exists
+        run: |
+          python3 - <<'PY'
+          import re, sys
+          from pathlib import Path
+
+          failed = False
+          for site in ("web/girc-site", "web/eval-site"):
+              root = Path(site)
+              for page in sorted(root.glob("*.html")):
+                  text = page.read_text()
+                  for target in re.findall(r'href="([^"#:]+)"', text):
+                      if target.startswith(("http", "mailto:", "/")):
+                          continue
+                      resolved = (page.parent / target).resolve()
+                      if not resolved.exists():
+                          print(f"{page}: broken link to {target}")
+                          failed = True
+          sys.exit(1 if failed else 0)
+          PY
+
+      - name: Assemble the site
+        run: |
+          mkdir -p _site
+          cp -R web/girc-site/. _site/
+          # The site uses relative links throughout, so it works under a
+          # project path without a base tag. The .nojekyll file keeps
+          # GitHub Pages from running the directory through Jekyll.
+          touch _site/.nojekyll
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
