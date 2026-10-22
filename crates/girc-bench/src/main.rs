@@ -459,14 +459,42 @@ fn decode_with_anchor(
             ])
             .arg(&output)
             .status(),
-        Anchor::VVenC => Command::new("vvencapp")
-            .args(["--input"])
-            .arg(sequence)
-            .args(["--output"])
-            .arg(&output)
-            .args(["--preset", "medium", "-q", &qp.to_string()])
-            .args(["--frames", "1"])
-            .status(),
+        Anchor::VVenC => {
+            // VVenC is an encoder only. Its bitstream is decoded with
+            // FFmpeg, exactly as a third party would decode it.
+            let bitstream = work_dir.join(format!(
+                "{}-{qp}.266",
+                sequence.file_stem().unwrap_or_default().to_string_lossy()
+            ));
+            let encoded = Command::new("vvencapp")
+                .args(["--input"])
+                .arg(sequence)
+                .args(["--output"])
+                .arg(&bitstream)
+                .args(["--preset", "medium", "-q", &qp.to_string()])
+                .args(["--frames", "1"])
+                .status();
+            let encoded = encoded.with_context(|| format!("decoding with {}", anchor.name()))?;
+            if !encoded.success() {
+                bail!(
+                    "decoding with {} failed with status {encoded}",
+                    anchor.name()
+                );
+            }
+            Command::new("ffmpeg")
+                .args(["-hide_banner", "-loglevel", "error", "-y", "-i"])
+                .arg(&bitstream)
+                .args([
+                    "-frames:v",
+                    "1",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-f",
+                    "yuv4mpegpipe",
+                ])
+                .arg(&output)
+                .status()
+        }
         Anchor::GircExplicit | Anchor::GircInferred => {
             bail!("GIRC anchors are decoded in-process")
         }
@@ -509,6 +537,14 @@ struct Args {
     /// A directory for intermediate files.
     #[arg(long, default_value = "bench-out/work")]
     work_dir: PathBuf,
+    /// Sweep the transform margin and report the trade-off curve.
+    ///
+    /// The margin is the rate the encoder is willing to give up to avoid
+    /// signalling the transform type. Sweeping it shows the whole
+    /// rate-distortion trade the mechanism offers, rather than a single
+    /// operating point.
+    #[arg(long, value_delimiter = ',')]
+    margin_sweep: Option<Vec<f32>>,
 }
 
 /// The full benchmark report.
@@ -526,6 +562,130 @@ pub struct Report {
     pub bd_rate_vs_baseline: BTreeMap<String, BTreeMap<String, f64>>,
     /// The BD-rate of GIRC-inferred against GIRC-explicit.
     pub mechanism_bd_rate: BTreeMap<String, f64>,
+    /// The margin sweep, when one was run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub margin_sweep: Option<Vec<MarginPoint>>,
+}
+
+/// One point on the margin sweep.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarginPoint {
+    /// The margin, in bits of rate.
+    pub margin: f32,
+    /// The BD-rate of the inferred mode against the explicit mode, per
+    /// sequence.
+    pub bd_rate: BTreeMap<String, f64>,
+    /// The mean BD-rate across the sequences.
+    pub mean_bd_rate: f64,
+    /// The fraction of blocks where the decoder's prediction was wrong.
+    pub mean_mismatch_rate: f64,
+    /// The mean whole-frame encode time of the two modes, in seconds.
+    pub mean_encode_seconds: f64,
+}
+
+/// Run the margin sweep.
+///
+/// The sweep answers the question the mechanism poses: how much rate has
+/// to be given up before the saving in transform-type signalling is worth
+/// more than the distortion it costs.
+fn run_margin_sweep(
+    sequences: &[PathBuf],
+    qps: &[i32],
+    predictor: &TransformPredictor,
+    margins: &[f32],
+    work_dir: &Path,
+) -> Result<Vec<MarginPoint>> {
+    let mut points = Vec::new();
+
+    for margin in margins {
+        let mut per_sequence = BTreeMap::new();
+        let mut rates = Vec::new();
+        let mut mismatch_rates = Vec::new();
+        let mut times = Vec::new();
+
+        for sequence in sequences {
+            let name = sequence
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+
+            let mut explicit = Vec::new();
+            let mut inferred = Vec::new();
+            let mut mismatches = 0u64;
+            let mut blocks = 0u64;
+            let mut seconds = 0.0;
+
+            for signalling in [TransformSignalling::Explicit, TransformSignalling::Inferred] {
+                let frame = Yuv4Frame::read(sequence)?;
+                let picture = frame.luma_picture();
+                let mut points_for_mode = Vec::new();
+                for qp in qps {
+                    let config = EncoderConfig {
+                        qp: *qp,
+                        signalling,
+                        predictor: predictor.clone(),
+                        transform_margin: *margin,
+                        ..Default::default()
+                    };
+                    let start = std::time::Instant::now();
+                    let result = encode(&picture, &config)?;
+                    seconds += start.elapsed().as_secs_f64();
+                    points_for_mode.push(RatePoint {
+                        qp: *qp,
+                        bits: (result.bitstream.len() * 8) as u64,
+                        psnr_db: psnr(&picture.samples, &result.reconstruction.samples),
+                    });
+                    if signalling == TransformSignalling::Inferred {
+                        mismatches += result.prediction_mismatches as u64;
+                        blocks += result.block_count as u64;
+                    }
+                }
+                if signalling == TransformSignalling::Explicit {
+                    explicit = points_for_mode;
+                } else {
+                    inferred = points_for_mode;
+                }
+            }
+
+            if let Some(rate) = bd_rate(&explicit, &inferred) {
+                per_sequence.insert(name.clone(), rate);
+                rates.push(rate);
+            }
+            if blocks > 0 {
+                mismatch_rates.push(mismatches as f64 / blocks as f64);
+            }
+            times.push(seconds);
+        }
+
+        points.push(MarginPoint {
+            margin: *margin,
+            mean_bd_rate: if rates.is_empty() {
+                f64::NAN
+            } else {
+                rates.iter().sum::<f64>() / rates.len() as f64
+            },
+            bd_rate: per_sequence,
+            mean_mismatch_rate: if mismatch_rates.is_empty() {
+                f64::NAN
+            } else {
+                mismatch_rates.iter().sum::<f64>() / mismatch_rates.len() as f64
+            },
+            mean_encode_seconds: if times.is_empty() {
+                f64::NAN
+            } else {
+                times.iter().sum::<f64>() / times.len() as f64
+            },
+        });
+
+        eprintln!(
+            "margin {:>10}: mean BD-rate {:+.3}%, mismatch {:+.1}%",
+            points.last().unwrap().margin,
+            points.last().unwrap().mean_bd_rate,
+            points.last().unwrap().mean_mismatch_rate * 100.0
+        );
+    }
+
+    Ok(points)
 }
 
 fn main() -> Result<()> {
@@ -618,6 +778,19 @@ fn main() -> Result<()> {
         bd_rate_vs_baseline.insert(name, per_codec);
     }
 
+    // The margin sweep, when asked for, is run as a separate experiment
+    // so the main report stays a single configuration.
+    let margin_sweep = match &args.margin_sweep {
+        None => None,
+        Some(margins) => Some(run_margin_sweep(
+            &args.sequence,
+            &qps,
+            &predictor,
+            margins,
+            &args.work_dir,
+        )?),
+    };
+
     let report = Report {
         version: 1,
         generated_utc: utc_now(),
@@ -625,6 +798,7 @@ fn main() -> Result<()> {
         results,
         bd_rate_vs_baseline,
         mechanism_bd_rate,
+        margin_sweep,
     };
 
     let json = serde_json::to_string_pretty(&report)?;
@@ -685,10 +859,11 @@ fn tool_versions() -> BTreeMap<String, String> {
             .output()
             .ok()
             .and_then(|out| {
-                String::from_utf8_lossy(&out.stdout)
-                    .lines()
-                    .next()
-                    .map(|s| s.to_string())
+                // The first line may end in the middle of a multi-byte
+                // character, so the text is decoded before the line is
+                // taken.
+                let text = String::from_utf8_lossy(&out.stdout);
+                text.lines().next().map(|line| line.to_string())
             })
             .unwrap_or_else(|| "unavailable".to_string());
         versions.insert(name.to_string(), version);

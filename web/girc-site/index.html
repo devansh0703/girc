@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GIRC — Geometry-Inference Codec</title>
+    <meta
+      name="description"
+      content="GIRC is a reference codec that replaces explicit transform-type signalling with a geometry inference the decoder performs from its own reconstruction."
+    />
+    <link rel="stylesheet" href="assets/site.css" />
+  </head>
+  <body>
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="index.html">GIRC<span>.</span>dev</a>
+        <nav class="site">
+          <a href="index.html">Overview</a>
+          <a href="method.html">Method</a>
+          <a href="results.html">Results</a>
+          <a href="package.html">Patent Package</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="wrap">
+        <section class="hero">
+          <div class="readout">REFERENCE CODEC · INFERRED TRANSFORM SIGNALLING</div>
+          <h1>The decoder already knows which transform you meant.</h1>
+          <p class="lede">
+            Every video codec signals the transform type for every block, even
+            though the choice is almost always the same one. GIRC replaces that
+            signalling with an inference: the decoder predicts the transform
+            from the geometry it has already reconstructed, and the encoder
+            spends a single bit only when the prediction was wrong.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="method.html">Read the method</a>
+            <a class="btn" href="results.html">See the measurements</a>
+            <a class="btn" href="package.html">Request the evaluation package</a>
+          </div>
+        </section>
+
+        <section>
+          <h2>The problem</h2>
+          <p>
+            A VVC block is coded with one of three transforms: DCT-II,
+            DCT-VIII or DST-VII. The encoder picks one by rate-distortion
+            search, and the decoder has no way of knowing which one it picked
+            except that the bitstream tells it. The signalling is a few bits
+            per block, but it is pure overhead: it carries no information the
+            decoder could not have derived for itself.
+          </p>
+          <p>
+            The reason it cannot be derived is that the choice looks random.
+            It depends on the block's own residual, which the decoder has not
+            yet seen. The encoder looks at the residual, the decoder cannot.
+          </p>
+        </section>
+
+        <section>
+          <h2>The idea</h2>
+          <p>
+            The decoder can see something the residual does not determine: the
+            shape of the content it has already reconstructed. A block that
+            sits in a directional neighbourhood tends to want a directional
+            transform, and a block in a flat one tends to want the default.
+            That signal is available on both sides at the same moment, so it
+            can carry the choice.
+          </p>
+          <div class="grid">
+            <div class="cell">
+              <h3>1 · Infer</h3>
+              <p>
+                The decoder reads a two-dimensional causal window of its own
+                reconstruction and predicts the transform from its geometry:
+                the gradient orientation field, the per-axis energies, the
+                intra prediction mode and the quantization parameter.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>2 · Signal</h3>
+              <p>
+                The encoder spends one bin on whether the prediction was
+                right. When it was wrong, one further bin selects between the
+                two transforms the prediction ruled out.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>3 · Trade</h3>
+              <p>
+                The encoder may take a slightly worse transform than its
+                search found, when doing so costs less than the override
+                would. That margin is the mechanism's rate-distortion knob,
+                and the benchmark sweeps it.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2>What is in the repository</h2>
+          <div class="grid">
+            <div class="cell">
+              <h3>Reference codec</h3>
+              <p>
+                A Rust implementation of the full path: VVC-exact integer
+                transforms, intra prediction, quantization, a context-adaptive
+                entropy coder, and both signalling modes behind one
+                command-line interface.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Training pipeline</h3>
+              <p>
+                The predictor is trained on the encoder's own decisions, not
+                on a proxy. The pipeline reports the predictability ceiling
+                alongside the shipped model's accuracy.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Benchmark harness</h3>
+              <p>
+                GIRC in both modes against x265, SVT-AV1 and VVenC on the
+                same content, with the Bjontegaard delta rate computed the
+                way the JVET common test conditions define it.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Evaluation portal</h3>
+              <p>
+                A confidential evaluation environment: organisation accounts,
+                versioned agreement acceptance, gated artifact delivery,
+                result submission and an append-only audit log.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <div class="note">
+          <p>
+            <strong>On honesty of measurement.</strong> The bitstream is
+            GIRC's own research format, not VVC-conformant, and the report
+            says so. The transforms are bit-exact against Fraunhofer HHI's
+            VVenC, so the transform arithmetic is a real one, but GIRC is an
+            intra-only research codec and is not a VVC competitor. The
+            numbers it reports are about the signalling mechanism, measured
+            under a controlled comparison.
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>
+          GIRC — Geometry-Inference Codec. Reference implementation and
+          evaluation package.
+        </div>
+        <div>
+          <a href="method.html">Method</a>
+          <a href="results.html">Results</a>
+          <a href="package.html">Patent Package</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

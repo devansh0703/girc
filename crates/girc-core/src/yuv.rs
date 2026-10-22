@@ -45,7 +45,9 @@ impl Yuv4Frame {
         let mut header = Vec::new();
         let mut byte = [0u8; 1];
 
-        // The header ends at the first newline.
+        // The header ends at the first newline. It is read as bytes,
+        // because the header is ASCII and a byte-wise read cannot land in
+        // the middle of a character.
         loop {
             if reader.read(&mut byte)? == 0 {
                 bail!("the Y4M file at {} ended before its header", path.display());
@@ -59,7 +61,9 @@ impl Yuv4Frame {
             }
         }
 
-        let header_text = String::from_utf8_lossy(&header);
+        // The header is ASCII, but the byte slice it came from may not
+        // start on a character boundary, so the text is decoded from the
+        // bytes rather than sliced out of the decoded string.
         let mut width = 0usize;
         let mut height = 0usize;
         let mut fps_num = 25u32;
@@ -69,22 +73,35 @@ impl Yuv4Frame {
         // The Y4M header is a sequence of space-separated tokens, each of
         // which is a one-letter tag followed by its value, for example
         // "W352", "H288", "F25:1" and "C420jpeg".
-        for token in header_text.split_whitespace() {
-            if token == "YUV4MPEG2" {
+        //
+        // The tokens are taken from the bytes rather than from the decoded
+        // string: the header is ASCII, and a byte that is not valid UTF-8
+        // would become a replacement character in the decoded string, so
+        // slicing the string could split a character.
+        for token in header.split(|b| b.is_ascii_whitespace()) {
+            if token.is_empty() || token == b"YUV4MPEG2" {
                 continue;
             }
-            let (tag, value) = token.split_at(1);
+            let tag = token[0];
+            let value = &token[1..];
+            let value_text = String::from_utf8_lossy(value);
             match tag {
-                "W" => width = value.parse().context("parsing the Y4M width")?,
-                "H" => height = value.parse().context("parsing the Y4M height")?,
-                "F" => {
-                    let (n, d) = value
-                        .split_once(':')
+                b'W' => width = value_text.parse().context("parsing the Y4M width")?,
+                b'H' => height = value_text.parse().context("parsing the Y4M height")?,
+                b'F' => {
+                    let colon = value
+                        .iter()
+                        .position(|b| *b == b':')
                         .context("parsing the Y4M frame rate")?;
-                    fps_num = n.parse().context("parsing the Y4M frame rate")?;
-                    fps_den = d.parse().context("parsing the Y4M frame rate")?;
+                    let (n, d) = value.split_at(colon);
+                    fps_num = String::from_utf8_lossy(n)
+                        .parse()
+                        .context("parsing the Y4M frame rate")?;
+                    fps_den = String::from_utf8_lossy(&d[1..])
+                        .parse()
+                        .context("parsing the Y4M frame rate")?;
                 }
-                "C" => colour_space = value.to_string(),
+                b'C' => colour_space = value_text.to_string(),
                 _ => {}
             }
         }
@@ -116,8 +133,7 @@ impl Yuv4Frame {
                 break;
             }
         }
-        let marker_text = String::from_utf8_lossy(&marker);
-        if !marker_text.trim().starts_with("FRAME") {
+        if !marker.trim_ascii().starts_with(b"FRAME") {
             bail!(
                 "the Y4M file at {} does not start with a FRAME marker",
                 path.display()
