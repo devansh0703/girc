@@ -134,23 +134,28 @@ has to be narrowed to match:
 ### 1.4 What the measurements actually show
 
 The result, from the repository's own benchmark, over twelve Xiph.Org CIF
-sequences at QP 22 to 37:
+sequences, ten frames each, at QP 22 to 37:
 
-| Margin (bits) | Mean BD-rate | Prediction mismatch |
+| Margin (RD-cost units) | Mean BD-rate, luma | Prediction mismatch |
 |---|---|---|
-| 0 | −0.018% | 56.9% |
-| 2 | −0.077% | 56.1% |
-| 5 | −0.091% | 56.0% |
-| 10 | −0.090% | 55.6% |
-| 20 | −0.120% | 55.0% |
-| **50** | **−0.226%** | 52.5% |
-| 100 | −0.170% | 47.9% |
-| 500 | +1.006% | 26.9% |
+| 0 | −0.006% | 47.9% |
+| 25 | −0.079% | 45.4% |
+| **50** | **−0.175%** | 43.2% |
+| 100 | +0.073% | 38.7% |
+| 200 | +0.639% | 31.2% |
 
-At a margin of 50 bits the inferred mode is **0.226% smaller** than the
-explicit mode, and it is smaller on nine of the twelve sequences. The
-median is −0.231%. The best single sequence is `highway_cif` at −0.831%
-and the worst is `city_cif` at +0.378%.
+At a margin of 50 the inferred mode is **0.175% smaller** than the
+explicit mode on the luma plane, and **0.104% smaller** on the whole
+frame, which includes the two chroma planes. It is smaller on nine of
+the twelve sequences on the luma plane and eight of the twelve on the
+whole frame. The median is −0.262%. The best single sequence is
+`deadline_cif` at −1.388% and the worst is `akiyo_cif` at +1.501%.
+
+Two rate axes are reported because the mechanism changes the luma
+signalling and nothing else: the luma rate is the mechanism's own
+effect, and the whole-frame rate is what a deployment would save. The
+comparison against the anchors is on the whole-frame rate, because the
+anchors code all three planes and so does GIRC.
 
 The mechanism is a small win, and the reason it is not a larger one is
 measurable rather than mysterious. The predictability ceiling of the
@@ -175,7 +180,7 @@ axes separately and composes them, and the shipped model reaches 51.1% on
 the horizontal axis and 51.0% on the vertical one, against 44.31% for the
 constant majority predictor.
 
-Even so, the saving is 0.226% and not a headline number, and the report
+Even so, the saving is 0.175% and not a headline number, and the report
 says so. The explicit signalling is already cheap for a context-adaptive
 coder to code, and the mechanism removes an overhead that is close to the
 distortion it costs to remove it. §1.5 states the conditions under which
@@ -393,8 +398,8 @@ instead.
 **The measured result is a small win, and the closest prior art reports a
 loss.** InterDigital's EP3977732B1 reports +0.34% overall for its
 implicit transform design against an MTS-disabled anchor: their approach
-did not pay. The present disclosure's −0.226% at a margin of 50 bits is
-a better result by a different mechanism, and it is still far from a
+did not pay. The present disclosure's −0.175% at a margin of 50 is a
+better result by a different mechanism, and it is still far from a
 decisive win. A filing that claimed a large coding gain would be
 contradicted by the reference implementation in this repository.
 

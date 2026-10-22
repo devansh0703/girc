@@ -67,8 +67,8 @@ document.
 | Chroma block grid | four by four chroma samples, one chroma block per luma block |
 | Chroma motion | derived from the luma motion, as H.266 does; no chroma motion bits of its own |
 | Frames per sequence | 10 |
-| Margin for the published per-sequence table | 50 bits |
-| Margin sweep | 0, 2, 5, 10, 20, 50, 100, 500 bits |
+| Margin for the published per-sequence table | 50, in rate-distortion cost units |
+| Margin sweep | 0, 25, 50, 100, 200, in rate-distortion cost units |
 | Rate-distortion lambda | 0.85 |
 | Predictor | two multinomial logistic regressions, 46 features each, one per axis, composed into the mode |
 
@@ -97,7 +97,7 @@ export PATH="$PWD/data/tools/vvenc-src/bin/release-static:$PATH"
     --margin 50 \
     --frames 10 \
     --anchors x265,svt-av1,vvenc \
-    --margin-sweep 0,2,5,10,20,50,100,500 \
+    --margin-sweep 0,25,50,100,200 \
     --report bench-out/report.json
 ```
 
@@ -108,6 +108,29 @@ nothing else, so the luma rate is the axis its effect is measured on.
 `mechanism_bd_rate_total` includes the chroma planes, and it is what a
 deployment would actually save. The anchor comparison is on the
 whole-frame rate, because the anchors code all three planes.
+
+## The result
+
+At a margin of 50, over the twelve sequences:
+
+| Measure | Value | Better on |
+|---|---|---|
+| Mean BD-rate, luma plane | −0.175% | 9 of 12 |
+| Mean BD-rate, whole frame | −0.104% | 8 of 12 |
+| Median BD-rate, luma plane | −0.262% | — |
+| Best sequence | `deadline_cif`, −1.388% | — |
+| Worst sequence | `akiyo_cif`, +1.501% | — |
+| Prediction mismatch | 43.2% | — |
+
+The margin sweep, on the luma plane:
+
+| Margin | Mean BD-rate | Mismatch |
+|---|---|---|
+| 0 | −0.006% | 47.9% |
+| 25 | −0.079% | 45.4% |
+| 50 | −0.175% | 43.2% |
+| 100 | +0.073% | 38.7% |
+| 200 | +0.639% | 31.2% |
 
 The training set is rebuilt the same way:
 

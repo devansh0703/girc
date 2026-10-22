@@ -26,13 +26,14 @@
     <main>
       <div class="wrap">
         <section class="hero">
-          <div class="readout">MEASURED ON XIPH.ORG CIF · 12 SEQUENCES · QP 22–37</div>
-          <h1>The mechanism saves 0.226% of the bitrate.</h1>
+          <div class="readout">MEASURED ON XIPH.ORG CIF · 12 SEQUENCES · 10 FRAMES · QP 22–37</div>
+          <h1>The mechanism saves 0.175% of the bitrate.</h1>
           <p class="lede">
-            Twelve CIF sequences, four QP points each, and the inferred
-            mode comes out 0.226% smaller than the explicit mode, and
-            smaller on nine sequences of the twelve. The margin sweep below
-            is the whole trade: the rate the encoder gives up in
+            Twelve CIF sequences, ten frames each, four QP points, and the
+            inferred mode comes out 0.175% smaller than the explicit mode
+            on the luma plane, and 0.104% smaller on the whole frame. It
+            is smaller on nine sequences of the twelve. The margin sweep
+            below is the whole trade: the rate the encoder gives up in
             distortion, against the rate it saves in signalling.
           </p>
         </section>
@@ -58,23 +59,25 @@
           </p>
           <p>
             The anchors are the real encoders: x265 for HEVC, SVT-AV1 for AV1
-            and VVenC 1.14.0 for VVC, each coding the same first frame of
-            the same file and measured by the same PSNR code.
+            and VVenC 1.14.0 for VVC, each coding the same ten frames of
+            the same file, all three planes, and measured by the same PSNR
+            code.
           </p>
         </section>
 
         <section>
           <h2>The margin sweep</h2>
           <p>
-            The margin is the rate, in bits, the encoder is willing to give
-            up to avoid signalling the transform type. It is the mechanism's
-            only free parameter, and sweeping it shows the whole trade.
+            The margin is the amount of rate-distortion cost the encoder is
+            willing to give up to avoid signalling the transform type. It is
+            the mechanism's only free parameter, and sweeping it shows the
+            whole trade.
           </p>
           <table>
             <thead>
               <tr>
-                <th>Margin (bits)</th>
-                <th>Mean BD-rate</th>
+                <th>Margin (RD-cost units)</th>
+                <th>Mean BD-rate, luma</th>
                 <th>Prediction mismatch</th>
                 <th>Reading</th>
               </tr>
@@ -82,58 +85,43 @@
             <tbody>
               <tr>
                 <td>0</td>
-                <td class="warn">−0.017%</td>
-                <td>56.9%</td>
+                <td class="good">−0.006%</td>
+                <td>47.9%</td>
                 <td>No margin: the encoder always takes the optimal transform</td>
               </tr>
               <tr>
-                <td>2</td>
-                <td class="good">−0.076%</td>
-                <td>56.1%</td>
+                <td>25</td>
+                <td class="good">−0.079%</td>
+                <td>45.4%</td>
                 <td>The margin starts to pay</td>
               </tr>
               <tr>
-                <td>5</td>
-                <td class="good">−0.091%</td>
-                <td>56.0%</td>
-                <td>Better</td>
-              </tr>
-              <tr>
-                <td>10</td>
-                <td class="good">−0.090%</td>
-                <td>55.6%</td>
-                <td>Flat</td>
-              </tr>
-              <tr>
-                <td>20</td>
-                <td class="good">−0.120%</td>
-                <td>55.0%</td>
-                <td>Better</td>
-              </tr>
-              <tr>
                 <td>50</td>
-                <td class="good">−0.226%</td>
-                <td>52.5%</td>
-                <td><strong>The optimum on this content</strong></td>
+                <td class="good"><strong>−0.175%</strong></td>
+                <td>43.2%</td>
+                <td>The optimum on this content</td>
               </tr>
               <tr>
                 <td>100</td>
-                <td class="good">−0.170%</td>
-                <td>47.9%</td>
+                <td class="warn">+0.073%</td>
+                <td>38.7%</td>
                 <td>Past the optimum</td>
               </tr>
               <tr>
-                <td>500</td>
-                <td class="bad">+1.006%</td>
-                <td>26.9%</td>
+                <td>200</td>
+                <td class="warn">+0.639%</td>
+                <td>31.2%</td>
                 <td>Distortion dominates</td>
               </tr>
             </tbody>
           </table>
           <p class="muted">
             Mean Bjontegaard delta rate of the inferred mode against the
-            explicit mode, over twelve CIF sequences at four QP points.
-            Negative means the inferred mode is smaller.
+            explicit mode, over twelve CIF sequences at four QP points, on
+            the luma plane. Negative means the inferred mode is smaller.
+            The whole-frame figure, which includes the chroma planes, is
+            −0.104% at the margin of 50, and the inferred mode is smaller
+            on eight sequences of the twelve.
           </p>
         </section>
 
@@ -149,81 +137,83 @@
             </thead>
             <tbody>
               <tr>
-                <td>highway_cif</td>
-                <td class="good">−0.831%</td>
-                <td>Fast panning, strong horizontal structure</td>
-              </tr>
-              <tr>
-                <td>crew_cif</td>
-                <td class="good">−0.618%</td>
-                <td>Motion and texture</td>
-              </tr>
-              <tr>
-                <td>akiyo_cif</td>
-                <td class="good">−0.342%</td>
-                <td>Flat, high detail, little motion</td>
-              </tr>
-              <tr>
-                <td>mobile_cif</td>
-                <td class="good">−0.308%</td>
-                <td>Moving subject, detailed background</td>
-              </tr>
-              <tr>
-                <td>coastguard_cif</td>
-                <td class="good">−0.274%</td>
-                <td>Water texture, fine detail</td>
-              </tr>
-              <tr>
-                <td>foreman_cif</td>
-                <td class="good">−0.253%</td>
-                <td>Fine texture, strong edges</td>
-              </tr>
-              <tr>
-                <td>bus_cif</td>
-                <td class="good">−0.210%</td>
-                <td>Moving subject, uniform background</td>
-              </tr>
-              <tr>
-                <td>flower_cif</td>
-                <td class="good">−0.204%</td>
-                <td>Fine foliage texture</td>
-              </tr>
-              <tr>
                 <td>deadline_cif</td>
-                <td class="good">−0.105%</td>
+                <td class="good">−1.388%</td>
                 <td>Motion, texture and noise</td>
-              </tr>
-              <tr>
-                <td>stefan_cif</td>
-                <td class="warn">+0.000%</td>
-                <td>Motion, texture and noise</td>
-              </tr>
-              <tr>
-                <td>container_cif</td>
-                <td class="bad">+0.056%</td>
-                <td>Sharp edges, flat panels</td>
               </tr>
               <tr>
                 <td>city_cif</td>
-                <td class="bad">+0.378%</td>
+                <td class="good">−0.497%</td>
                 <td>Dense detail, little large-scale structure</td>
+              </tr>
+              <tr>
+                <td>container_cif</td>
+                <td class="good">−0.468%</td>
+                <td>Sharp edges, flat panels</td>
+              </tr>
+              <tr>
+                <td>bus_cif</td>
+                <td class="good">−0.350%</td>
+                <td>Moving subject, uniform background</td>
+              </tr>
+              <tr>
+                <td>mobile_cif</td>
+                <td class="good">−0.301%</td>
+                <td>Moving subject, detailed background</td>
+              </tr>
+              <tr>
+                <td>crew_cif</td>
+                <td class="good">−0.296%</td>
+                <td>Motion and texture</td>
+              </tr>
+              <tr>
+                <td>foreman_cif</td>
+                <td class="good">−0.228%</td>
+                <td>Fine texture, strong edges</td>
+              </tr>
+              <tr>
+                <td>flower_cif</td>
+                <td class="good">−0.163%</td>
+                <td>Fine foliage texture</td>
+              </tr>
+              <tr>
+                <td>highway_cif</td>
+                <td class="good">−0.109%</td>
+                <td>Fast panning, strong horizontal structure</td>
+              </tr>
+              <tr>
+                <td>coastguard_cif</td>
+                <td class="warn">+0.054%</td>
+                <td>Water texture, fine detail</td>
+              </tr>
+              <tr>
+                <td>stefan_cif</td>
+                <td class="warn">+0.147%</td>
+                <td>Motion, texture and noise</td>
+              </tr>
+              <tr>
+                <td>akiyo_cif</td>
+                <td class="bad">+1.501%</td>
+                <td>Flat, high detail, little motion</td>
               </tr>
             </tbody>
           </table>
           <p class="muted">
-            Margin of 50 bits, QP 22 to 37, luma plane, 8×8 blocks. The
-            mean over the twelve is −0.226% and the median −0.231%.
+            Margin of 50, QP 22 to 37, luma plane, 8×8 blocks, ten frames
+            per sequence. The mean over the twelve is −0.175% and the
+            median −0.262%.
           </p>
         </section>
 
         <section>
           <h2>Against the anchor codecs</h2>
           <p>
-            GIRC is an intra-only research codec with a small mode set. It is
-            not a VVC competitor, and this table is context rather than a
-            claim. What the table does show is that the measurement
-            apparatus is real: the same content, the same rate and
-            distortion code, four codecs.
+            GIRC is a research codec with a small mode set and integer-sample
+            motion. It is not a VVC competitor, and this table is context
+            rather than a claim. What the table does show is that the
+            measurement apparatus is real: the same content, the same rate
+            and distortion code, the same frames, and all three planes
+            coded on both sides.
           </p>
           <table>
             <thead>
@@ -238,46 +228,48 @@
             <tbody>
               <tr>
                 <td>girc-explicit</td>
-                <td>94664 b / 43.54 dB</td>
-                <td>67848 b / 40.51 dB</td>
-                <td>47784 b / 37.38 dB</td>
-                <td>32104 b / 34.30 dB</td>
+                <td>301264 b / 44.38 dB</td>
+                <td>247920 b / 41.57 dB</td>
+                <td>202224 b / 38.60 dB</td>
+                <td>177904 b / 35.73 dB</td>
               </tr>
               <tr>
                 <td>girc-inferred</td>
-                <td>94568 b / 43.53 dB</td>
-                <td>67976 b / 40.51 dB</td>
-                <td>47432 b / 37.40 dB</td>
-                <td>32008 b / 34.30 dB</td>
+                <td>313744 b / 44.24 dB</td>
+                <td>251984 b / 41.55 dB</td>
+                <td>204144 b / 38.58 dB</td>
+                <td>184016 b / 35.70 dB</td>
               </tr>
               <tr>
-                <td>x265 (HEVC)</td>
-                <td>104200 b / 46.34 dB</td>
-                <td>71008 b / 43.63 dB</td>
-                <td>51568 b / 40.62 dB</td>
-                <td>39288 b / 37.48 dB</td>
+                <td>x265</td>
+                <td>119224 b / 45.01 dB</td>
+                <td>78128 b / 42.66 dB</td>
+                <td>56176 b / 40.03 dB</td>
+                <td>42600 b / 37.05 dB</td>
               </tr>
               <tr>
-                <td>svt-av1 (AV1)</td>
-                <td>61704 b / 44.54 dB</td>
-                <td>49928 b / 43.13 dB</td>
-                <td>38920 b / 41.64 dB</td>
-                <td>30720 b / 40.17 dB</td>
+                <td>svt-av1</td>
+                <td>166672 b / 47.52 dB</td>
+                <td>130752 b / 46.42 dB</td>
+                <td>97144 b / 45.20 dB</td>
+                <td>77032 b / 44.16 dB</td>
               </tr>
               <tr>
-                <td>vvenc (VVC)</td>
-                <td>176088 b / 50.75 dB</td>
-                <td>95288 b / 47.43 dB</td>
-                <td>52184 b / 44.58 dB</td>
-                <td>35720 b / 42.41 dB</td>
+                <td>vvenc</td>
+                <td>219288 b / 48.90 dB</td>
+                <td>122224 b / 46.64 dB</td>
+                <td>67520 b / 44.29 dB</td>
+                <td>48136 b / 42.53 dB</td>
               </tr>
             </tbody>
           </table>
           <p class="muted">
-            akiyo_cif, first frame, luma only for GIRC. The BD-rate of each
-            against the GIRC-explicit baseline is −23.96% for x265, −48.63%
-            for SVT-AV1 and −56.10% for VVenC: the anchors are better
-            codecs, as expected, and the figure is the scale of the gap.
+            akiyo_cif, ten frames, whole frame on both sides: the luma plane
+            and the two 4:2:0 chroma planes, coded by every codec. The
+            BD-rate of each against the GIRC-explicit baseline is −73.34%
+            for x265, −73.72% for SVT-AV1 and −79.98% for VVenC: the
+            anchors are better codecs, as expected, and the figure is the
+            scale of the gap.
           </p>
         </section>
 
@@ -344,7 +336,7 @@
               models the two axes separately and composes them.
             </p>
             <p>
-              Even so, the saving is 0.226%, not a headline number. The
+              Even so, the saving is 0.175%, not a headline number. The
               explicit signalling is already cheap for a context-adaptive
               coder to code, and the mechanism removes an overhead that is
               close to the distortion it costs to remove it. The margin

@@ -33,15 +33,26 @@ results.
 
 The mechanism removes the explicit signalling of the transform mode and
 replaces it with the decoder's own prediction of it. Over twelve
-Xiph.Org CIF sequences at QP 22 to 37, on the current model:
+Xiph.Org CIF sequences, ten frames each, at QP 22 to 37, on the
+current model:
 
-| Margin (RD-cost units) | Mean BD-rate | Prediction mismatch |
-|---|---|---|
-| 0 | +0.137% | 58.0% |
-| 25 | −0.055% | 55.3% |
-| 50 | −0.041% | 53.3% |
-| 100 | −0.106% | 48.9% |
-| 200 | +0.193% | 40.8% |
+| Margin (RD-cost units) | Mean BD-rate, luma | Mean BD-rate, whole frame | Prediction mismatch |
+|---|---|---|---|
+| 0 | −0.006% | — | 47.9% |
+| 25 | −0.079% | — | 45.4% |
+| 50 | **−0.175%** | **−0.104%** | 43.2% |
+| 100 | +0.073% | — | 38.7% |
+| 200 | +0.639% | — | 31.2% |
+
+At the margin of 50, which is where the mechanism pays best, the
+mechanism is better on **9 of the 12 sequences** on the luma plane and
+**8 of the 12** on the whole frame.
+
+Two rate axes are reported because the mechanism changes the luma
+signalling and nothing else. The luma rate is the mechanism's own
+effect, and the whole-frame rate is what a deployment would actually
+save. The comparison against the anchors is on the whole-frame rate,
+because the anchors code all three planes and so does GIRC.
 
 The mechanism is a small win, and the reason it is not a larger one is
 measurable rather than mysterious. The predictability ceiling of the
@@ -49,7 +60,10 @@ feature set is 44.98% against a 44.31% majority-class baseline for the
 joint five-class mode, and 51.75% for one axis on its own. The joint
 mode is barely predictable because the rate-distortion choice between
 the modes is close to a tie, so the implementation models the two axes
-separately and composes them.
+separately and composes them. The margin is what makes the mechanism
+work at all: it lets the encoder take the predicted mode whenever the
+predicted mode is nearly as good as the best one, and pay a correction
+only when the gap is worth paying for.
 
 The closest prior art reports the same kind of result. InterDigital's
 EP3977732B1 reports **+0.34% overall** for its implicit transform
