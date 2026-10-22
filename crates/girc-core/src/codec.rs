@@ -116,6 +116,21 @@ const CTX_TRANSFORM_MTS: usize = 7;
 /// The bits of the mode index.
 const CTX_TRANSFORM_INDEX: usize = 9;
 
+/// The number of bits the intra mode index is coded with.
+///
+/// The mode set has ten modes, so the index needs four bits. The number is
+/// derived from the mode count rather than written out, so that adding a
+/// mode cannot silently leave the code too short.
+const INTRA_MODE_BITS: usize = {
+    let mut bits = 0usize;
+    let mut count = crate::intra::IntraMode::COUNT;
+    while count > 0 {
+        bits += 1;
+        count >>= 1;
+    }
+    bits
+};
+
 /// A luma picture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Picture {
@@ -910,9 +925,14 @@ fn reference_samples(picture: &Picture, bx: usize, by: usize) -> ReferenceSample
 }
 
 /// Code the intra mode.
+///
+/// The mode index runs from zero to `IntraMode::COUNT` minus one, so the
+/// code is as many bits as that count needs. Coding fewer would make the
+/// encoder and the decoder disagree about every mode whose index does not
+/// fit, which is a silent corruption rather than a visible failure.
 fn code_intra_mode(encoder: &mut BinEncoder, mode: IntraMode) {
     let index = mode.as_index();
-    for bit in 0..3 {
+    for bit in 0..INTRA_MODE_BITS {
         let value = (index >> bit) & 1 == 1;
         encoder.encode(CTX_INTRA_MODE, value);
     }
@@ -921,7 +941,7 @@ fn code_intra_mode(encoder: &mut BinEncoder, mode: IntraMode) {
 /// Decode the intra mode.
 fn decode_intra_mode(decoder: &mut BinDecoder) -> Result<IntraMode, CodecError> {
     let mut index = 0u8;
-    for bit in 0..3 {
+    for bit in 0..INTRA_MODE_BITS {
         if decoder.decode(CTX_INTRA_MODE)? {
             index |= 1 << bit;
         }
@@ -1415,6 +1435,25 @@ mod tests {
         // must have been overridden.
         let decoded = decode(&encoded.bitstream, &config).unwrap();
         assert_eq!(decoded[0], encoded.reconstructions[0]);
+    }
+
+    /// Every intra mode must survive the mode code.
+    ///
+    /// The mode set has more modes than three bits can index. If the code
+    /// is too short, the encoder writes a truncated index and the decoder
+    /// reads a different mode, and the two reconstructions diverge
+    /// silently. This drives the coder directly over every mode.
+    #[test]
+    fn every_intra_mode_survives_the_mode_code() {
+        for mode in IntraMode::all() {
+            let mut encoder = BinEncoder::new(NUM_CONTEXTS);
+            code_intra_mode(&mut encoder, mode);
+            let compressed = encoder.finish();
+
+            let mut decoder = BinDecoder::new(&compressed, NUM_CONTEXTS).unwrap();
+            let decoded = decode_intra_mode(&mut decoder).unwrap();
+            assert_eq!(decoded, mode, "mode {} did not round trip", mode.as_index());
+        }
     }
 
     /// Every residual magnitude must survive the coefficient binarisation.

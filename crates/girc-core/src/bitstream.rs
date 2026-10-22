@@ -59,7 +59,12 @@ fn probability_one(context_probability: u16) -> u32 {
 /// The magic bytes at the start of every GIRC bitstream.
 pub const MAGIC: &[u8; 4] = b"GIRC";
 /// The current bitstream version.
-pub const VERSION: u16 = 1;
+///
+/// Version 2 codes the intra mode with four bits instead of three, so that
+/// every mode in the ten-mode set is representable. A version 1 stream
+/// would decode the last two modes wrongly, so the version is checked and
+/// an old stream is rejected rather than mis-decoded.
+pub const VERSION: u16 = 2;
 
 /// The header of a GIRC bitstream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
