@@ -130,53 +130,30 @@ impl Yuv4Frame {
             );
         }
 
-        // The frame marker.
-        let mut marker = Vec::new();
-        loop {
-            if reader.read(&mut byte)? == 0 {
-                bail!(
-                    "the Y4M file at {} ended before its first frame",
-                    path.display()
-                );
-            }
-            marker.push(byte[0]);
-            if byte[0] == b'\n' {
-                break;
-            }
-        }
-        if !marker.trim_ascii().starts_with(b"FRAME") {
-            bail!(
-                "the Y4M file at {} does not start with a FRAME marker",
-                path.display()
-            );
-        }
-
         let luma_len = width * height;
         let chroma_len = (width / 2) * (height / 2);
         let mut frames = Vec::with_capacity(count);
 
         for index in 0..count {
-            // Every frame after the first starts with a marker.
+            // Every frame starts with a marker, the first one included.
             let mut marker = Vec::new();
-            if index > 0 {
-                loop {
-                    if reader.read(&mut byte)? == 0 {
-                        break;
-                    }
-                    marker.push(byte[0]);
-                    if byte[0] == b'\n' {
-                        break;
-                    }
-                }
-                if marker.is_empty() {
+            loop {
+                if reader.read(&mut byte)? == 0 {
                     break;
                 }
-                if !marker.trim_ascii().starts_with(b"FRAME") {
-                    bail!(
-                        "the Y4M file at {} does not have a FRAME marker at frame {index}",
-                        path.display()
-                    );
+                marker.push(byte[0]);
+                if byte[0] == b'\n' {
+                    break;
                 }
+            }
+            if marker.is_empty() {
+                break;
+            }
+            if !marker.trim_ascii().starts_with(b"FRAME") {
+                bail!(
+                    "the Y4M file at {} does not have a FRAME marker at frame {index}",
+                    path.display()
+                );
             }
 
             let mut y = vec![0u8; luma_len];

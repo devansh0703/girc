@@ -1,0 +1,232 @@
+Claims
+1. A method, comprising:
+obtaining, for at least one video block, syntax information indicative of use of an implicit multiple transform
+selection mode;
+obtaining a first indication of a low frequency non-separable transform mode and/or a second indication of a
+matrix-based intra prediction mode;
+encoding the at least one video block in a bitstream using at least one transform of the multiple transform
+selection mode, wherein the at least one transform is selected based on the first indication and/or the second
+indication; and
+storing, conveying, or transmitting the bitstream comprising the encoded at least one video block.
+2. An apparatus, comprising:
+a processor, configured to perform:
+obtaining, for at least one video block, syntax information indicative of use of an implicit multiple transform
+selection mode;
+obtaining a first indication of a low frequency non-separable transform mode and/or a second indication of a
+matrix-based intra prediction mode;
+encoding the at least one video block in a bitstream using at least one transform of the multiple transform
+selection mode, wherein the at least one transform is selected based on the first indication and/or the second
+indication; and
+storing, conveying, or transmitting the bitstream comprising the encoded at least one video block.
+3. A method, comprising:
+determining, for at least one video block in a bitstream, syntax information indicative of use of an implicit multiple
+transform selection mode;
+determining a first indication of a low frequency non-separable transform mode and/or a second indication of
+a matrix-based intra prediction mode; and
+decoding the at least one video block in said bitstream using at least one transform of themultiple transform
+selection mode, wherein the at least one transform is selected based on the first indication and/or the second
+indication.
+4. An apparatus, comprising:
+a processor, configured to perform:
+determining, for at least one video block in a bitstream, syntax information indicative of use of an implicit multiple
+transform selection mode,
+determining a first indication of a low frequency non-separable transform mode and/or a second indication of
+a matrix-based intra prediction mode; and
+decoding the at least one video block in said bitstream using at least one transform of themultiple transform
+selection mode, wherein the at least one transform is selected based on the first indication and/or the second
+indication.
+5. The method of claim 1 or claim 3, or the apparatus of claim 2 or claim 4, wherein the first indication is a flag or the
+second indication is a flag.
+14
+EP 3 977 732 B1
+6. The method of claim 1 or claim 3, or the apparatus of claim 2 or claim 4, wherein the syntax information comprises
+at least one flag indicative of an implicit multiple transform selection mode.
+7. The method of claim 1 or claim 3, or the apparatus of claim 2 or claim 4, wherein the first indication comprises a
+value that indicates using the at least one transform.
+8. The method of claim 1 or claim 3, or the apparatus of claim 2 or claim 4, wherein the second indication comprises
+a value that indicates using the at least one transform.
+9. The method of claim 1 or claim 3, or the apparatus of claim 2 or claim 4, wherein a multiple transform selection
+mode is conditioned by coding unit size.
+10. The method of claim 1 or claim 3, or the apparatus of claim 2 or claim 4, wherein a transform is comprised of
+horizontal and vertical components.
+11. A device comprising:
+an apparatus according to any of claims 4 through 10; and
+at least one of (i) an antenna configured to receive a signal, the signal including the video block, (ii) a band
+limiter configured to limit the received signal to a band of frequencies that includes the video block, and (iii) a
+display configured to display an output representative of a video block.
+12. A non-transitory computer readable medium containing data content generated according to the method of any one
+of claims 1 and 5 to 10, or by the apparatus of any one of claims 2 and 5 to 10, for playback using a processor.
+13. A signal comprising video data generated according to the method of any one of claims 1 and 5 to 10, or by the
+apparatus of any one of claims 2 and 5 to 10, for playback using a processor.
+14. A computer program product comprising instructions which, when the program is executed by a computer, cause
+the computer to carry out the method of any one of claim 1, 3 and 5 to 10.
+Patentansprüche
+1. Verfahren, das umfasst:
+Erhalten von Syntaxinformationen, die die Verwendung einer impliziten Mehrfachtransformations-Auswahlbe-
+triebsart angeben, für mindestens einen Videoblock;
+Erhalten einer ersten Angabe einer niederfrequenten nichttrennbaren Transformationsbetriebsart und/oder ei-
+ner zweiten Angabe einer matrixbasierten Intra-Vorhersagebetriebsart;
+Codieren des mindestens einen Videoblocks in einem Bitstrom unter Verwendung mindestens einer Transfor-
+mation der Mehrfachtransformations-Auswahlbetriebsart,
+wobei die mindestens eine Transformation auf der Grundlage der ersten Angabe und/oder der zweiten Angabe
+ausgewählt wird; und
+Speichern, Übermitteln oder Senden des Bitstroms, der den codierten mindestens einen Videoblock umfasst.
+2. Vorrichtung, die umfasst:
+einen Prozessor, der dafür konfiguriert ist, Folgendes auszuführen:
+Erhalten von Syntaxinformationen, die die Verwendung einer impliziten Mehrfachtransformations-Auswahlbe-
+triebsart angeben, für mindestens einen Videoblock;
+Erhalten einer ersten Angabe einer niederfrequenten nichttrennbaren Transformationsbetriebsart und/oder ei-
+ner zweiten Angabe einer matrixbasierten Intra-Vorhersagebetriebsart;
+Codieren des mindestens einen Videoblocks in einem Bitstrom unter Verwendung mindestens einer Transfor-
+mation der Mehrfachtransformations-Auswahlbetriebsart,
+wobei die mindestens eine Transformation auf der Grundlage der ersten Angabe und/oder der zweiten Angabe
+ausgewählt wird; und
+Speichern, Übermitteln oder Senden des Bitstroms, der den codierten mindestens einen Videoblock umfasst.
+15
+EP 3 977 732 B1
+3. Verfahren, das umfasst:
+Bestimmen von Syntaxinformationen, die die Verwendung einer impliziten Mehrfachtransformations-Auswahl-
+betriebsart angeben, für mindestens einen Videoblock in einem Bitstrom;
+Bestimmen einer ersten Angabe einer niederfrequenten nichttrennbaren Transformationsbetriebsart und/oder
+einer zweiten Angabe einer matrixbasierten Intra-Vorhersagebetriebsart; und
+Decodieren des mindestens einen Videoblocks in dem Bitstrom unter Verwendung mindestens einer Transfor-
+mation der Mehrfachtransformations-Auswahlbetriebsart,
+wobei die mindestens eine Transformation auf der Grundlage der ersten Angabe und/oder der zweiten Angabe
+ausgewählt wird.
+4. Vorrichtung, die umfasst:
+einen Prozessor, der dafür konfiguriert ist, Folgendes auszuführen:
+Bestimmen von Syntaxinformationen, die die Verwendung einer impliziten Mehrfachtransformations-Auswahl-
+betriebsart angeben, für mindestens einen Videoblock in einem Bitstrom;
+Bestimmen einer ersten Angabe einer niederfrequenten nichttrennbaren Transformationsbetriebsart und/oder
+einer zweiten Angabe einer matrixbasierten Intra-Vorhersagebetriebsart; und
+Decodieren des mindestens einen Videoblocks in dem Bitstrom unter Verwendung mindestens einer Transfor-
+mation der Mehrfachtransformations-Auswahlbetriebsart,
+wobei die mindestens eine Transformation auf der Grundlage der ersten Angabe und/oder der zweiten Angabe
+ausgewählt wird.
+5. Verfahren nach Anspruch 1 oder Anspruch 3 oder Vorrichtung nach Anspruch 2 oder Anspruch 4, wobei die erste
+Angabe ein Merker ist oder die zweite Angabe ein Merker ist.
+6. Verfahren nach Anspruch 1 oder Anspruch 3 oder Vorrichtung nach Anspruch 2 oder Anspruch 4, wobei die Syn-
+taxinformationen mindestens einen Merker umfassen, der eine implizite Mehrfachtransformations-Auswahlbetriebs-
+art angibt.
+7. Verfahren nach Anspruch 1 oder Anspruch 3 oder Vorrichtung nach Anspruch 2 oder Anspruch 4, wobei die erste
+Angabe einen Wert umfasst, der die Verwendung der mindestens einen Transformation angibt.
+8. Verfahren nach Anspruch 1 oder Anspruch 3 oder Vorrichtung nach Anspruch 2 oder Anspruch 4, wobei die zweite
+Angabe einen Wert umfasst, der die Verwendung der mindestens einen Transformation angibt.
+9. Verfahren nach Anspruch 1 oder Anspruch 3 oder Vorrichtung nach Anspruch 2 oder Anspruch 4, wobei die Mehr-
+fachtransformations-Auswahlbetriebsart durch die Codierungseinheitsgröße konditioniert wird.
+10. Verfahren nach Anspruch 1 oder Anspruch 3 oder Vorrichtung nach Anspruch 2 oder Anspruch 4, wobei eine
+Transformation aus einer horizontalen und einer vertikalen Komponente besteht.
+11. Einrichtung, die umfasst:
+eine Vorrichtung nach einem der Ansprüche 4 bis 10; und (i) eine Antenne, die zum Empfangen eines Signals
+konfiguriert ist, wobei das Signal den Videoblock enthält, und/oder (ii) einen Bandbegrenzer, der dafür konfiguriert
+ist, das Empfangssignal auf ein Band von Frequenzen, das den Videoblock enthält, zu begrenzen, und/oder (iii)
+eine Anzeige, die dafür konfiguriert ist, eine Ausgabe, die einen Videoblock repräsentiert, anzuzeigen.
+12. Nichttransitorisches computerlesbares Medium, das Dateninhalt enthält, der gemäß einem der Verfahren nach
+einem der Ansprüche 1 und 5 bis 10 oder durch die Vorrichtung nach einem der Ansprüche 2 und 5 bis 10 zur
+Wiedergabe unter Verwendung eines Prozessors erzeugt wird.
+13. Signal, das Videodaten umfasst, die gemäß dem Verfahren nach einem der Ansprüche 1 und 5 bis 10 oder durch
+die Vorrichtung nach einem der Ansprüche 2 und 5 bis 10 zur Wiedergabe unter Verwendung eines Prozessors
+erzeugt werden.
+14. Computerprogrammprodukt, das Anweisungen umfasst, die, wenn das Programm durch einen Computer ausgeführt
+wird, veranlassen, dass der Computer das Verfahren nach einem der Ansprüche 1, 3 und 5 bis 10 ausführt.
+16
+EP 3 977 732 B1
+Revendications
+1. Procédé comprenant :
+l’obtention, pour au moins un bloc vidéo, d’informations de syntaxe indiquant l’utilisation d’un mode de sélection
+de transformées multiples implicite ;
+l’obtention d’une première indication d’un mode de transformée non séparable basse fréquence et/ou d’une
+deuxième indication d’un mode de prédiction intra basé sur une matrice ;
+le codage de l’au moins un bloc vidéo dans un flux binaire à l’aide d’au moins une transformée du mode de
+sélection de transformées multiples, où l’au moins une transformée est sélectionnée en fonction de la première
+indication et/ou de la deuxième indication ; et
+le stockage, le transport ou la transmission du flux binaire comprenant l’au moins un bloc vidéo codé.
+2. Appareil comprenant :
+un processeur configuré pour :
+obtenir, pour au moins un bloc vidéo, des informations de syntaxe indiquant l’utilisation d’un mode de sélection
+de transformées multiples implicite ;
+obtenir une première indication d’un mode de transformée non séparable basse fréquence et/ou une deuxième
+indication d’un mode de prédiction intra basé sur une matrice ;
+coder l’au moins un bloc vidéo dans un flux binaire à l’aide d’au moins une transformée du mode de sélection
+de transformées multiples, où l’au moins une transformée est sélectionnée en fonction de la première indication
+et/ou de la deuxième indication ; et
+stocker, transporter ou transmettre le flux binaire comprenant l’au moins un bloc vidéo codé.
+3. Procédé comprenant :
+la détermination, pour au moins un bloc vidéo d’un flux binaire, d’informations de syntaxe indiquant l’utilisation
+d’un mode de sélection de transformées multiples implicite ;
+la détermination d’une première indication d’un mode de transformée non séparable basse fréquence et/ou
+d’une deuxième indication d’un mode de prédiction intra basé sur une matrice ; et
+le décodage de l’au moins un bloc vidéo dans ledit flux binaire à l’aide d’au moins une transformée du mode
+de sélection de transformées multiples, où l’au moins une transformée est sélectionnée en fonction de la
+première indication et/ou de la deuxième indication.
+4. Appareil comprenant :
+un processeur configuré pour :
+déterminer, pour au moins un bloc vidéo d’un flux binaire, des informations de syntaxe indiquant l’utilisation
+d’un mode de sélection de transformées multiples implicite ;
+déterminer une première indication d’un mode de transformée non séparable basse fréquence et/ou une deuxiè-
+me indication d’un mode de prédiction intra basé sur une matrice ; et
+décoder l’au moins un bloc vidéo dans ledit flux binaire à l’aide d’au moins une transformée du mode de sélection
+de transformées multiples, où l’au moins une transformée est sélectionnée en fonction de la première indication
+et/ou de la deuxième indication.
+5. Procédé selon la revendication 1 ou la revendication 3, ou appareil selon la revendication 2 ou la revendication 4,
+dans lequel la première indication est un indicateur ou la deuxième indication est un indicateur.
+6. Procédé selon la revendication 1 ou la revendication 3, ou appareil selon la revendication 2 ou la revendication 4,
+dans lequel les informations de syntaxe comprennent au moins un indicateur indiquant un mode de sélection de
+transformées multiples implicite.
+7. Procédé selon la revendication 1 ou la revendication 3, ou appareil selon la revendication 2 ou la revendication 4,
+dans lequel la première indication comprend une valeur qui indique l’utilisation de l’au moins une transformée.
+8. Procédé selon la revendication 1 ou la revendication 3, ou appareil selon la revendication 2 ou la revendication 4,
+dans lequel la deuxième indication comprend une valeur qui indique l’utilisation de l’au moins un transformée.
+17
+EP 3 977 732 B1
+9. Procédé selon la revendication 1 ou la revendication 3, ou appareil selon la revendication 2 ou la revendication 4,
+dans lequel un mode de sélection de transformées multiples est conditionné par la taille de l’unité de codage.
+10. Procédé selon la revendication 1 ou la revendication 3, ou appareil selon la revendication 2 ou la revendication 4,
+dans lequel une transformée est constituée de composantes horizontales et verticales.
+11. Dispositif comprenant :
+un appareil selon l’une quelconque des revendications 4 à 10 ; et
+au moins l’un (i) d’une antenne configurée pour recevoir un signal, le signal incluant le bloc vidéo, (ii) d’un
+limiteur de bande configuré pour limiter le signal reçu à une bande de fréquences qui inclut le bloc vidéo, et (iii)
+d’un écran configuré pour afficher une sortie représentative d’un bloc vidéo.
+12. Support non transitoire lisible sur ordinateur contenant des données générées conformément au procédé selon
+l’une quelconque des revendications 1 et 5 à 10, ou par l’appareil selon l’une quelconque des revendications 2 et
+5 à 10, pour la lecture à l’aide d’un processeur.
+13. Signal comprenant des données vidéo générées conformément au procédé selon l’une quelconque des revendi-
+cations 1 et 5 à 10, ou par l’appareil selon l’une quelconque des revendications 2 et 5 à 10, pour la lecture à l’aide
+d’un processeur.
+14. Produit programme d’ordinateur comprenant des instructions qui, lorsque le programme est exécuté par un ordina-
+teur, indiquent à l’ordinateur de mettre en oeuvre le procédé selon l’une quelconque des revendications 1, 3 et 5 à 10.
+18
+EP 3 977 732 B1
+19
+EP 3 977 732 B1
+20
+EP 3 977 732 B1
+21
+EP 3 977 732 B1
+22
+EP 3 977 732 B1
+23
+EP 3 977 732 B1
+24
+EP 3 977 732 B1
+25
+EP 3 977 732 B1
+26
+EP 3 977 732 B1
+27
+EP 3 977 732 B1
+28
+EP 3 977 732 B1
+REFERENCES CITED IN THE DESCRIPTION
+This list of references cited by the applicant is for the reader’s convenience only. It does not form part of the European
+patent document. Even though great care has been taken in compiling the references, errors or omissions cannot be
+excluded and the EPO disclaims all liability in this regard.
+Non-patent literature cited in the description
+• EGILMEZ (QUALCOMM) H E et al. Non-CE6: A Sim- • IWAMURA S et al. CE6-related: Implicit transform
+plification of Implicit MTS. selection for Multi-hypothesis inter-intra mode. 126. MPEG MEETING; 13.
+20190325 - 20190329; GENEVA; (MOTION PIC- JVET MEETING; 20190109 - 20190118; MARRA-
+TURE EXPERT GROUP OR ISO/ IEC KECH; (THE JOINT VIDEO EXPLORATION TEAM
+25 March 2019 [0003] JTC1/SC29/WG11), OF ISO/IEC JTC1/SC29/WG11 AND ITU-T SG.16),
+[0004] 09 January 2019
+29

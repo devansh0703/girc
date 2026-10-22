@@ -1,0 +1,126 @@
+What is claimed is :
+1. A method of video decoding for a decoder , the method
+:
+decoding prediction information of a current block in a
+current picture from a coded video bitstream , the pre
+diction information being indicative of an inter predic
+tion mode ;
+determining whether a filtering process is applied on the
+current block , wherein the filtering process adjusts inter
+prediction samples of the current block based on neigh
+boring reconstructed samples of the current block ; and
+in response to determining that the filtering process is
+applied on the current block , performing , based on the
+filtering process , a primary transform for a transform
+block that is partitioned from the current block .
+2. The method of claim 1. wherein the filtering process is
+based on a position dependent prediction combi
+( PDPC ) mode or a combined inter and intra predic
+( CIIP ) mode .
+3. The method of claim 1 , wherein :
+the primary transform is a type - 7 discrete sine transform
+( DST - 7 ) mode for a horizontal transform that is applied
+to the transform block responsive to a width of the
+current block being smaller than or equal to a threshold
+value ,
+the primary transform is the DST - 7 mode for a vertical
+transform that is applied to the transform block respon
+sive to a height of the current block being smaller than
+or equal to the threshold value , and
+the threshold value includes one of 4 pixels , 8 pixels , 16
+pixels , or 32 pixels .
+B2
+58
+11. The method of claim 2 , wherein :
+the primary transform is a type - 7 discrete sine transform
+( DST - 7 ) mode for a horizontal transform that is applied
+to the transform block responsive to ( i ) the filtering
+process being operated based on the CIIP mode , ( ii ) a
+subset of above and left neighboring blocks of the
+current block being intra coded , ( iii ) a width of the
+current block being smaller than or equal to a threshold
+value ; and
+the primary transform is the DST - 7 mode for a vertical
+transform that is applied to the transform block respon
+sive to ( i ) the filtering process being operated based on
+the CIIP mode , ( ii ) the subset of the above and the left
+neighboring blocks of the current block being intra
+coded , and ( iii ) a height of the current block being
+smaller than or equal to the threshold value , the thresh
+old value including one of 4 pixels , 8 pixels , 16 pixels ,
+or 32 pixels .
+12. The method of claim 2 , further comprising :
+determining a context model from a set of context models
+based on the prediction information , the prediction
+information indicating the filtering process based on the
+PDPC mode being applied to the current block ; and
+decoding primary transform information based on the
+determined context model , the primary transform infor
+mation indicating whether the primary transform
+includes one of a transform skip mode ( TSM ) , a DCT - 2
+mode , a DST - 7 mode , and a DCT - 8 mode .
+13. A method of video decoding for a decoder , the method
+:
+acquiring prediction information of a current block from
+a coded video bitstream ,
+determining whether the prediction information indicates
+( i ) an inter prediction merge mode , and ( ii ) a combined
+inter and intra prediction ( CIIP ) mode ;
+determining an intra prediction mode from an intra pre
+diction mode candidate list responsive to the prediction
+information indicating the inter prediction merge mode
+and the CIIP mode ;
+determining intra prediction information according to the
+intra prediction mode and inter prediction information
+according to the inter prediction merge mode ;
+determining a weighting factor responsive to neighboring
+blocks of the current block being coded according to
+the CIIP mode or an inter position dependent prediction
+combination ( PDPC ) mode ;
+determining CIIP prediction information based on a sum
+of weighted intra prediction infoiination and weighted
+inter prediction information , the weighted intra predic
+tion information being based on the intra prediction
+information and the weighting factor , the weighted
+inter prediction information being based on the inter
+prediction information and the weighting factor ; and
+reconstructing a sample of the current block according to
+the CIIP prediction information .
+14. The method of claim 13 , wherein the weighted inter
+information is based on the inter prediction
+and a constant value minus the weighting factor ,
+constant value including one of number values 2 , 4 , 8 , or
+.
+15. The method of claim 14 , wherein :
+the weighting factor is 3 responsive to both top - right / top
+and bottom - left / left neighboring blocks of the current
+block being coded using the CIIP mode ,
+the weighting factor is 2 responsive to one of the top
+right / top and the bottom - left / left neighboring blocks of
+the current block being coded using the CIIP mode , and
+B2
+60
+transforming a first transform block coded in an inter
+prediction mode according to the first value and a first
+transform in an implicit multiple transform selection
+( MTS ) mode in which the first transform is based on a
+property of the first transform block ; and
+transforming a second transform block coded in an intra
+prediction mode according to a second value and a
+second transform in the implicit MTS mode in which
+the second transform is based on a property of the
+second transform block .
+18. The method of claim 17 , wherein the first value of the
+information is equal to 1 and the second value of the
+information is equal to 1 .
+19. The method of claim 17 , wherein the first value of the
+information is greater than 0 , and the second value of
+second information is equal to 1 .
+20. The method of claim 17 , wherein the transforming the
+transform block comprises :
+transforming the second transform block coded in the
+intra prediction mode according to the second value ,
+the second transform in the implicit MTS mode , and a
+coding unit that includes the second transform block
+being intra sub - partitioning ( ISP ) coded , the second
+value being larger than 0 .

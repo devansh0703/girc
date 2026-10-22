@@ -16,3 +16,5 @@ apps/portal/var/
 apps/portal/uploads/
 bench-out/
 
+research/patent-package/claims/*.pdf
+research/patent-package/claims/*.html

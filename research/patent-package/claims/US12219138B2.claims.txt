@@ -1,0 +1,105 @@
+US12219138B2: 6966 characters
+1. A method of processing video data, comprising: includes decoding the current transform block from the
+determining, for a current transform block of a video bitstream.
+whether to apply a transform coeflicient zero-out based 13. An apparatus for processing video data comprising a
+on an implicit selected transform of a multiple trans- 30 processor and a non-transitory memory with instructions
+form selection process for a primary transform; and thereon, wherein the instructions upon execution by the
+performing, based on the determining, a conversion processor, cause the processor to:
+between the current transform block and a bitstream of determine, for a current transform block of a video,
+the video, whether to apply a transform coefficient zero-out based
+wherein the implicit selected transform of the multiple 35 on an implicit selected transform of a multiple trans-
+transform selection process is in an absence of one or form selection process for a primary transform; and
+more transform indices, perform, based on determining whether to apply the
+wherein the transform coefficient zero-out is applied when transform coefficient zero-out, a conversion between
+(a) a size of the current transform block is Mx32 or the current transform block and a bitstream of the
+32xN and (b) the current transform block is coded with 40 video,
+the implicit selected transform, wherein the implicit selected transform of the multiple
+wherein M and N are positive integers, M<32, and Ns32, transform selection process is in an absence of one or
+and more transform indices,
+wherein one or more transform matrices applied to the wherein the transform coeflicient zero-out is applied when
+current transform block comprise at least one of a 45 (a) a size of the current transform block is Mx32 or
+horizontal transform matrix or a vertical transform 32xN and (b) the current transform block is coded with
+matrix that is based on a set of representative coefli- the implicit selected transform,
+cients of the current transform block. wherein M and N are positive integers, M<32, and N<32,
+2. The method of claim 1, wherein in response to the and
+transform coefficient zero-out being applied to the current 50 — wherein one or more transform matrices applied to the
+transform block with a size Mx32, when M=32 only left 16 current transform block comprises at least one of a
+columns and top 16 rows of transform coefficients of the horizontal transform matrix or a vertical transform
+current transform block have non-zero coefficients. matrix that is based on a set of representative coeffi-
+3. The method of claim 1, wherein in response to the cients of the current transform block.
+
+transform coefficient zero-out being applied to the current 53 14. The apparatus of claim 13, wherein in response to the
+transform block with a size 32xN, when N=32 only left 16 transform coefficient zero-out being applied to the current
+
+columns and top 16 rows of transform coeflicients of the transform block with a size Mx32, when M=32 only left 16
+
+current transform block have non-zero coefficients. columns and top 16 rows of transform coefficients of the
+4. The method of claim 1, wherein the set of representa- current transform block have non-zero coefficients.
+
+tive coefficients comprises partial of all coefficients of the 60 15. The apparatus of claim 13, wherein in response to the
+
+current transform block. transform coefficient zero-out being applied to the current
+
+5. The method of claim 1, wherein the one or more transform block with a size 32xN, when N=32 only left 16
+transform matrices is based on a function of the set of columns and top 16 rows of transform coefficients of the
+
+representative coeflicients, and an output of the function is current transform block have non-zero coefficients.
+a number of the set of representative coeflicients. 65 16. The apparatus of claim 13, wherein the set of repre-
+6. The method of claim 5, wherein the horizontal trans- sentative coefficients comprises partial of all coefficients of
+
+form matrix comprises a first transform matrix and the the current transform block.
+
+US 12,219,138 B2
+
+53 54
+17. The apparatus of claim 13, wherein the one or more wherein one or more transform matrices applied to the
+transform matrices is based on a function of the set of current transform block comprise at least one of a
+representative coefficients, and an output of the function is horizontal transform matrix or a vertical transform
+a number of the set of representative coefficients. matrix that is based on a set of representative coefli-
+18. The apparatus of claim 17, wherein the horizontal 5 cients of the current transform block.
+transform matrix comprises a first transform matrix and the 20. A method for storing a bitstream of a video, compris-
+
+ing:
+determining, for a current transform block of the video,
+whether to apply a transform coeflicient zero-out based
+10 on an implicit selected transform of a multiple trans-
+form selection process for a primary transform;
+generating the bitstream of the video based on the deter-
+mining; and
+storing the bitstream in a non-transitory computer-read-
+15 able recording medium,
+wherein the implicit selected transform of the multiple
+transform selection process is in an absence of one or
+more transform indices,
+wherein the transform coefficient zero-out is applied when
+20 (a) a size of the current transform block is Mx32 or
+32xN and (b) the current transform block is coded with
+the implicit selected transform,
+wherein M and N are positive integers, M<32, and N<32,
+and
+
+vertical transform matrix comprises a second transform
+matrix when the number is even, and wherein the horizontal
+transform matrix comprises a third transform matrix and the
+vertical transform matrix comprises a fourth transform
+matrix when the number is odd.
+19. A non-transitory computer-readable storage medium
+storing instructions that cause a processor to:
+determine, for a current transform block of a video,
+whether to apply a transform coeflicient zero-out based
+on an implicit selected transform of a multiple trans-
+form selection process for a primary transform; and
+perform, based on determining whether to apply the
+transform coeflicient zero-out, a conversion between
+the current transform block and a bitstream of the
+video,
+wherein the implicit selected transform of the multiple
+transform selection process is in an absence of one or
+more transform indices, . : :
+wherein the transform coeflicient zero-out is applied when 25 wherein one or more transform matrices applied to the
+(a) a size of the current transform block is Mx32 or current transform block comprise at least one of a
+32xN and (b) the current transform block is coded with horizontal transform matrix or a vertical transform
+the implicit selected transform, matrix that is based on a set of representative coefli-
+wherein M and N are positive integers, M<32, and Ns32, cients of the current transform block.
+and ee Ok kk
+

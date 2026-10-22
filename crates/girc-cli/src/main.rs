@@ -107,6 +107,13 @@ enum Command {
         /// The quantization parameter.
         #[arg(long, default_value_t = 27)]
         qp: i32,
+        /// How many frames to collect from.
+        ///
+        /// The first frame is coded as an intra frame and the rest as
+        /// inter frames, so the collection holds the motion context the
+        /// predictor reads.
+        #[arg(long, default_value_t = 1)]
+        frames: usize,
     },
     /// Report how often the decoder's prediction differs from the encoder's
     /// choice, for the trained model.
@@ -120,6 +127,9 @@ enum Command {
         /// The predictor model to evaluate.
         #[arg(long)]
         model: PathBuf,
+        /// How many frames to evaluate on.
+        #[arg(long, default_value_t = 1)]
+        frames: usize,
     },
 }
 
@@ -226,14 +236,14 @@ fn run() -> Result<()> {
                 pictures.len(),
             );
         }
-        Command::Collect { input, qp } => {
-            let frame = Yuv4Frame::read(&input)
-                .with_context(|| format!("reading the input frame at {}", input.display()))?;
+        Command::Collect { input, qp, frames } => {
+            let read = Yuv4Frame::read_many(&input, frames.max(1))
+                .with_context(|| format!("reading the input frames at {}", input.display()))?;
             let config = EncoderConfig {
                 qp,
                 ..Default::default()
             };
-            let pictures: Vec<_> = vec![frame.luma_picture()];
+            let pictures: Vec<_> = read.iter().map(|f| f.luma_picture()).collect();
             let examples = collect_training_examples(&pictures, &config)?;
             let stdout = std::io::stdout();
             let mut out = stdout.lock();
@@ -245,9 +255,9 @@ fn run() -> Result<()> {
                 writeln!(out, "{payload}").context("writing the collection records")?;
             }
         }
-        Command::Evaluate { input, qp, model } => {
-            let frame = Yuv4Frame::read(&input)
-                .with_context(|| format!("reading the input frame at {}", input.display()))?;
+        Command::Evaluate { input, qp, model, frames } => {
+            let read = Yuv4Frame::read_many(&input, frames.max(1))
+                .with_context(|| format!("reading the input frames at {}", input.display()))?;
             let text = fs::read_to_string(&model)
                 .with_context(|| format!("reading the model at {}", model.display()))?;
             let predictor = TransformPredictor::from_json(&text)
@@ -258,7 +268,7 @@ fn run() -> Result<()> {
                 predictor,
                 ..Default::default()
             };
-            let pictures: Vec<_> = vec![frame.luma_picture()];
+            let pictures: Vec<_> = read.iter().map(|f| f.luma_picture()).collect();
             let result = encode(&pictures, &config)?;
             let payload = serde_json::json!({
                 "sequence": input.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -267,6 +277,20 @@ fn run() -> Result<()> {
                 "prediction_mismatches": result.prediction_mismatches,
                 "mismatch_rate": result.prediction_mismatches as f64 / result.block_count as f64,
                 "transform_signalling_bins": result.transform_signalling_bins,
+                "inter_blocks": result.inter_blocks,
+                "intra_blocks": result.intra_blocks,
+                "intra_mismatches": result.intra_mismatches,
+                "inter_mismatches": result.inter_mismatches,
+                "intra_mismatch_rate": if result.intra_blocks == 0 {
+                    0.0
+                } else {
+                    result.intra_mismatches as f64 / result.intra_blocks as f64
+                },
+                "inter_mismatch_rate": if result.inter_blocks == 0 {
+                    0.0
+                } else {
+                    result.inter_mismatches as f64 / result.inter_blocks as f64
+                },
             });
             println!("{payload}");
         }

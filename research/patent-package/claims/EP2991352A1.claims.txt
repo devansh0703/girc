@@ -1,0 +1,82 @@
+Claims 
+ 1.  An apparatus, comprising:
+ 
+ a video encoder for encoding at least a block in a picture by selecting a transform
+ to apply to a residue of the block from a set of two or more transforms, 
+ 
+ wherein the transform is selected responsive to an inter prediction mode used to predict
+ at least one reference for the block.   
+ 2.  The apparatus of claim 1, wherein the set of two or more transforms is derived from
+ reconstructed video data from one or more previous pictures.   
+ 3.  The apparatus of claim 2, wherein the set of transforms is determined by at least
+ one of:
+ 
+ (i) using training data, and 
+ 
+ ( ii ) choosing a subset of a family of transforms.   
+ 4.  The apparatus of claim 1, wherein the transforms in the set are any of separable or
+ non-separable, and horizontal and vertical directions of the transforms are capable
+ of being different when the transforms are separable.   
+ 5.  The apparatus of claim 1, wherein information describing the selected transform is
+ explicitly signaled only for block sizes greater than a threshold block size.   
+ 6.  The apparatus of claim 1, wherein a flag describing the selected transform is embedded
+ in coefficients of the transform when block sizes are less than a threshold block
+ size.   
+ 7.  In a video encoder, a method, comprising:
+ 
+ encoding at least a block in a picture by selecting a transform to apply to a residue
+ of the block from a set of two or more transforms, 
+ 
+ wherein the transform is selected responsive to an inter prediction mode used to predict
+ at least one reference for the block.   
+ 8.  The method of claim 7, wherein the set of two or more transforms is derived from reconstructed
+ video data from one or more previous pictures.   
+ 9.  The method of claim 8, wherein the set of transforms is determined by at least one
+ of:
+ 
+ (i) using training data, and 
+ 
+ (ii) choosing a subset of a family of transforms.   
+ 10.  The method of claim 7, wherein the transforms in the set are any of separable or non-separable,
+ and horizontal and vertical directions of the transforms are capable of being different
+ when the transforms are separable.   
+ 11.  The method of claim 7, wherein information describing the selected transform is explicitly
+ signaled only for block sizes greater than a threshold block size.   
+ 12.  The method of claim 7, wherein a flag describing the selected transform is embedded
+ in coefficients of the transform when block sizes are less than a threshold block
+ size.   
+ 13.  The apparatus of claim 7, wherein information describing the selected transform is
+ explicitly signaled only for block sizes greater than a threshold block size.   
+ 14.  The apparatus of claim 7, wherein a flag describing the selected transform is embedded
+ in coefficients of the transform when block sizes are less than a threshold block
+ size.   
+ 15.  An apparatus, comprising:
+ 
+ a video decoder for decoding at least a block in a picture by determining an inverse
+ transform to apply to quantized coefficients of the block from a set of two or more
+ inverse transforms, 
+ 
+ wherein the inverse transform is determined responsive to an inter prediction mode
+ used to predict at least one reference for the block.   
+ 16.  In a video decoder, a method, comprising:
+ 
+ decoding at least a block in a picture by determining an inverse transform to apply
+ to quantized coefficients of the block from a set of two or more inverse transforms, 
+ 
+ wherein the inverse transform is determined responsive to an inter prediction mode
+ used to predict at least one reference for the block.   
+ 17.  A storage media having video signal data encoded thereupon, comprising:
+ 
+ data corresponding to at least one block in a picture encoded by selecting a transform
+ to apply to a residue of the block from a set of two or more transforms, 
+ 
+ wherein the transform is selected responsive to an inter prediction mode used to predict
+ at least one reference for the block.   
+ 
+ Drawing 
+ Search report 
+ 
+ Search report 
+ 
+ 
+ 

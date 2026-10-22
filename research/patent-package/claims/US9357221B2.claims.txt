@@ -1,0 +1,97 @@
+1. An apparatus, comprising:                                       a video decoder including an inverse transformer and an
+   a video encoder including a transformer and a quantizer, 55           inverse quantizer, the video decoder configured to
+      the video encoder configured to encode at least a block            decode at least a block using an inverse transform
+      using a transform selected from a plurality of transforms          selected from a plurality of inverse transforms and to
+      and to encode at least a second block using a second               decode at least a second block using a second inverse
+      transform selected from an adaptively updated plurality            transform selected from an adaptively updated plurality
+     of transforms,                                             60      of inverse transforms,
+  wherein the transformer is configured to determine the             wherein the inverse transformer is configured to determine
+    adaptively updated plurality of transforms by adaptively           the adaptively updated plurality of inverse transforms by
+    updating the plurality of transforms, after one or more            adaptively updating the plurality of inverse transforms,
+    pictures are encoded, based on residue information from            after one or more pictures are decoded, based on residue
+    the encoded one or more pictures, and                    65        information from the decoded one or more pictures, and
+  wherein adaptively updating the plurality of transforms            wherein adaptively updating the plurality of inverse trans
+    includes the transformer adaptively updating a basis of            forms includes the inverse transformer adaptively updat
+                                                       US 9,357,221 B2
+                                17                                                                     18
+     ing a basis of at least an inverse transform of the plurality       20. The apparatus of claim 1, wherein the video encoder is
+     of inverse transforms based on the residue information           further configured to transmit the selected transform to a
+     from the decoded one or more pictures.                           corresponding decoder when the selected transform is not
+   10. In a video decoder, a method, comprising:                      present at the corresponding decoder, to identify the selected
+   decoding at least a block using an inverse transform 5 transform   transform
+                                                                                   to the corresponding decoder when the selected
+                                                                                   is already present at the corresponding decoder,
+      selected from a plurality of inverse transforms, and
+   decoding at least a second block using a second inverse inverse transform the
+                                                                      and  to  regenerate      selected transform or a corresponding
+     transform selected from an adaptively updated plurality Selected transform isthenotcorresponding
+                                                                                            at                       decoder when the
+                                                                                                       present at the corresponding
+      of inverse transforms,                                          decoder.
+   determining the adaptively updated plurality of inverse 10 21. The apparatus of claim 1, wherein the video encoder is
+     transforms by adaptively updating by an inverse trans further configured to select a subset of the plurality of trans
+      former the plurality of inverse transforms after one or forms and transmitting information identifying the subset of
+      more pictures are decoded based on residue information the plurality of transforms to a decoder.
+     from the decoded one or more pictures, and                    15
+                                                                         22. The apparatus of claim 21, wherein the identifying
+   wherein adaptively updating the plurality of inverse trans information includes indices of the subset of the plurality of
+      forms includes the inverse transformer adaptively updat transformsusing       and the indices are transmitted in a corresponding
+      ing a basis of at least an inverse transform of the plurality bitstream            one or more high level syntax elements.
+                                                                         23. The apparatus of claim 21, wherein the plurality of
+      of inverse transforms based on the residue information
+      from the decoded one or more pictures.                       2O transforms   are adaptively updated to obtain a trained plurality
+   11. The method of claim 10, wherein only a non-zero on the pluralityandofwherein
+                                                                      of transforms,                  a selection of the subset is based
+                                                                                             transforms and the trained plurality of
+portion of the residue information from the previously transforms.
+decoded one or more pictures is used to determine the adap               24. The apparatus of claim 1, wherein a reset process is
+tively updated plurality of inverse transforms.                       used  to reset the adaptively updated plurality of transforms at
+   12. The method of claim 10, wherein the adaptively is
+updated plurality of inverse transforms are determined by a change       25.  The
+                                                                                  of scene.
+                                                                                    apparatus of claim 9, wherein only a non-zero
+adaptively updating the plurality of inverse transforms on at
+least one of a frame-basis, a group of pictures basis, and a portion             of the residue information from the previously
+                                                                      decoded one or more pictures is used to determine the adap
+scene basis.
+   13. The method of claim 10, further comprising one or so tively       26.
+                                                                              updated plurality of inverse transforms.
+                                                                              The apparatus of claim 9, wherein the adaptively
+more of the following:
+   receiving a transform selected by a video encoder when the updated            plurality of inverse transforms are determined by
+      selected transform is not present at the video decoder; least one ofupdating
+                                                                      adaptively              the plurality of inverse transforms on at
+                                                                                      a frame-basis, a group of pictures basis, and a
+      and
+  receiving identification related to the selected inverse is scene basis.
+                                                                27. The apparatus of claim 9, wherein the video decoder is
+     transform when the selected inverse transform is already           further configured to receive a transform selected by a video
+     present at the video decoder.
+  14. The method of claim 10, further comprising receiving              encoder when the selected transform is not present at the
+information identifying a subset of the plurality of inverse            video decoder and to receive identification related to the
+transforms.                                                          40
+                                                                        selected inverse transform when the selected inverse trans
+   15. The method of claim 14, wherein the identifying infor       form is already present at the video decoder.
+mation is includes indices of the subset of the plurality of          28. The apparatus of claim 9, wherein the video decoder is
+inverse transforms and the indices are received in a corre         configured to receive information identifying a subset of the
+sponding bitstream using one or more high level syntax ele         plurality of inverse transforms.
+mentS.                                                          45    29. The apparatus of claim 28, wherein the identifying
+                                                                   information includes indices of the subset of the plurality of
+   16. The method of claim 2, wherein a reset process is used inverse
+to reset the adaptively updated plurality of transforms at a spondingtransforms
+                                                                              bitstream
+                                                                                         and the indices are received in a corre
+                                                                                         using one or more high level syntax ele
+change of scene.                                                   ments.
+   17. The method of claim 10, wherein a reset process is used        30. The apparatus of claim 9, wherein a reset process is
+to reset the adaptively updated plurality of inverse transforms so used to reset the plurality of inverse transforms at a change of
+at a change of scene.
+   18. The apparatus of claim 1, wherein only a non-zero SCCC.        31. The method of claim 2, wherein singular value decom
+portion of the residue information from the previously position             training is used to adaptively update the plurality of
+encoded one or more pictures is used to determine the adap transforms.
+tively updated plurality of transforms.                         55
+   19. The apparatus of claim 1, wherein the adaptively decomposition 32. The method of claim 10, wherein singular value
+updated plurality of transforms are determined by adaptively rality of inversetraining        is used to adaptively update the plu
+                                                                                     transforms.
+updating the plurality of transforms on at least one of a frame
+basis, a group of pictures basis, and a scene basis.                                       ck   ck  ck   k  ck

@@ -1,0 +1,179 @@
+What is claimed is:
+
+1. A method for coding video data, executable by a
+processor, the method comprising:
+
+receiving video data;
+
+identifying a set of hybrid transform kernels correspond-
+
+ing to the video data;
+
+selecting a subset of hybrid transform kernels from among
+
+the set of hybrid transform kernels; and
+
+decoding the video data based on the subset of hybrid
+
+transform kernels that is selected,
+wherein the set of hybrid transform kernels comprise a
+plurality of pairs of transform types, each of the plu-
+tality of pairs including a vertical transform type and a
+horizontal transform type, and for at least a portion of
+the plurality of pairs of transform types, at least one of
+the vertical transform type and the horizontal transform
+type of the pair is a line graph transform (LGT),
+
+wherein the plurality of pairs of transform types com-
+prises a pair including a discrete cosine transform
+(DCT) vertical transform type and a DCT horizontal
+transform type, a pair including a line graph transform
+(LGT) vertical transform type and an LGT horizontal
+transform type, a pair including a DCT vertical trans-
+form type and an LGT horizontal transform type, and a
+pair including an LGT vertical transform type and a
+DCT horizontal transform type.
+
+2. The method of claim 1, wherein the subset of hybrid
+transform kernels is selected implicitly, based on coded
+information that is available to both encoder and decoder.
+
+3. The method of claim 2, wherein the subset of hybrid
+transform kernels is selected based on both of an intra
+prediction mode and a block size associated with the video
+data.
+
+4. The method of claim 3, wherein the subset of hybrid
+transform kernels is selected based on one or more of DC,
+SMOOTH, SMOOTH_H, SMOOTH_V, V_PRED,
+H_PRED, chroma-from-luma, and Paeth modes.
+
+5. The method of claim 1, wherein the subset of hybrid
+transform kernels is selected explicitly.
+
+6. The method of claim 5, wherein the subset of hybrid
+transform kernels is identified by a syntax element signaled
+in a bitstream associated with the video data.
+
+7. The method of claim 5, wherein an explicit transform
+scheme is applied for all intra prediction modes.
+
+8. The method of claim 7, wherein a number of hybrid
+transform candidates is different for different intra prediction
+modes.
+
+9. The method of claim 5, wherein an explicit transform
+scheme is used for a subset of the intra prediction modes.
+
+10. The method of claim 1, wherein the subset of hybrid
+transform kernels is switched between explicit and implicit
+based on signaling at a high-level syntax or at a block level.
+
+11. A computer system for video decoding, comprising:
+
+one or more computer-readable non-transitory storage
+
+media configured to store computer program code; and
+one or more computer processors configured to access
+said computer program code and operate according to
+said computer program code, the computer program
+code including:
+
+receiving code configured to cause at least one of the one
+
+or more computer processors to receive video data;
+identifying code configured to cause at least one of the
+one or more computer processors to identify a set of
+
+US 11,785,254 B2
+
+15
+
+hybrid transform kernels corresponding to the video
+data; selecting code configured to cause at least one of
+the one or more computer processors to select a subset
+of hybrid transform kernels from among the set of
+hybrid transform kernels; and decoding code config-
+ured to cause at least one of the one or more computer
+processors to decode the video data based on the subset
+of hybrid transform kernels that is selected, wherein the
+set of hybrid transform kernels comprise a plurality of
+pairs of transform types, each of the plurality of pairs
+of transform types including a vertical transform type
+and a horizontal transform type, and for at least a
+portion of the plurality of pairs of transform types, at
+least one of the vertical transform type and the hori-
+zontal transform type of the pair is a line graph trans-
+form (LGT), wherein the plurality of pairs of transform
+types comprises a pair including a discrete cosine
+transform (DCT) vertical transform type and a DCT
+horizontal transform type, a pair including a line graph
+transform (LGT) vertical transform type and an LGT
+horizontal transform type, a pair including a DCT
+vertical transform type and an LGT horizontal trans-
+form type, and a pair including an LGT vertical trans-
+form type and a DCT horizontal transform type.
+
+12. The computer system of claim 11, wherein the subset
+of hybrid transform kernels is selected implicitly, based on
+coded information that is available to both encoder and
+decoder.
+
+13. The computer system of claim 12, wherein the subset
+of hybrid transform kernels is selected based on both of an
+intra prediction mode and a block size associated with the
+video data.
+
+14. The computer system of claim 13, wherein the subset
+of hybrid transform kernels is selected based on one or more
+of DC, SMOOTH, SMOOTH_H, SMOOTH_V, V_PRED,
+H_PRED, chroma-from-luma, and Paeth modes.
+
+15. The computer system of claim 11, wherein the subset
+of hybrid transform kernels is selected explicitly.
+
+25
+
+16
+
+16. The computer system of claim 15, wherein the subset
+of hybrid transform kernels is identified by a syntax element
+signaled in a bitstream associated with the video data.
+
+17. The computer system of claim 15, wherein an explicit
+transform scheme is applied for all intra prediction modes.
+
+18. The computer system of claim 17, wherein a number
+of hybrid transform candidates is different for different intra
+prediction modes.
+
+19. The computer system of claim 11, wherein the subset
+of hybrid transform kernels is switched between explicit and
+implicit based on signaling at a high-level syntax or at a
+block level.
+
+20. Anon-transitory computer readable medium for video
+decoding that stores a computer program which, when
+executed by one or more computer processors, causes the
+one or more computer processors to at least: receive video
+data; identify a set of hybrid transform kernels correspond-
+ing to the video data; select a subset of hybrid transform
+kernels from among the set of hybrid transform kernels; and.
+decode the video data based on the subset of hybrid trans-
+form kernels that is selected, wherein the set of hybrid
+transform kernels comprise a plurality of pairs of transform
+types, each of the plurality of pairs of transform types
+including a vertical transform type and a horizontal trans-
+form type, and for at least a portion of the plurality of pairs
+of transform types, at least one of the vertical transform type
+and the horizontal transform type of the pair is a line graph
+transform (LGT), wherein the plurality of pairs of transform
+types comprises a pair including a discrete cosine transform
+(DCT) vertical transform type and a DCT horizontal trans-
+form type, a pair including a line graph transform (LGT)
+vertical transform type and an LGT horizontal transform
+type, a pair including a DCT vertical transform type and an
+LGT horizontal transform type, and a pair including an LGT
+vertical transform type and a DCT horizontal transform type.
+
+a

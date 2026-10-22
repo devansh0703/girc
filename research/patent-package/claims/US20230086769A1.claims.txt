@@ -1,0 +1,161 @@
+1. A method of video decoding at a video decoder,
+comprising:
+
+receiving a coded video bitstream, the coded video bit-
+
+stream including a first high level syntax (HLS) ele-
+ment indicating whether a second HLS element is
+included in the coded video bitstream, the second HLS
+element indicating whether explicit multiple transform
+selection (MTS) for intra coding is enabled;
+
+determining whether an implicit MTS is enabled for a
+
+current block responsive to (i) the first HLS element
+indicating that the second HLS element is included in
+the coded video bitstream, (ii) the second HLS element
+indicating that the explicit MTS for intra coding is
+disabled, and (iii) a prediction mode of the current
+block is an intra prediction mode; and
+
+reconstructing the current block based on whether the
+
+implicit MTS is enabled.
+
+2. The method of claim 1, wherein the second HLS
+element indicates whether a multiple transform selection
+(MTS) index is included in an intra coding syntax element
+of the coded video bitstream.
+
+3. The method of claim 1, wherein the first HLS element
+and the second HLS element are included in a sequence
+parameter set in the coded video bitstream.
+
+4. The method of claim 1, wherein the coded video
+bitstream includes a third HLS element that indicates
+whether MTS for inter coding is enabled.
+
+5. The method of claim 1, wherein the determining
+whether the implicit MTS is enabled comprises:
+
+determining whether the implicit MTS is enabled irre-
+
+spective of whether explicit MTS for inter coding is
+enabled.
+
+6. The method of claim 1, wherein no transform type
+information is signaled by the implicit MTS.
+
+7. The method of claim 6, wherein the transform type
+information is derived based on an MTS index included in
+the coded video bitstream responsive to the explicit MTS for
+intra coding being enabled.
+
+8. A video decoding apparatus, comprising:
+
+processing circuitry configured to:
+
+receive a coded video bitstream, the coded video bit-
+stream including a first high level syntax (HLS)
+element indicating whether a second HLS element is
+included in the coded video bitstream, the second
+HLS element indicating whether explicit multiple
+transform selection (MTS) for intra coding is
+enabled;
+
+determine whether an implicit MTS is enabled for a
+current block responsive to (i) the first HLS element
+indicating that the second HLS element is included
+in the coded video bitstream, (ii) the second HLS
+element indicating that the explicit MTS for intra
+coding is disabled, and (iii) a prediction mode of the
+current block is an intra prediction mode; and
+US 2023/0086769 Al
+
+reconstruct the current block based on whether the
+implicit MTS is enabled.
+
+9. The video decoding apparatus of claim 8, wherein the
+second HLS element indicates whether a multiple transform
+selection (MTS) index is included in an intra coding syntax
+element of the coded video bitstream.
+
+10. The video decoding apparatus of claim 8, wherein the
+first HLS element and the second HLS element are included
+in a sequence parameter set in the coded video bitstream.
+
+11. The video decoding apparatus of claim 8, wherein the
+coded video bitstream includes a third HLS element that
+indicates whether MTS for inter coding is enabled.
+
+12. The video decoding apparatus of claim 8, wherein the
+processing circuitry is configured to:
+
+determine whether the implicit MTS is enabled irrespec-
+
+tive of whether explicit MTS for inter coding is
+enabled.
+
+13. The video decoding apparatus of claim 8, wherein no
+transform type information is signaled by the implicit MTS.
+
+14. The video decoding apparatus of claim 13, wherein
+the transform type information is derived based on an MTS
+index included in the coded video bitstream responsive to
+the explicit MTS for intra coding being enabled.
+
+15. A non-transitory computer-readable storage medium
+storing instructions which when executed by a processor
+cause the processor to perform:
+
+receiving a coded video bitstream, the coded video bit-
+
+stream including a first high level syntax (HLS) ele-
+ment indicating whether a second HLS element is
+included in the coded video bitstream, the second HLS
+element indicating whether explicit multiple transform
+selection (MTS) for intra coding is enabled;
+
+Mar. 23, 2023
+
+determining whether an implicit MTS is enabled for a
+current block responsive to (i) the first HLS element
+indicating that the second HLS element is included in
+the coded video bitstream, (ii) the second HLS element
+indicating that the explicit MTS for intra coding is
+disabled, and (iii) a prediction mode of the current
+block is an intra prediction mode; and
+
+reconstructing the current block based on whether the
+implicit MTS is enabled.
+
+16. The non-transitory computer-readable storage
+medium of claim 15, wherein the second HLS element
+indicates whether a multiple transform selection (MTS)
+index is included in an intra coding syntax element of the
+coded video bitstream.
+
+17. The non-transitory computer-readable — storage
+medium of claim 15, wherein the first HLS element and the
+second HLS element are included in a sequence parameter
+set in the coded video bitstream.
+
+18. The non-transitory computer-readable storage
+medium of claim 15, wherein the coded video bitstream
+includes a third HLS element that indicates whether MTS
+for inter coding is enabled.
+
+19. The non-transitory computer-readable storage
+medium of claim 15, wherein the determining whether the
+implicit MTS is enabled comprises:
+
+determining whether the implicit MTS is enabled irre-
+spective of whether explicit MTS for inter coding is
+enabled.
+
+20. The non-transitory computer-readable storage
+
+medium of claim 15, wherein no transform type information
+is signaled by the implicit MTS.
+
+ee Ok kk

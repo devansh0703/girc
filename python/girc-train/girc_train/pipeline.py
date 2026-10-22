@@ -121,12 +121,16 @@ def collect_samples(
     sequences: Sequence[Path],
     output: Path,
     qps: Iterable[int] = COLLECTION_QPS,
+    frames: int = 1,
 ) -> int:
     """Collect training samples by running the GIRC encoder.
 
     The encoder is driven through its command-line interface so the
     collected labels are exactly the transform the rate-distortion search
     chose, not a re-implementation of it.
+
+    More than one frame makes the collection inter-coded, so the records
+    carry the motion context the predictor reads at inference time.
     """
     binary = _find_binary("girc")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -134,7 +138,7 @@ def collect_samples(
     with output.open("w", encoding="utf-8") as handle:
         for sequence in sequences:
             for qp in qps:
-                payload = _run_collector(binary, sequence, qp)
+                payload = _run_collector(binary, sequence, qp, frames)
                 for record in payload:
                     handle.write(json.dumps(record) + "\n")
                     total += 1
@@ -142,7 +146,7 @@ def collect_samples(
     return total
 
 
-def _run_collector(binary: Path, sequence: Path, qp: int) -> list[dict]:
+def _run_collector(binary: Path, sequence: Path, qp: int, frames: int = 1) -> list[dict]:
     """Run the encoder in collection mode and return the raw records."""
     result = subprocess.run(
         [
@@ -152,6 +156,8 @@ def _run_collector(binary: Path, sequence: Path, qp: int) -> list[dict]:
             str(sequence),
             "--qp",
             str(qp),
+            "--frames",
+            str(frames),
         ],
         capture_output=True,
         text=True,
@@ -440,6 +446,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     collect = sub.add_parser("collect", help="collect training samples")
     collect.add_argument("--sequences", nargs="+", type=Path, required=True)
     collect.add_argument("--output", type=Path, required=True)
+    collect.add_argument(
+        "--frames",
+        type=int,
+        default=1,
+        help="how many frames to collect from each sequence",
+    )
 
     fit = sub.add_parser("fit", help="fit and export the model")
     fit.add_argument("--input", type=Path, required=True)
@@ -454,7 +466,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "collect":
-        count = collect_samples(args.sequences, args.output)
+        count = collect_samples(args.sequences, args.output, frames=args.frames)
         print(f"collected {count} samples into {args.output}", file=sys.stderr)
         return 0
 

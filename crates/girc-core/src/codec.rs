@@ -235,6 +235,16 @@ pub struct EncodeResult {
     /// How many blocks were predicted from the previous frame rather
     /// than from the current frame's causal neighbourhood.
     pub inter_blocks: usize,
+    /// The blocks whose transform differed from the decoder's
+    /// prediction, split by whether the block was intra or inter
+    /// predicted.
+    ///
+    /// The split is what tests the claim: an inter residual is more
+    /// structured, so the transform should be more predictable, and the
+    /// mismatch rate should be lower for the inter blocks.
+    pub intra_mismatches: usize,
+    pub inter_mismatches: usize,
+    pub intra_blocks: usize,
 }
 
 /// Errors produced by the encoder or decoder.
@@ -297,13 +307,18 @@ pub fn encode(frames: &[Picture], config: &EncoderConfig) -> Result<EncodeResult
 
     let blocks_x = first.width / BLOCK_SIZE;
     let blocks_y = first.height / BLOCK_SIZE;
-    let block_count = blocks_x * blocks_y;
+    // Every frame has the same number of blocks, so the sequence has
+    // this many in total.
+    let block_count = blocks_x * blocks_y * frames.len();
 
     let mut encoder = BinEncoder::new(NUM_CONTEXTS);
     let mut reconstructions: Vec<Picture> = Vec::with_capacity(frames.len());
     let mut mismatches = 0usize;
     let mut signalling_bins = 0usize;
     let mut inter_blocks = 0usize;
+    let mut intra_mismatches = 0usize;
+    let mut inter_mismatches = 0usize;
+    let mut intra_blocks = 0usize;
 
     for (index, picture) in frames.iter().enumerate() {
         // The reference for an inter picture is the reconstruction of the
@@ -338,6 +353,8 @@ pub fn encode(frames: &[Picture], config: &EncoderConfig) -> Result<EncodeResult
                 );
                 if is_inter {
                     inter_blocks += 1;
+                } else {
+                    intra_blocks += 1;
                 }
 
                 // The decoder's prediction, which the encoder must match. The
@@ -376,6 +393,11 @@ pub fn encode(frames: &[Picture], config: &EncoderConfig) -> Result<EncodeResult
                             TransformSignal::Predicted
                         } else {
                             mismatches += 1;
+                            if is_inter {
+                                inter_mismatches += 1;
+                            } else {
+                                intra_mismatches += 1;
+                            }
                             TransformSignal::Override {
                                 predicted,
                                 actual: chosen_transform,
@@ -444,6 +466,9 @@ pub fn encode(frames: &[Picture], config: &EncoderConfig) -> Result<EncodeResult
         block_count,
         transform_signalling_bins: signalling_bins,
         inter_blocks,
+        intra_mismatches,
+        inter_mismatches,
+        intra_blocks,
     })
 }
 

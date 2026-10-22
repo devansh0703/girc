@@ -1,0 +1,237 @@
+1. A video coding method, comprising:
+coding a transform unit of a video frame by transforming
+content of the transform unit from a pixel domain to a
+transform domain and quantizing transform coefficients
+so obtained by a quantization parameter,
+determining a position of a last significant quantized
+transform coefficient of the transform unit;
+transmitting coded data of the transform unit to a channel
+according to a coding protocol in which an identifier of
+the position of the last significant quantized transform
+coefficient precedes an identification of transform type
+in signaling order.
+2. The method of claim 1, further comprising,
+comparing a transform type applied during the transform-
+ing to a default transform type defined by the coding
+protocol and,
+when a transform type applied during the transforming
+and the default transform type defined by the coding
+protocol are the same, omitting an identifier of the
+transform type from the coded data transmitted to the
+channel.
+3. The method of claim 1, wherein, when the position is
+Jess than a threshold position, the transmitted coded data of
+the transform unit omits an identification of a transform type
+applied during the transforming.
+4. The method of claim 1, wherein the position is iden-
+tified as its scan position within the transform unit.
+5. The method of claim 1, wherein the position is iden-
+tified by its x, y coordinate within the transform unit.
+6. A video coder, comprising:
+a processing device,
+a memory storing program instructions that, when
+executed by the processing device, cause the process-
+ing device to code input video by:
+coding a transform unit of a video frame by transform-
+ing content of the transform unit from a pixel domain
+to a transform domain and quantizing transform
+coefficients so obtained by a quantization parameter;
+
+determining a position of a last significant quantized
+transform coefficient of the transform unit;
+
+transmitting coded data of the transform unit to a
+channel according to a coding protocol in which an
+identifier of the position of the last significant quan-
+tized transform coefficient precedes an identification
+of transform type in signaling order.
+
+7. A video coding method, comprising:
+
+coding a transform unit of a video frame by transforming
+content of the transform unit from a pixel domain to a
+transform domain and quantizing transform coeflicients
+obtained by a quantization parameter;
+
+determining a pattern of quantized transform coefficients
+of the transform unit based on coefficient values of the
+transform unit;
+
+when the determined pattern matches a pre-defined pat-
+tern, determining whether a transform type used in
+coding matches a default transform type associated
+with the pre-defined pattern; and
+
+Feb. 1, 2024
+
+when the determined pattern matches the pre-determined
+pattern, the transmitted coded data of the transform unit
+omits an identification of a transform type applied
+during the transforming.
+8. The method of claim 7, wherein, when the determined
+pattern matches the pre-determined, the transmitted coded
+data of the transform unit identifies an array of candidate
+transform types, the array being smaller than an entirety of
+transform types supported by the coding protocol.
+9. The method of claim 8, wherein the array of candidate
+transform types includes a two-dimensional transform.
+10. The method of claim 8, wherein the array of candidate
+transform types includes a one-dimensional transform.
+11. The method of claim 8, wherein the array of candidate
+transform types includes an angular transform.
+12. The method of claim 8, wherein the array of candidate
+transform types includes an identity transform.
+13. The method of claim 7, wherein, the coding further
+comprising transforming the coefficients from a first color
+space to a second color space.
+14. The method of claim 7, wherein, when transform
+coefficients from transform units of multiple color channels
+are transformed by jointly by a common transform, provid-
+ing a flag in the transmitted coded data identifying applica-
+tion of the joint transform.
+15. A video decoding method comprising:
+receiving coded data of a transform unit from a channel
+according to a coding protocol in which an identifier of
+the position of a last significant quantized transform
+coefficient of the transform unit precedes an identifi-
+cation of transform type in signaling order;
+
+comparing the position of the last significant quantized
+transform to a threshold;
+
+assigning a transform type to the transform unit based on
+
+the comparison;
+
+dequantizing received transform coeflicients received
+
+from the channel;
+
+transforming the dequantized transform coefficients
+
+according to the default transform type.
+
+16. The method of claim 15, wherein the position is
+identified by its scan position within the transform unit.
+
+17. The method of claim 15, wherein the position is
+identified by its x,y coordinate within the transform unit.
+
+18. The method of claim 15, wherein when the compari-
+son indicates an implied signaling condition is satisfied, the
+assigned transform type is a default transform type deter-
+mined by the coding protocol.
+
+19. The method of claim 15, wherein the assigned trans-
+form type is identified in a coding unit level of the coding
+protocol.
+
+20. The method of claim 15, wherein the assigned trans-
+form type is inferred from a prediction mode of the trans-
+form unit.
+
+21. The method of claim 15, wherein the assigned trans-
+form type is inferred from multiple reference line data
+received from the channel.
+
+22. The method of claim 15, wherein the assigned trans-
+form type is inferred from angle delta offset data received
+from the channel.
+
+23. The method of claim 15, further comprising:
+
+determining if a transform type identifier is present in the
+
+received data representing the coded transform unit,
+if the transform type identifier is not present in the
+received data of the coded transform unit, determining
+
+US 2024/0040151 Al
+11
+
+one of multiple position ranges to which the position
+identifier belongs, and determining the coded transform
+unit’s transform type from the determined range.
+
+24. The method of claim 15, wherein the comparison
+determines that the position is less than the threshold and, if
+so, assigns the transform type as a two-dimensional trans-
+form.
+
+25. The method of claim 15, wherein the comparison
+determines that the position is less than the threshold and, if
+so, assigns the transform type from a DTT2 set binary
+symbol received from a channel.
+
+26. The method of claim 15, wherein the comparison
+determines that the position is greater than the threshold and,
+if so, assigns the transform type as an identity transform.
+
+27. The method of claim 15, wherein the comparison
+
+determines whether the position is between first and
+
+second thresholds and,
+
+if so, compares a transform type received in the channel
+
+to an array of candidate transform types, the array being
+smaller than an entirety of transform types supported
+by the coding protocol, and
+
+selects one of the candidate transform types based on the
+
+transform type comparison.
+
+28. The video decoding method of claim 15, wherein the
+coding protocol supports coding of transform units in a
+quadtree representation, and assigned transform type is
+identified in a transform unit level at a higher level of the
+quadtree level representation than the transform unit level in
+which the position data is received.
+
+29. The method of claim 15, further comprising deriving
+a secondary transform type from a processing context of the
+coded transform unit.
+
+Feb. 1, 2024
+
+30. A video coding method, comprising:
+receiving coded data of a transform unit from a channel
+according to a coding protocol in which an identifier of
+the position of a last significant quantized transform
+coefficient of the transform unit precedes an identifi-
+cation of transform type in signaling order;
+determining a pattern of coded transform coefficients of
+the transform unit;
+when the determined pattern matches a pre-defined pat-
+term, assigning a transform type to coded transform
+coefficients reference by the pattern,
+dequantizing transform coefficients received from the
+channel;
+transforming the dequantized transform coefficients
+according to the assigned transform type.
+31. A video decoder, comprising:
+a processing device,
+a memory storing program instructions that, when
+executed by the processing device, cause the process-
+ing device to decode coded video by:
+receiving coded data of a transform unit from a channel
+according to a coding protocol in which an identifier
+of the position of a last significant quantized trans-
+form coefficient of the transform unit precedes an
+identification of transform type in signaling order;
+
+comparing the position of the last significant quantized
+transform to a threshold;
+
+assigning a transform type to the transform unit based
+on the comparison;
+
+dequantizing received transform coefficients received
+from the channel;
+
+transforming the dequantized transform coefficients
+according to the default transform type.
+
+ee Ok kk

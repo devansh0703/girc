@@ -1,0 +1,126 @@
+What is claimed is :
+1. A decoding method comprising :
+decoding transform coefficients for a block of pixels
+coded by inter mode from a bitstream ;
+deriving a transform setting based on a block processing
+setting for the block of pixels ;
+processing the block of pixels according to the block
+processing setting , wherein processing the block of
+pixels comprises performing an inverse transform
+operation for the transform coefficients to generate a set
+of residual pixels according to the transform setting ;
+and
+reconstructing the block of pixels based on the set of
+residual pixels ,
+wherein the block processing setting controls a Sub - Block
+Transform ( SBT ) operation that partitions the block of
+pixels into a plurality of sub - blocks and performs
+B2
+28
+vector difference , and wherein deriving the trans
+setting comprises selecting a transform mode from a
+of transform modes based on the resolution selec
+index .
+11. The method of claim 1 , wherein the block processing
+controls an Overlapped Block Motion Compensation
+) operation for smoothing boundaries between par
+of the block of pixels using different motion vectors ,
+the block processing setting comprises a OBMC
+for enabling the OBMC operation , and wherein deriving
+transform setting comprises selecting a transform mode
+a plurality of transform modes based on the OBMC
+12. The method of claim 1 , wherein the block processing
+controls an inter - prediction operation , wherein the
+processing setting comprises a merge candidate index
+selects one of a set of one or more Merge candidates ,
+wherein deriving the transform setting comprises select
+a transform mode from a plurality of transform modes
+on the merge index .
+13. The method of claim 1 , wherein the block processing
+controls a prediction direction of a motion candidate ,
+wherein deriving the transform setting comprises select
+a transform mode from a plurality of transform modes
+on the prediction direction .
+14. The encoding method of claim 1 , wherein the trans
+setting specifies whether the SBT operation is applied
+not .
+15. An encoding method comprising :
+receiving a block of pixels coded by inter mode of a video &apos;
+picture ;
+deriving a transform setting based on a block processing
+setting for the block of pixels ;
+processing the block of pixels according to the block
+processing setting , wherein processing the block of
+pixels comprises performing a transform operation of a
+set of residual pixels to generate a set of transform
+coefficients according to the transform setting ; and
+encoding the transform coefficients in a bitstream , a
+wherein the block processing setting controls a Sub - Block
+Transform ( SBT ) operation that partitions the block of
+pixels into a plurality of sub - blocks and performs
+transform for a particular sub - block in the plurality of
+sub - blocks , wherein the block processing setting com
+prises an orientation of the partitioning of the block , a
+width or height of the block , and a position of the
+sub - block that is being transformed , wherein the ori
+entation of the partitioning of the block is one of a
+vertical splitting orientation and a horizontal splitting
+orientation , and wherein deriving the transform setting
+comprises selecting a transform mode from a plurality
+of transform modes based on the block processing
+setting , wherein the plurality of transform modes are
+from a set of transform types that includes at least two
+transform types , and
+wherein when the vertical splitting orientation is used , the
+position is used to determine a transform type from the
+set of transform types for a horizontal transform , and
+when the horizontal splitting orientation is used , the
+position is used to determine the transform type for a
+vertical transform .
+16. An encoding method comprising :
+receiving a block of pixels coded by inter mode of a video
+picture ;
+deriving a transform setting based on a block processing
+setting and one of a height or a width of the block of
+pixels , an orientation of a partitioning of the block , and
+B2
+30
+wherein when the vertical splitting orientation is used , the
+position is used to determine a transform type from the
+set of transform types for a horizontal transform , and
+a
+when the horizontal splitting orientation is used , the
+position is used to determine the transform type for a
+vertical transform ;
+when at least one of the height or the width of the block
+of pixels is less than a threshold , implicitly assigning a
+a
+transform setting in a corresponding one of a horizontal
+a
+or a vertical transform set based on a predetermined
+table ;
+performing an inverse transform operation for the trans
+form coefficients to generate a set of residual pixels
+according to the transform setting ; and
+reconstructing the block of pixels based on the set of
+residual pixels .
+18. The method of claim 1 , wherein deriving the trans
+setting further comprises selecting the transform mode
+the plurality of transform modes based on a temporal
+, and a control flag at one of a slice level and a picture a
+.
+19. The method of claim 16 , wherein when at least one of
+height or the width of the block of pixels is less than the
+, implicitly assigning the transform setting in the
+one of the horizontal or the vertical transform
+based on the predetermined table having a fixed equation
+Bi - prediction ( GBi ) index % N = n ) , where N
+n are predetermined integers where even - number GBi
+are implicitly mapped to a first transform group and
+- number GBi indices are implicitly mapped to second
+group .
+20. The method of claim 1 , wherein the vertical splitting
+and the horizontal splitting orientation vary with
+width and / or height of the block , respectively .
+21. The method of claim 1 , wherein the position is
+parsed or signaled from or in the bitstream .
