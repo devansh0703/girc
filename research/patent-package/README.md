@@ -314,30 +314,25 @@ starting point for counsel, not a filing-ready set.
 > picture, the method comprising:
 >
 > (a) determining, from a causal neighbourhood of already-reconstructed
->     samples of the video picture, a plurality of geometric features
->     comprising at least a gradient orientation distribution over the
->     neighbourhood;
-> (b) applying a first trained prediction function to the features to
->     obtain a predicted transform type for a horizontal axis of the
->     current block, and applying a second trained prediction function to
->     the features to obtain a predicted transform type for a vertical
->     axis of the current block, the first and second prediction functions
->     being separately trained;
-> (c) combining the predicted transform types of the two axes to obtain a
->     predicted transform mode, in which a predicted DCT-II on either axis
->     yields a predicted transform mode of the plain DCT-II on both axes,
->     and otherwise the predicted transform mode is the combination of the
->     two predicted transform types;
-> (d) determining a candidate transform mode for the current block by
+>     samples of the video picture and from a prediction of the current
+>     block, a plurality of geometric features comprising at least a
+>     gradient orientation distribution over the neighbourhood;
+> (b) applying a trained prediction function to the features to obtain
+>     a predicted transform mode for the current block, the predicted
+>     transform mode being one of a plurality of candidate transform
+>     modes, each candidate transform mode being a combination of a
+>     transform type for a horizontal axis and a transform type for a
+>     vertical axis of the current block;
+> (c) determining a candidate transform mode for the current block by
 >     rate-distortion optimisation over a plurality of candidate transform
 >     modes;
-> (e) comparing the candidate transform mode with the predicted transform
+> (d) comparing the candidate transform mode with the predicted transform
 >     mode and, when the difference in rate-distortion cost between them
 >     is within a margin expressed in units of rate, selecting the
 >     predicted transform mode in place of the candidate transform mode;
-> (f) generating a coded representation of the current block using the
+> (e) generating a coded representation of the current block using the
 >     selected transform mode; and
-> (g) writing to the coded representation a signal indicating whether the
+> (f) writing to the coded representation a signal indicating whether the
 >     selected transform mode is the predicted transform mode, and, when
 >     it is not, an indication of which of the candidate transform modes
 >     other than the predicted transform mode was selected.
@@ -349,6 +344,28 @@ starting point for counsel, not a filing-ready set.
 > neighbourhood; and forming the gradient orientation distribution by
 > accumulating gradient magnitudes into bins according to the gradient
 > orientation, the bins covering the full circle.
+
+### Claim 3 — the prediction's own orientation
+
+> The method of claim 1, wherein determining the features comprises
+> computing a gradient orientation distribution over the prediction of
+> the current block, the prediction having been obtained by the decoder
+> from the prediction mode or the motion vector of the current block,
+> each of which is decoded before the transform type.
+
+This is the feature the measurement says matters most, and it is
+available to the decoder without any extra signalling, because the
+prediction mode and the motion vector are both decoded before the
+transform type. The encoder chooses the transform that best compacts
+the residual, and the residual inherits the prediction's directional
+structure, so the prediction's orientation is the most direct evidence
+of the transform the encoder will want.
+
+The claim is deliberately about the *prediction*, not about a
+particular block shape, because the prediction's orientation carries
+information the causal neighbourhood does not have for a block
+predicted from a previous frame: the prediction comes from a different
+picture at a motion-compensated position.
 
 ### Claim 3 — the causal neighbourhood
 
