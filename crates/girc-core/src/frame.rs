@@ -99,7 +99,13 @@ mod tests {
             Picture::filled(8, 8, 200),
         );
         let planes = frame.chroma_planes();
-        assert_eq!(planes[0].samples[0], 100, "the blue-difference plane comes first");
-        assert_eq!(planes[1].samples[0], 200, "the red-difference plane comes second");
+        assert_eq!(
+            planes[0].samples[0], 100,
+            "the blue-difference plane comes first"
+        );
+        assert_eq!(
+            planes[1].samples[0], 200,
+            "the red-difference plane comes second"
+        );
     }
 }

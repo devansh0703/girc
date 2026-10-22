@@ -169,7 +169,8 @@ impl BitstreamHeader {
             TransformSignalling::Explicit
         };
         let luma_words = u32::from_le_bytes([bytes[18], bytes[19], bytes[20], bytes[21]]) as usize;
-        let chroma_words = u32::from_le_bytes([bytes[22], bytes[23], bytes[24], bytes[25]]) as usize;
+        let chroma_words =
+            u32::from_le_bytes([bytes[22], bytes[23], bytes[24], bytes[25]]) as usize;
         Ok((
             Self {
                 version,

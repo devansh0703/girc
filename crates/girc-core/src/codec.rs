@@ -26,9 +26,9 @@ use crate::bitstream::{BinDecoder, BinEncoder, BitstreamError, BitstreamHeader, 
 use crate::chroma;
 use crate::frame::Frame;
 use crate::geometry::{
-    extract_features, extract_features_from_window, prediction_features, BlockContext, GeometryFeatures,
-    MotionContext,
-    NeighbourTransforms, TransformPredictor, TransformSignal, TransformSignalling,
+    extract_features, extract_features_from_window, prediction_features, BlockContext,
+    GeometryFeatures, MotionContext, NeighbourTransforms, TransformPredictor, TransformSignal,
+    TransformSignalling,
 };
 use crate::inter::{compensate, search, MotionField, MotionVector};
 use crate::intra::{predict, IntraMode, ReferenceSamples};
@@ -397,11 +397,8 @@ fn encode_luma_sequence(
     let mut encoder = BinEncoder::new(NUM_CONTEXTS);
     let mut reconstructions: Vec<Picture> = Vec::with_capacity(frames.len());
     let mut motion_fields: Vec<MotionField> = Vec::with_capacity(frames.len());
-    let mut examples: Vec<TrainingExample> = Vec::with_capacity(if collect_examples {
-        block_count
-    } else {
-        0
-    });
+    let mut examples: Vec<TrainingExample> =
+        Vec::with_capacity(if collect_examples { block_count } else { 0 });
     let mut mismatches = 0usize;
     let mut signalling_bins = 0usize;
     let mut inter_blocks = 0usize;
@@ -474,9 +471,7 @@ fn encode_luma_sequence(
                 let choice = choose_transform(&original, &prediction, config, predicted);
 
                 let signal = match (config.signalling, predicted) {
-                    (TransformSignalling::Explicit, _) => {
-                        TransformSignal::Explicit(choice.chosen)
-                    }
+                    (TransformSignalling::Explicit, _) => TransformSignal::Explicit(choice.chosen),
                     (TransformSignalling::Inferred, Some(predicted)) => {
                         if predicted == choice.chosen {
                             TransformSignal::Predicted
@@ -574,10 +569,7 @@ fn encode_luma_sequence(
 ///
 /// This is the entry point the training pipeline uses, and the one that
 /// measures the mechanism on the luma plane alone.
-pub fn encode_luma(
-    frames: &[Picture],
-    config: &EncoderConfig,
-) -> Result<LumaResult, CodecError> {
+pub fn encode_luma(frames: &[Picture], config: &EncoderConfig) -> Result<LumaResult, CodecError> {
     encode_luma_sequence(frames, config, false)
 }
 
@@ -616,7 +608,8 @@ pub fn encode(frames: &[Frame], config: &EncoderConfig) -> Result<EncodeResult, 
     let luma_result = encode_luma_sequence(&luma, config, false)?;
 
     let mut chroma_encoder = BinEncoder::new(NUM_CONTEXTS);
-    let chroma_result = chroma::encode_sequence(frames, &luma_result.motion, config, &mut chroma_encoder)?;
+    let chroma_result =
+        chroma::encode_sequence(frames, &luma_result.motion, config, &mut chroma_encoder)?;
     let chroma_payload = chroma_encoder.finish();
 
     let header = BitstreamHeader {

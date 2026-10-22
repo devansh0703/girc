@@ -291,13 +291,10 @@ fn encode_plane(
                 };
                 (IntraMode::Dc, prediction)
             } else {
-                let reference_samples = reference_samples_at(
-                    &reconstruction,
-                    bx,
-                    by,
-                    CHROMA_BLOCK_SIZE,
-                );
-                let (mode, prediction) = choose_intra_mode(&block, &reference_samples, params, config);
+                let reference_samples =
+                    reference_samples_at(&reconstruction, bx, by, CHROMA_BLOCK_SIZE);
+                let (mode, prediction) =
+                    choose_intra_mode(&block, &reference_samples, params, config);
                 (mode, prediction)
             };
 
@@ -614,11 +611,7 @@ mod tests {
         // Mark every block as inter, with a motion of two luma samples.
         for by in 0..8 {
             for bx in 0..8 {
-                luma_field.set(
-                    bx,
-                    by,
-                    MotionVector { dx: 2, dy: -2 },
-                );
+                luma_field.set(bx, by, MotionVector { dx: 2, dy: -2 });
             }
         }
         let (encoded, blocks, inter, intra) = encode_plane(

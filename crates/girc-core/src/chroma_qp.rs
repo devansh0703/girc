@@ -87,8 +87,8 @@ const fn build_table() -> [i32; 64] {
         let mut k = INPUT_POINTS[j] + 1;
         let mut m = 1;
         while k <= INPUT_POINTS[j + 1] {
-            table[k as usize] = table[INPUT_POINTS[j] as usize]
-                + ((delta_out[j] * m + shift) / (delta_in[j] + 1));
+            table[k as usize] =
+                table[INPUT_POINTS[j] as usize] + ((delta_out[j] * m + shift) / (delta_in[j] + 1));
             k += 1;
             m += 1;
         }
