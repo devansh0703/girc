@@ -41,14 +41,14 @@ current model:
 | Margin (RD-cost units) | Mean BD-rate, luma | Prediction mismatch | Better on |
 |---|---|---|---|
 | 0 | −0.056% | 46.4% | 12 of 12 |
-| 25 | −0.098% | 44.6% | 9 of 12 |
-| 50 | **−0.240%** | 42.5% | 11 of 12 |
-| 100 | +0.040% | 38.0% | 8 of 12 |
-| 200 | +0.589% | 30.6% | 5 of 12 |
+| 25 | −0.119% | 44.6% | 10 of 12 |
+| 50 | **−0.236%** | 42.6% | 11 of 12 |
+| 100 | +0.002% | 37.9% | 10 of 12 |
+| 200 | +0.515% | 30.6% | 6 of 12 |
 
-At the margin of 50 the mechanism is **−0.240% on the luma plane** and
-**−0.159% on the whole frame**, and it is better on 11 of the 12
-sequences on both axes.
+At the margin of 50 the mechanism is **−0.236% on the luma plane** and
+**−0.149% on the whole frame**, and it is better on 11 of the 12
+sequences on the luma plane and 10 of the 12 on the whole frame.
 
 **The learned predictor beats the constant one, and the benchmark
 measures both.** The constant predictor always answers the plain DCT-II
@@ -58,11 +58,11 @@ about a trained predictor has to beat:
 | Predictor | Mean BD-rate, luma | Better on |
 |---|---|---|
 | Constant, always the plain DCT-II | −0.120% | 10 of 12 |
-| The shipped learned model | **−0.240%** | 11 of 12 |
+| The shipped learned model | **−0.236%** | 11 of 12 |
 
-The learned model is ahead on 7 of the 12 sequences, and the gap
-between them is 0.120 percentage points of BD-rate, which is half the
-mechanism's own effect.
+The learned model is ahead on 6 of the 12 sequences, and the gap
+between them is 0.116 percentage points of BD-rate, which is about half
+the mechanism's own effect.
 
 Two rate axes are reported because the mechanism changes the luma
 signalling and nothing else. The luma rate is the mechanism's own
@@ -72,14 +72,14 @@ because the anchors code all three planes and so does GIRC.
 
 The mechanism is a small win, and the reason it is not a larger one is
 measurable rather than mysterious. The shipped model predicts the mode
-correctly on 50.18% of the held-out blocks, against a 50.10% majority
+correctly on 50.17% of the held-out blocks, against a 50.10% majority
 class. The predictability ceiling of the feature set, measured by
-fitting a gradient-boosted tree over the same features, is 50.65%. The joint mode is
-close to unpredictable: the rate-distortion choice between the modes is
-close to a tie, so there is little for a predictor to predict. The
-per-class accuracy of the shipped model is 91.6% on the plain DCT-II
-and between 5.3% and 15.4% on the four multiple transform selection
-modes.
+fitting a gradient-boosted tree over the same features, is 50.65%. The
+joint mode is close to unpredictable: the rate-distortion choice between
+the modes is close to a tie, so there is little for a predictor to
+predict. The per-class accuracy of the shipped model is 91.6% on the
+plain DCT-II and between 5.3% and 15.4% on the four multiple transform
+selection modes.
 
 Those figures are low, and they are low for an honest reason that is
 worth stating. An inter block carries a motion vector instead of an
@@ -227,6 +227,21 @@ The collection pass runs the encoder itself, so the training set is the
 encoder's actual behaviour and not a proxy for it, and the features are
 taken from the reconstructed neighbourhood exactly as the decoder will see
 them.
+
+The fit runs on the GPU when one is present and on the CPU when it is
+not, and the two agree on the result: the same data gives 50.17% test
+accuracy on the GPU and 50.18% on the CPU, and the exported weights have
+the same shape, so the codec's loader cannot tell which produced them. The GPU path is an
+optional extra, not a requirement:
+
+```sh
+uv pip install --python .venv/bin/python -r python/girc-train/requirements-gpu.txt
+```
+
+The model records which backend produced it, in
+`training.estimator_backend`, so a fit is attributable. The
+predictability ceiling is a gradient-boosted tree, which stays on the
+CPU because cuML has no histogram gradient boosting.
 
 ## The benchmark
 

@@ -1,0 +1,16 @@
+# The optional GPU backend for the training pipeline.
+#
+# The pipeline uses cuML's estimators when they are importable and falls
+# back to scikit-learn when they are not, so this file is an extra
+# rather than a requirement. Install it on a machine with an NVIDIA GPU:
+#
+#     uv pip install --python .venv/bin/python -r python/girc-train/requirements-gpu.txt
+#
+# It is deliberately not in `requirements.txt`, because CI and the
+# evaluation portal have no use for it and the codec itself has no GPU
+# dependency. The model records which backend produced it, in
+# `training.estimator_backend`, so a re-fit is attributable.
+#
+# cuML is built against CUDA 12 and runs on newer drivers, so the CUDA
+# version is not pinned here: the driver decides it.
+cuml-cu12

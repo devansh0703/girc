@@ -115,12 +115,12 @@ At a margin of 50, over the twelve sequences:
 
 | Measure | Value | Better on |
 |---|---|---|
-| Mean BD-rate, luma plane | −0.240% | 11 of 12 |
-| Mean BD-rate, whole frame | −0.159% | 11 of 12 |
-| Median BD-rate, luma plane | −0.352% | — |
-| Best sequence | `deadline_cif`, −0.816% | — |
-| Worst sequence | `akiyo_cif`, +1.393% | — |
-| Prediction mismatch | 42.5% | — |
+| Mean BD-rate, luma plane | −0.236% | 11 of 12 |
+| Mean BD-rate, whole frame | −0.149% | 10 of 12 |
+| Median BD-rate, luma plane | −0.322% | — |
+| Best sequence | `deadline_cif`, −0.835% | — |
+| Worst sequence | `akiyo_cif`, +1.341% | — |
+| Prediction mismatch | 42.6% | — |
 
 The learned predictor against the constant one, which is the
 alternative that needs no training and no model:
@@ -128,17 +128,17 @@ alternative that needs no training and no model:
 | Predictor | Mean BD-rate, luma | Better on |
 |---|---|---|
 | Constant, always the plain DCT-II | −0.120% | 10 of 12 |
-| The shipped learned model | −0.240% | 11 of 12 |
+| The shipped learned model | −0.236% | 11 of 12 |
 
 The margin sweep, on the luma plane:
 
 | Margin | Mean BD-rate | Mismatch | Better on |
 |---|---|---|---|
 | 0 | −0.056% | 46.4% | 12 of 12 |
-| 25 | −0.098% | 44.6% | 9 of 12 |
-| 50 | −0.240% | 42.5% | 11 of 12 |
-| 100 | +0.040% | 38.0% | 10 of 12 |
-| 200 | +0.589% | 30.6% | 6 of 12 |
+| 25 | −0.119% | 44.6% | 10 of 12 |
+| 50 | −0.236% | 42.6% | 11 of 12 |
+| 100 | +0.002% | 37.9% | 10 of 12 |
+| 200 | +0.515% | 30.6% | 6 of 12 |
 
 The training set is rebuilt the same way:
 
@@ -148,11 +148,26 @@ for sequence in data/seq/*.y4m; do
   ./target/release/girc collect --input "$sequence" --qp 27 --frames 30
 done > bench-out/train-pred/mixed.jsonl
 
+# The fit runs on the GPU when one is present, and on the CPU when it
+# is not. The two agree: the same data gives 50.17% test accuracy on
+# the GPU and 50.18% on the CPU, and the exported weights have the same
+# shape, so the codec's loader cannot tell them apart.
 PYTHONPATH=python/girc-train python3 -m girc_train fit \
   --input bench-out/train-pred/mixed.jsonl \
   --output models/girc-predictor.json \
-  --model-version v8-joint-inter-consistent
+  --model-version v9-joint-gpu
 ```
+
+The GPU path is an optional extra rather than a requirement:
+
+```sh
+uv pip install --python .venv/bin/python -r python/girc-train/requirements-gpu.txt
+```
+
+It is not in `requirements.txt`, because CI and the evaluation portal
+have no use for it and the codec itself has no GPU dependency. The
+model records which backend produced it, in
+`training.estimator_backend`, so a fit is attributable.
 
 That produces 570,240 records, and the model records the SHA-256 of the
 data it was fitted on, so a re-run that produced different data would

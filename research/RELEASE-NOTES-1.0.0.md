@@ -16,8 +16,8 @@ each and four quantization parameters, with the margin at 50:
 
 | Measure | Value | Better on |
 |---|---|---|
-| Mean BD-rate, luma plane | **−0.240%** | 11 of 12 |
-| Mean BD-rate, whole frame | **−0.159%** | 11 of 12 |
+| Mean BD-rate, luma plane | **−0.236%** | 11 of 12 |
+| Mean BD-rate, whole frame | **−0.149%** | 10 of 12 |
 | The same, with the constant predictor | −0.120% | 10 of 12 |
 
 The last row is the one that matters most. The constant predictor

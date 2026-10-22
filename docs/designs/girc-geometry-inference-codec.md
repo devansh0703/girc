@@ -363,22 +363,26 @@ as measured. The full numbers are in the root README and in
   originally planned.
 - The mechanism's net effect is a **small** win. The best margin in the
   full sweep, with the chroma planes coded and the comparison against
-  whole-frame anchors, is −0.240% mean BD-rate on the luma plane and
-  −0.159% on the whole frame, and it is negative on some sequences and
+  whole-frame anchors, is −0.236% mean BD-rate on the luma plane and
+  −0.149% on the whole frame, and it is negative on some sequences and
   positive on others. The three-transform result of −0.226% quoted in
   earlier notes was a different, superseded configuration and is not the
   headline.
 - The reason the win is small is measurable. The joint five-class mode is
-  barely predictable: the shipped model reaches 50.18% against a 50.10%
+  barely predictable: the shipped model reaches 50.17% against a 50.10%
   majority class, and a gradient-boosted ceiling over the same features
   reaches 50.65%, because the rate-distortion choice between the modes is
   close to a tie. Predicting the two axes separately and composing them
   was tried and measured, and it was worse: each axis on its own was well
-  above the majority class, about 54.6%, and the composed mode came out
-  below it, at 48.3%. The five modes are not a product space, so
+  above the majority class, about 53.9%, and the composed mode came out
+  below it, at 48.8%. The five modes are not a product space, so
   composing two independent per-axis models cannot recover the joint
   distribution. The implementation predicts the joint mode with one
   model, and adds the block's own prediction plane to the features.
+
+  The measurement is `tools/feature_study_v8.py`, which fits two per-axis
+  models over the collected records and composes them with the product
+  rule, against the joint model.
 - The features have to be ones the decoder can compute, and enforcing
   that changed the measured result. An inter block carries a motion
   vector instead of an intra mode, so the decoder cannot know the mode
@@ -386,7 +390,7 @@ as measured. The full numbers are in the root README and in
   lets the encoder predict from information the decoder does not have,
   and a model trained on it is flattered. Removing the feature dropped
   the measured accuracy from 53.4% to 50.2% and the whole-frame BD-rate
-  from −0.156% to −0.159% in the other direction, and the benchmark now
+  from −0.156% to −0.149% in the other direction, and the benchmark now
   decodes every stream it encodes and refuses to report a result if the
   decoded picture differs from the encoder's reconstruction.
 - The RD-cost margin is the part of the disclosure the prior art does not

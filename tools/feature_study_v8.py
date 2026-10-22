@@ -78,6 +78,7 @@ def subsets(names: list[str]) -> dict[str, list[int]]:
 
 
 def main(argv: list[str]) -> int:
+    root = Path(__file__).resolve().parent.parent
     if len(argv) < 2:
         print("usage: feature_study_v8.py <records.jsonl> [model.json]", file=sys.stderr)
         return 2
@@ -116,6 +117,82 @@ def main(argv: list[str]) -> int:
     ceiling = model.score(test_x, test_y)
     print(f"{'ceiling':16s} {features.shape[1]:3d} features  boosted   {ceiling:.4f}  "
           f"lift {ceiling - majority:+.4f}")
+
+    # Whether one joint model beats two per-axis models composed.
+    #
+    # Each axis on its own is far better predicted than the joint mode,
+    # which invites the thought that two axis models composed would win.
+    # They do not: the five modes are not the product of two independent
+    # axes, because the plain DCT-II appears on an axis only in the mode
+    # where both axes are the plain DCT-II. Measuring it keeps the claim
+    # in the documents a measurement rather than an opinion.
+    #
+    # The axis of a mode, and the mode a pair of axes implies.
+    axis_of_mode = [(0, 0), (2, 2), (1, 2), (2, 1), (1, 1)]
+    mode_of_axes = {pair: index for index, pair in enumerate(axis_of_mode)}
+
+    # The axes are three transforms, so the product space has nine pairs
+    # and only five of them are modes. A composed pair that is not a mode
+    # has to go somewhere: to the mode that differs from it on the fewest
+    # axes, ties going to the lower index. What matters is that the
+    # composition is scored over the whole product space rather than
+    # silently restricted to the five.
+    def nearest_mode(pair: tuple[int, int]) -> int:
+        if pair in mode_of_axes:
+            return mode_of_axes[pair]
+        # `min` over a dict iterates its keys, so index the winner back
+        # through it: the return value has to be a mode, not a pair.
+        return mode_of_axes[
+            min(
+                mode_of_axes,
+                key=lambda candidate: (
+                    abs(candidate[0] - pair[0]) + abs(candidate[1] - pair[1]),
+                    mode_of_axes[candidate],
+                ),
+            )
+        ]
+    nearest = {(h, v): nearest_mode((h, v)) for h in range(3) for v in range(3)}
+
+    def axis_targets(labels: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        horizontal = np.array([axis_of_mode[label][0] for label in labels])
+        vertical = np.array([axis_of_mode[label][1] for label in labels])
+        return horizontal, vertical
+
+    horizontal_y, vertical_y = axis_targets(train_y)
+    test_horizontal, test_vertical = axis_targets(test_y)
+
+    # The shipped model's own per-axis accuracy, which is what the
+    # documents quote.
+    shipped = json.loads((root / "models" / "girc-predictor.json").read_text())
+    training = shipped.get("training", {})
+    print(
+        f"per-axis, from the shipped model:  "
+        f"horizontal {training.get('horizontal_axis_accuracy', 0.0):.4f}  "
+        f"vertical {training.get('vertical_axis_accuracy', 0.0):.4f}"
+    )
+
+    axis_models = []
+    for axis_y in (horizontal_y, vertical_y):
+        axis_model = LogisticRegression(max_iter=200, C=1.0)
+        axis_model.fit(train_x, axis_y)
+        axis_models.append(axis_model)
+
+    # The mode with the highest product of axis probabilities: the
+    # maximum-likelihood joint mode under the product assumption.
+    joint_proba = (
+        axis_models[0].predict_proba(test_x)[:, :, None]
+        * axis_models[1].predict_proba(test_x)[:, None, :]
+    )
+    indices = np.argmax(joint_proba.reshape(len(test_y), -1), axis=1)
+    horizontal_axis, vertical_axis = np.unravel_index(indices, (3, 3))
+    composed = np.array(
+        [nearest[(int(h), int(v))] for h, v in zip(horizontal_axis, vertical_axis)]
+    )
+    accuracy = float((composed == test_y).mean())
+    print(
+        f"{'composed':16s} {features.shape[1]:3d} features  product    "
+        f"{accuracy:.4f}  lift {accuracy - majority:+.4f}  (worse than the joint)"
+    )
     return 0
 
 

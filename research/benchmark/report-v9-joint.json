@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_utc": "2026-10-22T15:49:31Z",
+  "generated_utc": "2026-10-22T19:49:59Z",
   "tool_versions": {
     "ffmpeg": "ffmpeg version 8.1.2-2ubuntu2 Copyright (c) 2000-2026 the FFmpeg developers",
     "girc-bench": "0.1.0",
@@ -72,8 +72,8 @@
       "points": [
         {
           "qp": 22,
-          "bits": 311920,
-          "psnr_db": 44.24248031912586
+          "bits": 310128,
+          "psnr_db": 44.23910254810511
         },
         {
           "qp": 27,
@@ -87,15 +87,15 @@
         },
         {
           "qp": 37,
-          "bits": 180368,
-          "psnr_db": 35.70158338318313
+          "bits": 180528,
+          "psnr_db": 35.703896751391945
         }
       ],
       "luma_points": [
         {
           "qp": 22,
-          "bits": 266464,
-          "psnr_db": 44.24248031912586
+          "bits": 264736,
+          "psnr_db": 44.23910254810511
         },
         {
           "qp": 27,
@@ -109,16 +109,16 @@
         },
         {
           "qp": 37,
-          "bits": 154272,
-          "psnr_db": 35.70158338318313
+          "bits": 154592,
+          "psnr_db": 35.703896751391945
         }
       ],
-      "prediction_mismatches": 7514,
+      "prediction_mismatches": 7492,
       "block_count": 63360,
-      "intra_mismatches": 4795,
-      "inter_mismatches": 2719,
-      "intra_blocks": 19503,
-      "inter_blocks": 43857
+      "intra_mismatches": 4806,
+      "inter_mismatches": 2686,
+      "intra_blocks": 19416,
+      "inter_blocks": 43944
     },
     {
       "codec": "girc-constant",
@@ -324,53 +324,53 @@
       "points": [
         {
           "qp": 22,
-          "bits": 2556688,
-          "psnr_db": 40.244757435653426
+          "bits": 2558704,
+          "psnr_db": 40.24405698816615
         },
         {
           "qp": 27,
-          "bits": 1843760,
-          "psnr_db": 36.276071746196735
+          "bits": 1845328,
+          "psnr_db": 36.27043656704191
         },
         {
           "qp": 32,
-          "bits": 1193968,
+          "bits": 1194000,
           "psnr_db": 32.591660549923475
         },
         {
           "qp": 37,
-          "bits": 743408,
+          "bits": 743440,
           "psnr_db": 29.40633258994353
         }
       ],
       "luma_points": [
         {
           "qp": 22,
-          "bits": 2374144,
-          "psnr_db": 40.244757435653426
+          "bits": 2375936,
+          "psnr_db": 40.24405698816615
         },
         {
           "qp": 27,
-          "bits": 1739520,
-          "psnr_db": 36.276071746196735
+          "bits": 1740768,
+          "psnr_db": 36.27043656704191
         },
         {
           "qp": 32,
-          "bits": 1135488,
+          "bits": 1135520,
           "psnr_db": 32.591660549923475
         },
         {
           "qp": 37,
-          "bits": 702432,
+          "bits": 702464,
           "psnr_db": 29.40633258994353
         }
       ],
-      "prediction_mismatches": 39731,
+      "prediction_mismatches": 39760,
       "block_count": 63360,
-      "intra_mismatches": 33488,
-      "inter_mismatches": 6243,
-      "intra_blocks": 50717,
-      "inter_blocks": 12643
+      "intra_mismatches": 33551,
+      "inter_mismatches": 6209,
+      "intra_blocks": 50745,
+      "inter_blocks": 12615
     },
     {
       "codec": "girc-constant",
@@ -576,8 +576,8 @@
       "points": [
         {
           "qp": 22,
-          "bits": 1808464,
-          "psnr_db": 40.092308979038435
+          "bits": 1809424,
+          "psnr_db": 40.097601121981434
         },
         {
           "qp": 27,
@@ -586,8 +586,8 @@
         },
         {
           "qp": 32,
-          "bits": 752656,
-          "psnr_db": 32.91640231396575
+          "bits": 753168,
+          "psnr_db": 32.91655498911973
         },
         {
           "qp": 37,
@@ -598,8 +598,8 @@
       "luma_points": [
         {
           "qp": 22,
-          "bits": 1733760,
-          "psnr_db": 40.092308979038435
+          "bits": 1735072,
+          "psnr_db": 40.097601121981434
         },
         {
           "qp": 27,
@@ -608,8 +608,8 @@
         },
         {
           "qp": 32,
-          "bits": 723808,
-          "psnr_db": 32.91640231396575
+          "bits": 724320,
+          "psnr_db": 32.91655498911973
         },
         {
           "qp": 37,
@@ -617,12 +617,12 @@
           "psnr_db": 30.16200896664192
         }
       ],
-      "prediction_mismatches": 36089,
+      "prediction_mismatches": 36060,
       "block_count": 63360,
-      "intra_mismatches": 21424,
-      "inter_mismatches": 14665,
-      "intra_blocks": 32786,
-      "inter_blocks": 30574
+      "intra_mismatches": 21418,
+      "inter_mismatches": 14642,
+      "intra_blocks": 32803,
+      "inter_blocks": 30557
     },
     {
       "codec": "girc-constant",
@@ -828,53 +828,53 @@
       "points": [
         {
           "qp": 22,
-          "bits": 1889840,
-          "psnr_db": 40.18606878667542
+          "bits": 1890512,
+          "psnr_db": 40.189535992016935
         },
         {
           "qp": 27,
-          "bits": 1291248,
-          "psnr_db": 36.43511584534318
+          "bits": 1292624,
+          "psnr_db": 36.43182706202181
         },
         {
           "qp": 32,
-          "bits": 756560,
-          "psnr_db": 33.12746266834471
+          "bits": 756624,
+          "psnr_db": 33.12714361838365
         },
         {
           "qp": 37,
-          "bits": 424848,
-          "psnr_db": 30.487389610542227
+          "bits": 424880,
+          "psnr_db": 30.487411943770525
         }
       ],
       "luma_points": [
         {
           "qp": 22,
-          "bits": 1847040,
-          "psnr_db": 40.18606878667542
+          "bits": 1847936,
+          "psnr_db": 40.189535992016935
         },
         {
           "qp": 27,
-          "bits": 1261376,
-          "psnr_db": 36.43511584534318
+          "bits": 1262656,
+          "psnr_db": 36.43182706202181
         },
         {
           "qp": 32,
-          "bits": 733504,
-          "psnr_db": 33.12746266834471
+          "bits": 733568,
+          "psnr_db": 33.12714361838365
         },
         {
           "qp": 37,
-          "bits": 410400,
-          "psnr_db": 30.487389610542227
+          "bits": 410432,
+          "psnr_db": 30.487411943770525
         }
       ],
-      "prediction_mismatches": 39442,
+      "prediction_mismatches": 39484,
       "block_count": 63360,
-      "intra_mismatches": 24807,
-      "inter_mismatches": 14635,
-      "intra_blocks": 34895,
-      "inter_blocks": 28465
+      "intra_mismatches": 24894,
+      "inter_mismatches": 14590,
+      "intra_blocks": 34965,
+      "inter_blocks": 28395
     },
     {
       "codec": "girc-constant",
@@ -1080,13 +1080,13 @@
       "points": [
         {
           "qp": 22,
-          "bits": 788304,
-          "psnr_db": 41.564369110820124
+          "bits": 788592,
+          "psnr_db": 41.56446734077874
         },
         {
           "qp": 27,
-          "bits": 577936,
-          "psnr_db": 38.18556792041808
+          "bits": 579248,
+          "psnr_db": 38.182294126657645
         },
         {
           "qp": 32,
@@ -1102,13 +1102,13 @@
       "luma_points": [
         {
           "qp": 22,
-          "bits": 734912,
-          "psnr_db": 41.564369110820124
+          "bits": 735296,
+          "psnr_db": 41.56446734077874
         },
         {
           "qp": 27,
-          "bits": 536096,
-          "psnr_db": 38.18556792041808
+          "bits": 537504,
+          "psnr_db": 38.182294126657645
         },
         {
           "qp": 32,
@@ -1121,12 +1121,12 @@
           "psnr_db": 31.807478018356132
         }
       ],
-      "prediction_mismatches": 19697,
+      "prediction_mismatches": 19763,
       "block_count": 63360,
-      "intra_mismatches": 9651,
-      "inter_mismatches": 10046,
-      "intra_blocks": 21658,
-      "inter_blocks": 41702
+      "intra_mismatches": 9674,
+      "inter_mismatches": 10089,
+      "intra_blocks": 21639,
+      "inter_blocks": 41721
     },
     {
       "codec": "girc-constant",
@@ -1332,13 +1332,13 @@
       "points": [
         {
           "qp": 22,
-          "bits": 1181296,
-          "psnr_db": 42.52153361488166
+          "bits": 1182864,
+          "psnr_db": 42.51875232144962
         },
         {
           "qp": 27,
-          "bits": 802352,
-          "psnr_db": 39.61645378449828
+          "bits": 802288,
+          "psnr_db": 39.61649901982202
         },
         {
           "qp": 32,
@@ -1347,20 +1347,20 @@
         },
         {
           "qp": 37,
-          "bits": 362352,
-          "psnr_db": 34.50232865999095
+          "bits": 362512,
+          "psnr_db": 34.50253525355221
         }
       ],
       "luma_points": [
         {
           "qp": 22,
-          "bits": 1010240,
-          "psnr_db": 42.52153361488166
+          "bits": 1011136,
+          "psnr_db": 42.51875232144962
         },
         {
           "qp": 27,
-          "bits": 691712,
-          "psnr_db": 39.61645378449828
+          "bits": 691648,
+          "psnr_db": 39.61649901982202
         },
         {
           "qp": 32,
@@ -1370,15 +1370,15 @@
         {
           "qp": 37,
           "bits": 313216,
-          "psnr_db": 34.50232865999095
+          "psnr_db": 34.50253525355221
         }
       ],
-      "prediction_mismatches": 22974,
+      "prediction_mismatches": 23047,
       "block_count": 63360,
-      "intra_mismatches": 17927,
-      "inter_mismatches": 5047,
-      "intra_blocks": 44685,
-      "inter_blocks": 18675
+      "intra_mismatches": 18034,
+      "inter_mismatches": 5013,
+      "intra_blocks": 44697,
+      "inter_blocks": 18663
     },
     {
       "codec": "girc-constant",
@@ -1584,18 +1584,18 @@
       "points": [
         {
           "qp": 22,
-          "bits": 857904,
-          "psnr_db": 41.5451221331113
+          "bits": 858192,
+          "psnr_db": 41.544164040941055
         },
         {
           "qp": 27,
-          "bits": 629136,
-          "psnr_db": 37.839264183703214
+          "bits": 628592,
+          "psnr_db": 37.83902143567871
         },
         {
           "qp": 32,
-          "bits": 432944,
-          "psnr_db": 34.10738650294447
+          "bits": 433104,
+          "psnr_db": 34.1070947459285
         },
         {
           "qp": 37,
@@ -1606,18 +1606,18 @@
       "luma_points": [
         {
           "qp": 22,
-          "bits": 767136,
-          "psnr_db": 41.5451221331113
+          "bits": 766912,
+          "psnr_db": 41.544164040941055
         },
         {
           "qp": 27,
-          "bits": 569376,
-          "psnr_db": 37.839264183703214
+          "bits": 568896,
+          "psnr_db": 37.83902143567871
         },
         {
           "qp": 32,
-          "bits": 392576,
-          "psnr_db": 34.10738650294447
+          "bits": 392768,
+          "psnr_db": 34.1070947459285
         },
         {
           "qp": 37,
@@ -1625,12 +1625,12 @@
           "psnr_db": 30.826677810482987
         }
       ],
-      "prediction_mismatches": 16413,
+      "prediction_mismatches": 16393,
       "block_count": 63360,
-      "intra_mismatches": 8767,
-      "inter_mismatches": 7646,
-      "intra_blocks": 20800,
-      "inter_blocks": 42560
+      "intra_mismatches": 8731,
+      "inter_mismatches": 7662,
+      "intra_blocks": 20765,
+      "inter_blocks": 42595
     },
     {
       "codec": "girc-constant",
@@ -1836,53 +1836,53 @@
       "points": [
         {
           "qp": 22,
-          "bits": 2153872,
-          "psnr_db": 40.918263877800534
+          "bits": 2152976,
+          "psnr_db": 40.91967223139285
         },
         {
           "qp": 27,
-          "bits": 1747920,
-          "psnr_db": 36.64841870655812
+          "bits": 1748400,
+          "psnr_db": 36.64806243699764
         },
         {
           "qp": 32,
-          "bits": 1193648,
-          "psnr_db": 32.450268883986546
+          "bits": 1192240,
+          "psnr_db": 32.452283517236495
         },
         {
           "qp": 37,
-          "bits": 726288,
-          "psnr_db": 28.60968130003782
+          "bits": 725296,
+          "psnr_db": 28.609183759007305
         }
       ],
       "luma_points": [
         {
           "qp": 22,
-          "bits": 1876832,
-          "psnr_db": 40.918263877800534
+          "bits": 1876640,
+          "psnr_db": 40.91967223139285
         },
         {
           "qp": 27,
-          "bits": 1554112,
-          "psnr_db": 36.64841870655812
+          "bits": 1554528,
+          "psnr_db": 36.64806243699764
         },
         {
           "qp": 32,
-          "bits": 1089056,
-          "psnr_db": 32.450268883986546
+          "bits": 1087360,
+          "psnr_db": 32.452283517236495
         },
         {
           "qp": 37,
-          "bits": 664832,
-          "psnr_db": 28.60968130003782
+          "bits": 663968,
+          "psnr_db": 28.609183759007305
         }
       ],
-      "prediction_mismatches": 27843,
+      "prediction_mismatches": 27806,
       "block_count": 63360,
-      "intra_mismatches": 15400,
-      "inter_mismatches": 12443,
-      "intra_blocks": 37810,
-      "inter_blocks": 25550
+      "intra_mismatches": 15351,
+      "inter_mismatches": 12455,
+      "intra_blocks": 37799,
+      "inter_blocks": 25561
     },
     {
       "codec": "girc-constant",
@@ -2088,53 +2088,53 @@
       "points": [
         {
           "qp": 22,
-          "bits": 1135888,
-          "psnr_db": 41.33623140479579
+          "bits": 1135856,
+          "psnr_db": 41.337643106961586
         },
         {
           "qp": 27,
-          "bits": 752272,
-          "psnr_db": 38.21717568506399
+          "bits": 750832,
+          "psnr_db": 38.21797198110135
         },
         {
           "qp": 32,
-          "bits": 470480,
-          "psnr_db": 35.462274788584295
+          "bits": 470352,
+          "psnr_db": 35.459837131076604
         },
         {
           "qp": 37,
           "bits": 310416,
-          "psnr_db": 33.026869168895615
+          "psnr_db": 33.02705911030362
         }
       ],
       "luma_points": [
         {
           "qp": 22,
-          "bits": 1039264,
-          "psnr_db": 41.33623140479579
+          "bits": 1038848,
+          "psnr_db": 41.337643106961586
         },
         {
           "qp": 27,
-          "bits": 693088,
-          "psnr_db": 38.21717568506399
+          "bits": 691488,
+          "psnr_db": 38.21797198110135
         },
         {
           "qp": 32,
-          "bits": 432704,
-          "psnr_db": 35.462274788584295
+          "bits": 432192,
+          "psnr_db": 35.459837131076604
         },
         {
           "qp": 37,
           "bits": 280768,
-          "psnr_db": 33.026869168895615
+          "psnr_db": 33.02705911030362
         }
       ],
-      "prediction_mismatches": 25268,
+      "prediction_mismatches": 25345,
       "block_count": 63360,
-      "intra_mismatches": 16370,
-      "inter_mismatches": 8898,
-      "intra_blocks": 33287,
-      "inter_blocks": 30073
+      "intra_mismatches": 16420,
+      "inter_mismatches": 8925,
+      "intra_blocks": 33306,
+      "inter_blocks": 30054
     },
     {
       "codec": "girc-constant",
@@ -2340,18 +2340,18 @@
       "points": [
         {
           "qp": 22,
-          "bits": 903408,
-          "psnr_db": 42.008706256023004
+          "bits": 905008,
+          "psnr_db": 42.008099467890105
         },
         {
           "qp": 27,
-          "bits": 519664,
-          "psnr_db": 39.996181427788365
+          "bits": 519728,
+          "psnr_db": 39.99606952774152
         },
         {
           "qp": 32,
-          "bits": 315120,
-          "psnr_db": 38.04364704542122
+          "bits": 315024,
+          "psnr_db": 38.04166058958935
         },
         {
           "qp": 37,
@@ -2362,18 +2362,18 @@
       "luma_points": [
         {
           "qp": 22,
-          "bits": 730528,
-          "psnr_db": 42.008706256023004
+          "bits": 731776,
+          "psnr_db": 42.008099467890105
         },
         {
           "qp": 27,
-          "bits": 472416,
-          "psnr_db": 39.996181427788365
+          "bits": 472480,
+          "psnr_db": 39.99606952774152
         },
         {
           "qp": 32,
-          "bits": 293728,
-          "psnr_db": 38.04364704542122
+          "bits": 293632,
+          "psnr_db": 38.04166058958935
         },
         {
           "qp": 37,
@@ -2381,12 +2381,12 @@
           "psnr_db": 36.05086074437383
         }
       ],
-      "prediction_mismatches": 17522,
+      "prediction_mismatches": 17549,
       "block_count": 63360,
-      "intra_mismatches": 13806,
-      "inter_mismatches": 3716,
-      "intra_blocks": 36630,
-      "inter_blocks": 26730
+      "intra_mismatches": 13826,
+      "inter_mismatches": 3723,
+      "intra_blocks": 36702,
+      "inter_blocks": 26658
     },
     {
       "codec": "girc-constant",
@@ -2592,53 +2592,53 @@
       "points": [
         {
           "qp": 22,
-          "bits": 3251504,
-          "psnr_db": 39.61373811590947
+          "bits": 3251824,
+          "psnr_db": 39.61054889183481
         },
         {
           "qp": 27,
-          "bits": 2486512,
-          "psnr_db": 35.35367596955212
+          "bits": 2487600,
+          "psnr_db": 35.35116770650708
         },
         {
           "qp": 32,
-          "bits": 1655408,
-          "psnr_db": 31.249610493228115
+          "bits": 1654800,
+          "psnr_db": 31.249145101636273
         },
         {
           "qp": 37,
           "bits": 1015728,
-          "psnr_db": 27.598645971849706
+          "psnr_db": 27.59863812666181
         }
       ],
       "luma_points": [
         {
           "qp": 22,
-          "bits": 2788704,
-          "psnr_db": 39.61373811590947
+          "bits": 2789088,
+          "psnr_db": 39.61054889183481
         },
         {
           "qp": 27,
-          "bits": 2192416,
-          "psnr_db": 35.35367596955212
+          "bits": 2193216,
+          "psnr_db": 35.35116770650708
         },
         {
           "qp": 32,
-          "bits": 1487712,
-          "psnr_db": 31.249610493228115
+          "bits": 1487360,
+          "psnr_db": 31.249145101636273
         },
         {
           "qp": 37,
           "bits": 913248,
-          "psnr_db": 27.598645971849706
+          "psnr_db": 27.59863812666181
         }
       ],
-      "prediction_mismatches": 40575,
+      "prediction_mismatches": 40650,
       "block_count": 63360,
-      "intra_mismatches": 24686,
-      "inter_mismatches": 15889,
-      "intra_blocks": 36426,
-      "inter_blocks": 26934
+      "intra_mismatches": 24682,
+      "inter_mismatches": 15968,
+      "intra_blocks": 36395,
+      "inter_blocks": 26965
     },
     {
       "codec": "girc-constant",
@@ -2844,13 +2844,13 @@
       "points": [
         {
           "qp": 22,
-          "bits": 2355248,
-          "psnr_db": 41.17161315117987
+          "bits": 2358032,
+          "psnr_db": 41.17238891334297
         },
         {
           "qp": 27,
-          "bits": 1782224,
-          "psnr_db": 37.2750408439591
+          "bits": 1781072,
+          "psnr_db": 37.27617407971506
         },
         {
           "qp": 32,
@@ -2859,20 +2859,20 @@
         },
         {
           "qp": 37,
-          "bits": 816464,
+          "bits": 816496,
           "psnr_db": 29.966152845989946
         }
       ],
       "luma_points": [
         {
           "qp": 22,
-          "bits": 2023520,
-          "psnr_db": 41.17161315117987
+          "bits": 2025728,
+          "psnr_db": 41.17238891334297
         },
         {
           "qp": 27,
-          "bits": 1576320,
-          "psnr_db": 37.2750408439591
+          "bits": 1574560,
+          "psnr_db": 37.27617407971506
         },
         {
           "qp": 32,
@@ -2881,16 +2881,16 @@
         },
         {
           "qp": 37,
-          "bits": 742400,
+          "bits": 742432,
           "psnr_db": 29.966152845989946
         }
       ],
-      "prediction_mismatches": 30309,
+      "prediction_mismatches": 30277,
       "block_count": 63360,
-      "intra_mismatches": 24351,
-      "inter_mismatches": 5958,
-      "intra_blocks": 45997,
-      "inter_blocks": 17363
+      "intra_mismatches": 24353,
+      "inter_mismatches": 5924,
+      "intra_blocks": 46050,
+      "inter_blocks": 17310
     },
     {
       "codec": "girc-constant",
@@ -3036,116 +3036,116 @@
   "bd_rate_vs_baseline": {
     "akiyo_cif": {
       "girc-constant": 2.1722279968714453,
-      "girc-inferred": 1.9592083762227874,
+      "girc-inferred": 1.9012493971525934,
       "svt-av1": -73.72396196372077,
       "vvenc": -79.97791091898439,
       "x265": -73.3418222211045
     },
     "bus_cif": {
       "girc-constant": -0.26553532099289345,
-      "girc-inferred": -0.07889988728670971,
+      "girc-inferred": -0.004677035696243337,
       "svt-av1": -75.97112881193314,
       "vvenc": -83.329612055383,
       "x265": -73.4937461239481
     },
     "city_cif": {
       "girc-constant": -0.4556712579905309,
-      "girc-inferred": -0.35184562949005516,
+      "girc-inferred": -0.3309258046773067,
       "svt-av1": -82.94206646848014,
       "vvenc": -87.18547396511622,
       "x265": -80.13725457426258
     },
     "coastguard_cif": {
       "girc-constant": 0.01946078699748277,
-      "girc-inferred": -0.5016600320100539,
+      "girc-inferred": -0.4251314834914921,
       "svt-av1": -70.27924320031556,
       "vvenc": -75.11590212317064,
       "x265": -62.54394708274228
     },
     "container_cif": {
       "girc-constant": -0.036243172777161714,
-      "girc-inferred": -0.10441130475240534,
+      "girc-inferred": 0.0051811665655598915,
       "svt-av1": -74.58861050366082,
       "vvenc": -79.75373762571671,
       "x265": -74.31862210249263
     },
     "crew_cif": {
       "girc-constant": 0.011602178711678235,
-      "girc-inferred": -0.4392209742643427,
+      "girc-inferred": -0.4166777844456404,
       "svt-av1": -79.32355149864793,
       "vvenc": -85.08969859753547,
       "x265": -77.00172174816797
     },
     "deadline_cif": {
       "girc-constant": -0.8185511290984548,
-      "girc-inferred": -0.7970415743184245,
+      "girc-inferred": -0.8125471912164617,
       "svt-av1": -68.11536665246933,
       "vvenc": -77.4735056347748,
       "x265": -69.63896831425618
     },
     "flower_cif": {
       "girc-constant": -0.3962648806675628,
-      "girc-inferred": -0.14881802964933355,
+      "girc-inferred": -0.2068546625992096,
       "svt-av1": -70.10545071774219,
       "vvenc": -77.91555707246455,
       "x265": -67.7196729290863
     },
     "foreman_cif": {
       "girc-constant": -0.25132559173329794,
-      "girc-inferred": -0.3896116050359888,
+      "girc-inferred": -0.4777276322531887,
       "svt-av1": -77.09909180365084,
       "vvenc": -84.48894532878832,
       "x265": -75.00939825481932
     },
     "highway_cif": {
       "girc-constant": -0.2039501833901447,
-      "girc-inferred": -0.17935336585633843,
+      "girc-inferred": -0.14287939944335193,
       "svt-av1": -79.55704282871227,
       "vvenc": -78.97258140532091,
       "x265": -67.1407873524209
     },
     "mobile_cif": {
       "girc-constant": -0.1838751285136775,
-      "girc-inferred": -0.26776149842935304,
+      "girc-inferred": -0.2484502133799693,
       "svt-av1": -78.28016662370511,
       "vvenc": -85.8801820929575,
       "x265": -77.34170553085
     },
     "stefan_cif": {
       "girc-constant": -0.047449951850575545,
-      "girc-inferred": -0.609588498998237,
+      "girc-inferred": -0.6246811732454116,
       "svt-av1": -75.41608736820726,
       "vvenc": -83.3186611222192,
       "x265": -74.24227623906586
     }
   },
   "mechanism_bd_rate": {
-    "akiyo_cif": 1.3932711856190494,
-    "bus_cif": -0.11911168101309544,
-    "city_cif": -0.35070462236895805,
-    "coastguard_cif": -0.5284096749813116,
-    "container_cif": -0.21425959531065075,
-    "crew_cif": -0.4281076446667531,
-    "deadline_cif": -0.816479186376684,
-    "flower_cif": -0.18209006897169644,
-    "foreman_cif": -0.38138056697021305,
-    "highway_cif": -0.3526231432881777,
-    "mobile_cif": -0.29147111537307646,
-    "stefan_cif": -0.6104257344313968
+    "akiyo_cif": 1.3412317881649427,
+    "bus_cif": -0.05199333557610597,
+    "city_cif": -0.32562735307282153,
+    "coastguard_cif": -0.4519989932392332,
+    "container_cif": -0.08831970960361257,
+    "crew_cif": -0.41703638193321124,
+    "deadline_cif": -0.8348361197172527,
+    "flower_cif": -0.24849622706828445,
+    "foreman_cif": -0.5190996475445964,
+    "highway_cif": -0.3182960059598505,
+    "mobile_cif": -0.2712396490323843,
+    "stefan_cif": -0.645194738961663
   },
   "mechanism_bd_rate_total": {
-    "akiyo_cif": 1.9592083762227874,
-    "bus_cif": -0.07889988728670971,
-    "city_cif": -0.35184562949005516,
-    "coastguard_cif": -0.5016600320100539,
-    "container_cif": -0.10441130475240534,
-    "crew_cif": -0.4392209742643427,
-    "deadline_cif": -0.7970415743184245,
-    "flower_cif": -0.14881802964933355,
-    "foreman_cif": -0.3896116050359888,
-    "highway_cif": -0.17935336585633843,
-    "mobile_cif": -0.26776149842935304,
-    "stefan_cif": -0.609588498998237
+    "akiyo_cif": 1.9012493971525934,
+    "bus_cif": -0.004677035696243337,
+    "city_cif": -0.3309258046773067,
+    "coastguard_cif": -0.4251314834914921,
+    "container_cif": 0.0051811665655598915,
+    "crew_cif": -0.4166777844456404,
+    "deadline_cif": -0.8125471912164617,
+    "flower_cif": -0.2068546625992096,
+    "foreman_cif": -0.4777276322531887,
+    "highway_cif": -0.14287939944335193,
+    "mobile_cif": -0.2484502133799693,
+    "stefan_cif": -0.6246811732454116
   },
   "constant_bd_rate": {
     "akiyo_cif": 1.7185020569681742,
@@ -3166,111 +3166,111 @@
       "margin": 0.0,
       "bd_rate": {
         "akiyo_cif": -0.004553623789438355,
-        "bus_cif": -0.04431101943037641,
-        "city_cif": -0.07374167118956443,
-        "coastguard_cif": -0.08955108424827385,
+        "bus_cif": -0.043505157350642865,
+        "city_cif": -0.07253456614183529,
+        "coastguard_cif": -0.08864529728969117,
         "container_cif": -0.07870568184967786,
         "crew_cif": -0.05533858991337848,
         "deadline_cif": -0.04103120218750256,
-        "flower_cif": -0.047777590534892056,
-        "foreman_cif": -0.07864098215153437,
+        "flower_cif": -0.04733298649712836,
+        "foreman_cif": -0.08247784864665597,
         "highway_cif": -0.06984937268733615,
-        "mobile_cif": -0.05092722555967155,
-        "stefan_cif": -0.03812840391353989
+        "mobile_cif": -0.0512256684975565,
+        "stefan_cif": -0.03832939488289666
       },
-      "mean_bd_rate": -0.056046370621265496,
-      "mean_mismatch_rate": 0.46420849116161605,
-      "mean_intra_mismatch_rate": 0.5381058012370172,
-      "mean_inter_mismatch_rate": 0.38521764159287536,
-      "mean_encode_seconds": 29.15024148533334
+      "mean_bd_rate": -0.05612744914447835,
+      "mean_mismatch_rate": 0.46421375210437715,
+      "mean_intra_mismatch_rate": 0.5381360686880904,
+      "mean_inter_mismatch_rate": 0.3852456900028504,
+      "mean_encode_seconds": 17.20124970083333
     },
     {
       "margin": 25.0,
       "bd_rate": {
-        "akiyo_cif": 0.2771475195961992,
-        "bus_cif": -0.30580676556861697,
-        "city_cif": -0.12466676710509716,
-        "coastguard_cif": -0.17422329969561945,
-        "container_cif": 0.15779229930292793,
-        "crew_cif": -0.06222250998535461,
-        "deadline_cif": -0.5626443517407043,
-        "flower_cif": -0.14552214777036054,
-        "foreman_cif": 0.03721869847026493,
-        "highway_cif": -0.07549970825129204,
-        "mobile_cif": -0.08254884468291701,
-        "stefan_cif": -0.11148683433462869
+        "akiyo_cif": 0.24248883342761207,
+        "bus_cif": -0.3389121471791823,
+        "city_cif": -0.10562328764113227,
+        "coastguard_cif": -0.29351078526568264,
+        "container_cif": 0.14082018792316298,
+        "crew_cif": -0.07688494213690111,
+        "deadline_cif": -0.5441123095707323,
+        "flower_cif": -0.15110179949405778,
+        "foreman_cif": -0.13456987123696695,
+        "highway_cif": -0.07027035693181194,
+        "mobile_cif": -0.08993255196213523,
+        "stefan_cif": -0.006317488549945072
       },
-      "mean_bd_rate": -0.09770522598043323,
-      "mean_mismatch_rate": 0.4462831439393939,
-      "mean_intra_mismatch_rate": 0.5220396019755291,
-      "mean_inter_mismatch_rate": 0.3636076003209996,
-      "mean_encode_seconds": 17.155673840333332
+      "mean_bd_rate": -0.11899387655148104,
+      "mean_mismatch_rate": 0.446277882996633,
+      "mean_intra_mismatch_rate": 0.5220775460016606,
+      "mean_inter_mismatch_rate": 0.36374645292193675,
+      "mean_encode_seconds": 17.018683264000003
     },
     {
       "margin": 50.0,
       "bd_rate": {
-        "akiyo_cif": 1.3932711856190494,
-        "bus_cif": -0.11911168101309544,
-        "city_cif": -0.35070462236895805,
-        "coastguard_cif": -0.5284096749813116,
-        "container_cif": -0.21425959531065075,
-        "crew_cif": -0.4281076446667531,
-        "deadline_cif": -0.816479186376684,
-        "flower_cif": -0.18209006897169644,
-        "foreman_cif": -0.38138056697021305,
-        "highway_cif": -0.3526231432881777,
-        "mobile_cif": -0.29147111537307646,
-        "stefan_cif": -0.6104257344313968
+        "akiyo_cif": 1.3412317881649427,
+        "bus_cif": -0.05199333557610597,
+        "city_cif": -0.32562735307282153,
+        "coastguard_cif": -0.4519989932392332,
+        "container_cif": -0.08831970960361257,
+        "crew_cif": -0.41703638193321124,
+        "deadline_cif": -0.8348361197172527,
+        "flower_cif": -0.24849622706828445,
+        "foreman_cif": -0.5190996475445964,
+        "highway_cif": -0.3182960059598505,
+        "mobile_cif": -0.2712396490323843,
+        "stefan_cif": -0.645194738961663
       },
-      "mean_bd_rate": -0.240149320677747,
-      "mean_mismatch_rate": 0.4253169718013468,
-      "mean_intra_mismatch_rate": 0.5018237114931567,
-      "mean_inter_mismatch_rate": 0.34128025786095456,
-      "mean_encode_seconds": 16.922259726999997
+      "mean_bd_rate": -0.2359088644620061,
+      "mean_mismatch_rate": 0.4256444654882156,
+      "mean_intra_mismatch_rate": 0.5022866920220991,
+      "mean_inter_mismatch_rate": 0.34124244629358275,
+      "mean_encode_seconds": 16.803591648583332
     },
     {
       "margin": 100.0,
       "bd_rate": {
-        "akiyo_cif": 3.2203543759556696,
-        "bus_cif": -0.1068690128685379,
-        "city_cif": 0.4810198810601074,
-        "coastguard_cif": -0.30265463083400945,
-        "container_cif": -0.04726272458490666,
-        "crew_cif": -0.18031950943985242,
-        "deadline_cif": -1.3334326949412723,
-        "flower_cif": -0.21437036406644072,
-        "foreman_cif": -0.43471007459602307,
-        "highway_cif": -0.08976675978320525,
-        "mobile_cif": -0.05004302487293666,
-        "stefan_cif": -0.46577168698005433
+        "akiyo_cif": 3.171496248036676,
+        "bus_cif": -0.17258177600023572,
+        "city_cif": 0.16795938932538945,
+        "coastguard_cif": -0.18913527475680203,
+        "container_cif": -0.044370995669307245,
+        "crew_cif": -0.210468206194947,
+        "deadline_cif": -1.2623605735665677,
+        "flower_cif": -0.2460330067976524,
+        "foreman_cif": -0.2787708813383638,
+        "highway_cif": -0.07754550431149365,
+        "mobile_cif": -0.14211444179946797,
+        "stefan_cif": -0.6882489805426051
       },
-      "mean_bd_rate": 0.039681147837378195,
-      "mean_mismatch_rate": 0.37967697811447815,
-      "mean_intra_mismatch_rate": 0.4572222760461239,
-      "mean_inter_mismatch_rate": 0.2903506569417996,
-      "mean_encode_seconds": 17.05757256716667
+      "mean_bd_rate": 0.0023188330320519,
+      "mean_mismatch_rate": 0.3794599642255893,
+      "mean_intra_mismatch_rate": 0.457326327468851,
+      "mean_inter_mismatch_rate": 0.28976568371571737,
+      "mean_encode_seconds": 16.821651476500005
     },
     {
       "margin": 200.0,
       "bd_rate": {
-        "akiyo_cif": 5.905613686271671,
-        "bus_cif": -0.032794801580582345,
-        "city_cif": 0.40247302364444515,
-        "coastguard_cif": -0.07691729277438109,
-        "container_cif": 0.39664233699241436,
-        "crew_cif": 0.5595470419851312,
-        "deadline_cif": -1.1853382063753526,
-        "flower_cif": 0.03258411266520156,
-        "foreman_cif": -0.055843554021106634,
-        "highway_cif": 1.5486433976596325,
-        "mobile_cif": -0.27638508160250375,
-        "stefan_cif": -0.15408458754032628
+        "akiyo_cif": 5.859283562348772,
+        "bus_cif": -0.24978447015361338,
+        "city_cif": 0.3628150138382136,
+        "coastguard_cif": -0.21954689663795657,
+        "container_cif": 0.3785723033734367,
+        "crew_cif": 0.39107667934130674,
+        "deadline_cif": -1.1822343131852375,
+        "flower_cif": -0.1624108139589242,
+        "foreman_cif": -0.3105229576693791,
+        "highway_cif": 1.4419775020636738,
+        "mobile_cif": -0.21208715130306421,
+        "stefan_cif": 0.08827884167437183
       },
-      "mean_bd_rate": 0.5886783396103535,
-      "mean_mismatch_rate": 0.3058935711279462,
-      "mean_intra_mismatch_rate": 0.3791938474145174,
-      "mean_inter_mismatch_rate": 0.2168193093887417,
-      "mean_encode_seconds": 16.965045271666668
+      "mean_bd_rate": 0.5154514416442999,
+      "mean_mismatch_rate": 0.305663404882155,
+      "mean_intra_mismatch_rate": 0.37927400955490315,
+      "mean_inter_mismatch_rate": 0.21656251829776108,
+      "mean_encode_seconds": 17.190784357000002
     }
   ]
 }

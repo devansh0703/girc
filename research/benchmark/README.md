@@ -10,7 +10,7 @@ which runs in CI.
 
 | File | What it is |
 |---|---|
-| `report-v8-joint.json` | The full benchmark over the twelve sequences: the explicit mode, the inferred mode with the shipped model, the constant predictor, the three anchor encoders, and the margin sweep. |
+| `report-v9-joint.json` | The full benchmark over the twelve sequences: the explicit mode, the inferred mode with the shipped model, the constant predictor, the three anchor encoders, and the margin sweep. |
 
 ## What the configuration was
 
@@ -21,7 +21,7 @@ which runs in CI.
 | Quantization parameters | 22, 27, 32, 37 |
 | Block size | 8 × 8 |
 | Margin | 50, in rate-distortion cost units |
-| Model | `models/girc-predictor.json`, version `v8-joint-inter-consistent` |
+| Model | `models/girc-predictor.json`, version `v9-joint-gpu` |
 | Anchors | x265, SVT-AV1, VVenC 1.14.0 |
 
 ## The two rate axes
@@ -63,7 +63,7 @@ source tools/benchmark_env.sh
     --anchors x265,svt-av1,vvenc \
     --compare-constant \
     --margin-sweep 0,25,50,100,200 \
-    --report research/benchmark/report-v8-joint.json \
+    --report research/benchmark/report-v9-joint.json \
     --work-dir bench-out/work
 ```
 

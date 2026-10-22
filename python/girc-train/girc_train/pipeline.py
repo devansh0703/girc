@@ -193,6 +193,41 @@ def _run_collector(binary: Path, sequence: Path, qp: int, frames: int = 1) -> li
     return [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
 
 
+def estimator_backend() -> str:
+    """Which estimator backend is available: `cuda` or `cpu`.
+
+    cuML is an optional extra rather than a requirement, because the
+    training has to work on a machine without a CUDA device and because
+    the reference encoders' oracles and the codec itself have no GPU
+    dependency. The CPU path is the fallback, not the only path.
+    """
+    try:
+        import cuml  # noqa: F401
+    except ImportError:
+        return "cpu"
+    return "cuda"
+
+
+def logistic_regression(max_iter: int, seed: int, C: float = 1.0):
+    """The multinomial logistic regression, on the GPU when there is one.
+
+    cuML's `LogisticRegression` is the same estimator over the same data,
+    and the exported weights have the same shape either way, so the
+    codec's loader cannot tell which backend produced them.
+
+    cuML takes no `random_state`: it is deterministic for a given device
+    and data, which is the property the CPU path gets from the seed. The
+    seed is therefore unused on the GPU and used on the CPU.
+    """
+    if estimator_backend() == "cuda":
+        from cuml.linear_model import LogisticRegression as CudaLogisticRegression
+
+        return CudaLogisticRegression(max_iter=max_iter, C=C)
+    from sklearn.linear_model import LogisticRegression
+
+    return LogisticRegression(max_iter=max_iter, random_state=seed, C=C)
+
+
 def evaluate_ceiling(samples: Sequence[Sample]) -> dict:
     """Measure how predictable the encoder's transform choice is.
 
@@ -214,6 +249,11 @@ def evaluate_ceiling(samples: Sequence[Sample]) -> dict:
         features, labels, test_size=0.2, random_state=20261022, stratify=stratify
     )
 
+    # The gradient-boosted tree stays on the CPU: cuML has no histogram
+    # gradient boosting, only a random forest, and swapping the
+    # estimator would change what the ceiling measures rather than how
+    # fast it is measured. It is a one-off diagnostic, not the model
+    # that ships.
     model = HistGradientBoostingClassifier(max_iter=300, random_state=0)
     model.fit(x_train, y_train)
     accuracy = float((model.predict(x_test) == y_test).mean())
@@ -238,7 +278,6 @@ def fit_model(
     state, so the exported weights are reproducible from the recorded
     training data.
     """
-    from sklearn.linear_model import LogisticRegression
     from sklearn.model_selection import train_test_split
 
     samples = list(read_samples(input_path))
@@ -276,11 +315,7 @@ def fit_model(
     # of blocks. A class weight is deliberately *not* used, because
     # balancing pushes the fit towards the rare classes and costs more
     # overall accuracy than it gains.
-    model = LogisticRegression(
-        max_iter=5000,
-        random_state=seed,
-        C=1.0,
-    ).fit(x_train, y_train)
+    model = logistic_regression(max_iter=5000, seed=seed, C=1.0).fit(x_train, y_train)
 
     prediction = model.predict(x_test)
     composed = prediction
@@ -330,6 +365,7 @@ def fit_model(
                 ).mean()
             ),
             "random_state": seed,
+            "estimator_backend": estimator_backend(),
             "predictability_ceiling": ceiling,
             "class_distribution": {
                 name: int((labels == index).sum()) for index, name in enumerate(TRANSFORM_NAMES)
@@ -428,6 +464,7 @@ def environment_info() -> dict:
         "python": platform.python_version(),
         "platform": platform.platform(),
         "numpy": np.__version__,
+        "estimator_backend": estimator_backend(),
     }
 
 

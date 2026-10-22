@@ -27,12 +27,13 @@
       <div class="wrap">
         <section class="hero">
           <div class="readout">MEASURED ON XIPH.ORG CIF · 12 SEQUENCES · 10 FRAMES · QP 22–37</div>
-          <h1>The mechanism saves 0.240% of the bitrate.</h1>
+          <h1>The mechanism saves 0.236% of the bitrate.</h1>
           <p class="lede">
             Twelve CIF sequences, ten frames each, four QP points, and the
-            inferred mode comes out 0.240% smaller than the explicit mode
-            on the luma plane, and 0.159% smaller on the whole frame. It
-            is smaller on eleven sequences of the twelve. The margin sweep
+            inferred mode comes out 0.236% smaller than the explicit mode
+            on the luma plane, and 0.149% smaller on the whole frame. It
+            is smaller on eleven sequences of the twelve on the luma
+            plane and ten on the whole frame. The margin sweep
             below is the whole trade: the rate the encoder gives up in
             distortion, against the rate it saves in signalling.
           </p>
@@ -93,28 +94,28 @@
               </tr>
               <tr>
                 <td>25</td>
-                <td class="good">−0.098</td>
+                <td class="good">−0.119</td>
                 <td>44.6%</td>
-                <td>9 of 12</td>
+                <td>10 of 12</td>
                 <td>The margin starts to pay</td>
               </tr>
               <tr>
                 <td>50</td>
-                <td class="good"><strong>−0.240</strong></td>
-                <td>42.5%</td>
+                <td class="good"><strong>−0.236</strong></td>
+                <td>42.6%</td>
                 <td>11 of 12</td>
                 <td>The optimum on this content</td>
               </tr>
               <tr>
                 <td>100</td>
-                <td class="warn">+0.040</td>
-                <td>38.0%</td>
+                <td class="warn">+0.002</td>
+                <td>37.9%</td>
                 <td>10 of 12</td>
                 <td>Past the optimum</td>
               </tr>
               <tr>
                 <td>200</td>
-                <td class="warn">+0.589</td>
+                <td class="warn">+0.515</td>
                 <td>30.6%</td>
                 <td>6 of 12</td>
                 <td>Distortion dominates</td>
@@ -126,7 +127,7 @@
             explicit mode, over twelve CIF sequences at four QP points, on
             the luma plane. Negative means the inferred mode is smaller.
             The whole-frame figure, which includes the chroma planes, is
-            −0.159% at the margin of 50, and the inferred mode is smaller
+            −0.149% at the margin of 50, and the inferred mode is smaller
             on ten sequences of the twelve.
           </p>
         </section>
@@ -206,8 +207,8 @@
           </table>
           <p class="muted">
             Margin of 50, QP 22 to 37, luma plane, 8×8 blocks, ten frames
-            per sequence. The mean over the twelve is −0.240% and the
-            median −0.352%.
+            per sequence. The mean over the twelve is −0.236% and the
+            median −0.322%.
           </p>
         </section>
 
@@ -236,15 +237,15 @@
               </tr>
               <tr>
                 <td><strong>The shipped learned model</strong></td>
-                <td class="good"><strong>−0.240%</strong></td>
+                <td class="good"><strong>−0.236%</strong></td>
                 <td>11 of 12</td>
               </tr>
             </tbody>
           </table>
           <p class="muted">
-            The learned model is ahead on seven of the twelve sequences, and
-            the gap between the two is 0.120 percentage points of BD-rate,
-            which is half the mechanism's own effect. The model is one
+            The learned model is ahead on six of the twelve sequences, and
+            the gap between the two is 0.116 percentage points of BD-rate,
+            which is about half the mechanism's own effect. The model is one
             multinomial logistic regression over the joint mode, fitted on
             570,240 real block records from the twelve sequences.
           </p>
@@ -348,7 +349,7 @@
               </tr>
               <tr>
                 <td>Shipped model, over the joint mode</td>
-                <td>50.18%</td>
+                <td>50.17%</td>
                 <td>91.6% on the plain DCT-II, 5.3% to 15.4% on the four others</td>
               </tr>
             </tbody>
@@ -392,7 +393,7 @@
               shipped predictor is one model over the five modes.
             </p>
             <p>
-              Even so, the saving is 0.240%, not a headline number. The
+              Even so, the saving is 0.236%, not a headline number. The
               explicit signalling is already cheap for a context-adaptive
               coder to code, and the mechanism removes an overhead that is
               close to the distortion it costs to remove it. The margin

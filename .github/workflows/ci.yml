@@ -139,7 +139,7 @@ jobs:
           # The benchmark report is committed, so the figures the
           # documents quote can be checked against the run they came
           # from rather than trusted.
-          python3 tools/verify_benchmark_numbers.py research/benchmark/report-v8-joint.json
+          python3 tools/verify_benchmark_numbers.py research/benchmark/report-v9-joint.json
 
   sites:
     name: Sites

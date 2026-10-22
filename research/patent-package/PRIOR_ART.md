@@ -106,8 +106,8 @@ applied to the predicted mode.
 The implementation predicts the joint mode with one model rather than
 two per-axis models composed together, and that was a measured
 decision rather than a preference. Each axis on its own was well above
-the majority class, about 54.6% against 49.8%, and the composed mode
-came out *below* it, at 48.3%. The five modes are not a product space:
+the majority class, about 53.9% against 50.1%, and the composed mode
+came out *below* it, at 48.8%. The five modes are not a product space:
 the plain DCT-II appears on an axis only in the mode where both axes
 are the plain DCT-II, and the four multiple transform selection modes
 are correlated. Composing two independent per-axis models cannot
