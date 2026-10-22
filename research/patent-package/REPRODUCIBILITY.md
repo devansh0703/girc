@@ -115,22 +115,30 @@ At a margin of 50, over the twelve sequences:
 
 | Measure | Value | Better on |
 |---|---|---|
-| Mean BD-rate, luma plane | −0.175% | 9 of 12 |
-| Mean BD-rate, whole frame | −0.104% | 8 of 12 |
-| Median BD-rate, luma plane | −0.262% | — |
-| Best sequence | `deadline_cif`, −1.388% | — |
-| Worst sequence | `akiyo_cif`, +1.501% | — |
-| Prediction mismatch | 43.2% | — |
+| Mean BD-rate, luma plane | −0.239% | 10 of 12 |
+| Mean BD-rate, whole frame | −0.156% | 10 of 12 |
+| Median BD-rate, luma plane | −0.332% | — |
+| Best sequence | `deadline_cif`, −0.902% | — |
+| Worst sequence | `akiyo_cif`, +1.403% | — |
+| Prediction mismatch | 42.5% | — |
+
+The learned predictor against the constant one, which is the
+alternative that needs no training and no model:
+
+| Predictor | Mean BD-rate, luma | Better on |
+|---|---|---|
+| Constant, always the plain DCT-II | −0.120% | 10 of 12 |
+| The shipped learned model | −0.239% | 10 of 12 |
 
 The margin sweep, on the luma plane:
 
-| Margin | Mean BD-rate | Mismatch |
-|---|---|---|
-| 0 | −0.006% | 47.9% |
-| 25 | −0.079% | 45.4% |
-| 50 | −0.175% | 43.2% |
-| 100 | +0.073% | 38.7% |
-| 200 | +0.639% | 31.2% |
+| Margin | Mean BD-rate | Mismatch | Better on |
+|---|---|---|---|
+| 0 | −0.056% | 46.4% | 12 of 12 |
+| 25 | −0.138% | 44.7% | 9 of 12 |
+| 50 | −0.239% | 42.5% | 10 of 12 |
+| 100 | +0.116% | 38.0% | 8 of 12 |
+| 200 | +0.557% | 30.7% | 5 of 12 |
 
 The training set is rebuilt the same way:
 

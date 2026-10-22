@@ -36,17 +36,31 @@ replaces it with the decoder's own prediction of it. Over twelve
 Xiph.Org CIF sequences, ten frames each, at QP 22 to 37, on the
 current model:
 
-| Margin (RD-cost units) | Mean BD-rate, luma | Mean BD-rate, whole frame | Prediction mismatch |
+| Margin (RD-cost units) | Mean BD-rate, luma | Prediction mismatch | Better on |
 |---|---|---|---|
-| 0 | −0.006% | — | 47.9% |
-| 25 | −0.079% | — | 45.4% |
-| 50 | **−0.175%** | **−0.104%** | 43.2% |
-| 100 | +0.073% | — | 38.7% |
-| 200 | +0.639% | — | 31.2% |
+| 0 | −0.056% | 46.4% | 12 of 12 |
+| 25 | −0.138% | 44.7% | 9 of 12 |
+| 50 | **−0.239%** | 42.5% | 10 of 12 |
+| 100 | +0.116% | 38.0% | 8 of 12 |
+| 200 | +0.557% | 30.7% | 5 of 12 |
 
-At the margin of 50, which is where the mechanism pays best, the
-mechanism is better on **9 of the 12 sequences** on the luma plane and
-**8 of the 12** on the whole frame.
+At the margin of 50 the mechanism is **−0.239% on the luma plane** and
+**−0.156% on the whole frame**, and it is better on 10 of the 12
+sequences on both axes.
+
+**The learned predictor beats the constant one, and the benchmark
+measures both.** The constant predictor always answers the plain DCT-II
+and needs no training and no model, so it is the alternative any claim
+about a trained predictor has to beat:
+
+| Predictor | Mean BD-rate, luma | Better on |
+|---|---|---|
+| Constant, always the plain DCT-II | −0.120% | 10 of 12 |
+| The shipped learned model | **−0.239%** | 10 of 12 |
+
+The learned model is ahead on 9 of the 12 sequences, and the gap
+between them is 0.119 percentage points of BD-rate, which is twice the
+mechanism's own effect.
 
 Two rate axes are reported because the mechanism changes the luma
 signalling and nothing else. The luma rate is the mechanism's own
@@ -56,14 +70,19 @@ because the anchors code all three planes and so does GIRC.
 
 The mechanism is a small win, and the reason it is not a larger one is
 measurable rather than mysterious. The predictability ceiling of the
-feature set is 44.98% against a 44.31% majority-class baseline for the
-joint five-class mode, and 51.75% for one axis on its own. The joint
-mode is barely predictable because the rate-distortion choice between
-the modes is close to a tie, so the implementation models the two axes
-separately and composes them. The margin is what makes the mechanism
-work at all: it lets the encoder take the predicted mode whenever the
-predicted mode is nearly as good as the best one, and pay a correction
-only when the gap is worth paying for.
+feature set, measured by fitting a gradient-boosted tree over the same
+features, is 53.9% against a 53.5% majority class. The joint mode is
+close to unpredictable: the rate-distortion choice between the modes is
+close to a tie, so there is little for a predictor to predict. The
+per-class accuracy of the shipped model is 92.3% on the plain DCT-II
+and between 3.6% and 17.9% on the four multiple transform selection
+modes.
+
+That measurement is the mechanism's most useful result. It says the
+constraint is not the signalling and not the coding tools: it is that
+the transform mode is a near-tie in rate-distortion terms. An
+evaluation with a richer residual coder, where the modes separate more,
+is where the mechanism should pay.
 
 The closest prior art reports the same kind of result. InterDigital's
 EP3977732B1 reports **+0.34% overall** for its implicit transform

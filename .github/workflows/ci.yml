@@ -117,6 +117,13 @@ jobs:
       - name: Check that every quotation is in the claim text
         run: python3 tools/verify_claim_charts.py
 
+      - name: Check that the documents agree with the benchmark
+        run: |
+          # The benchmark report is committed, so the figures the
+          # documents quote can be checked against the run they came
+          # from rather than trusted.
+          python3 tools/verify_benchmark_numbers.py research/benchmark/report-v7-joint.json
+
   sites:
     name: Sites
     runs-on: ubuntu-latest

@@ -145,22 +145,30 @@ has to be narrowed to match:
 ### 1.4 What the measurements actually show
 
 The result, from the repository's own benchmark, over twelve Xiph.Org CIF
-sequences, ten frames each, at QP 22 to 37:
+sequences, ten frames each, at QP 22 to 37, with the shipped model and
+a margin of 50:
 
-| Margin (RD-cost units) | Mean BD-rate, luma | Prediction mismatch |
+| Measure | Value |
+|---|---|
+| Mean BD-rate, luma plane | −0.239% |
+| Mean BD-rate, whole frame | −0.156% |
+| Better than the explicit mode | 10 of the 12 sequences, on both axes |
+
+**The learned predictor has to beat the constant one, and it does.** The
+constant predictor always answers the plain DCT-II and needs no
+training and no model, so it is the alternative any claim about a
+trained predictor has to beat. The benchmark runs both over the same
+content, the same quantization parameters and the same margin, and
+reports them in the same file:
+
+| Predictor | Mean BD-rate, luma | Better on |
 |---|---|---|
-| 0 | −0.006% | 47.9% |
-| 25 | −0.079% | 45.4% |
-| **50** | **−0.175%** | 43.2% |
-| 100 | +0.073% | 38.7% |
-| 200 | +0.639% | 31.2% |
+| Constant, always the plain DCT-II | −0.120% | 10 of 12 |
+| The shipped learned model | **−0.239%** | 10 of 12 |
 
-At a margin of 50 the inferred mode is **0.175% smaller** than the
-explicit mode on the luma plane, and **0.104% smaller** on the whole
-frame, which includes the two chroma planes. It is smaller on nine of
-the twelve sequences on the luma plane and eight of the twelve on the
-whole frame. The median is −0.262%. The best single sequence is
-`deadline_cif` at −1.388% and the worst is `akiyo_cif` at +1.501%.
+The learned model is ahead on nine of the twelve sequences, and the gap
+between the two is 0.119 percentage points of BD-rate, which is twice
+the mechanism's own effect.
 
 Two rate axes are reported because the mechanism changes the luma
 signalling and nothing else: the luma rate is the mechanism's own
@@ -171,31 +179,49 @@ anchors code all three planes and so does GIRC.
 The mechanism is a small win, and the reason it is not a larger one is
 measurable rather than mysterious. The predictability ceiling of the
 feature set, measured by fitting a gradient-boosted tree over the same
-features, depends on what is being predicted:
+features, is 53.9% against a 53.5% majority class. The joint mode is
+close to unpredictable: the per-class accuracy of the shipped model is
+92.3% on the plain DCT-II and between 3.6% and 17.9% on the four
+multiple transform selection modes. The rate-distortion choice between
+the modes is close to a tie — the gap between the best and the
+second-best mode is under 10% of the distortion for half the blocks —
+and so the mode is hard to predict from anything the decoder has.
 
-| Target | Ceiling | Majority class |
-|---|---|---|
-| The joint five-class mode | 44.98% | 44.31% |
-| One axis on its own | 51.75% | 44.31% |
+**That is the mechanism's most useful result.** It says the constraint
+is not the signalling and not the coding tools: it is that the
+transform mode is a near-tie in rate-distortion terms, so there is
+little for a predictor to predict. An evaluation with a richer
+residual coder, where the modes separate more, is where the mechanism
+should pay, and §1.5 says where that is.
 
-The joint mode is barely predictable, because the rate-distortion choice
-between the modes is close to a tie: the gap between the best and the
-second-best mode is under 10% of the distortion for half the blocks. Each
-axis on its own is markedly more predictable, because the geometry of a
-neighbourhood says more about the transform on one axis than about the
-mode as a whole.
+Two findings shaped the implementation, and both are in the repository
+rather than in this document:
 
-**That measurement is the mechanism's most useful result, and it is what
-the per-axis prediction is built on.** The implementation models the two
-axes separately and composes them, and the shipped model reaches 51.1% on
-the horizontal axis and 51.0% on the vertical one, against 44.31% for the
-constant majority predictor.
+- **The predictor has to model the joint mode, not the two axes.** An
+  earlier version modelled each axis separately and composed them,
+  because each axis on its own was well above the majority class — about
+  54.6% against 49.8% — and the composed mode came out *below* it, at
+  48.3%. The five modes are not a product space: the plain DCT-II
+  appears on an axis only in the mode where both axes are the plain
+  DCT-II, and the four multiple transform selection modes are
+  correlated. Composing two independent per-axis models cannot recover
+  the joint distribution, and the measurement showed it losing. One
+  model over the five modes is both simpler and better.
+- **The prediction's own orientation is the strongest feature.** The
+  encoder chooses the transform that best compacts the residual, and
+  the residual inherits the prediction's directional structure, so the
+  prediction's orientation is the most direct evidence of the transform
+  the encoder will want. Both sides have the prediction before they need
+  the transform type, because the intra mode and the motion vector are
+  both decoded first. For an inter block the prediction comes from the
+  previous frame at a motion-compensated position, so it carries
+  information the causal window of the current frame does not have.
 
-Even so, the saving is 0.175% and not a headline number, and the report
+Even so, the saving is 0.239% and not a headline number, and the report
 says so. The explicit signalling is already cheap for a context-adaptive
-coder to code, and the mechanism removes an overhead that is close to the
-distortion it costs to remove it. §1.5 states the conditions under which
-the trade changes.
+coder to code, and the mechanism removes an overhead that is close to
+the distortion it costs to remove it. §1.5 states the conditions under
+which the trade changes.
 
 ### 1.5 Where the mechanism would pay
 
@@ -409,7 +435,7 @@ instead.
 **The measured result is a small win, and the closest prior art reports a
 loss.** InterDigital's EP3977732B1 reports +0.34% overall for its
 implicit transform design against an MTS-disabled anchor: their approach
-did not pay. The present disclosure's −0.175% at a margin of 50 is a
+did not pay. The present disclosure's −0.239% at a margin of 50 is a
 better result by a different mechanism, and it is still far from a
 decisive win. A filing that claimed a large coding gain would be
 contradicted by the reference implementation in this repository.

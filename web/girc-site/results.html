@@ -27,12 +27,12 @@
       <div class="wrap">
         <section class="hero">
           <div class="readout">MEASURED ON XIPH.ORG CIF · 12 SEQUENCES · 10 FRAMES · QP 22–37</div>
-          <h1>The mechanism saves 0.175% of the bitrate.</h1>
+          <h1>The mechanism saves 0.239% of the bitrate.</h1>
           <p class="lede">
             Twelve CIF sequences, ten frames each, four QP points, and the
-            inferred mode comes out 0.175% smaller than the explicit mode
-            on the luma plane, and 0.104% smaller on the whole frame. It
-            is smaller on nine sequences of the twelve. The margin sweep
+            inferred mode comes out 0.239% smaller than the explicit mode
+            on the luma plane, and 0.156% smaller on the whole frame. It
+            is smaller on ten sequences of the twelve. The margin sweep
             below is the whole trade: the rate the encoder gives up in
             distortion, against the rate it saves in signalling.
           </p>
@@ -79,38 +79,44 @@
                 <th>Margin (RD-cost units)</th>
                 <th>Mean BD-rate, luma</th>
                 <th>Prediction mismatch</th>
+                <th>Better on</th>
                 <th>Reading</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td>0</td>
-                <td class="good">−0.006%</td>
-                <td>47.9%</td>
+                <td class="good">−0.056</td>
+                <td>46.4%</td>
+                <td>12 of 12</td>
                 <td>No margin: the encoder always takes the optimal transform</td>
               </tr>
               <tr>
                 <td>25</td>
-                <td class="good">−0.079%</td>
-                <td>45.4%</td>
+                <td class="good">−0.138</td>
+                <td>44.7%</td>
+                <td>9 of 12</td>
                 <td>The margin starts to pay</td>
               </tr>
               <tr>
                 <td>50</td>
-                <td class="good"><strong>−0.175%</strong></td>
-                <td>43.2%</td>
+                <td class="good"><strong>−0.239</strong></td>
+                <td>42.5%</td>
+                <td>10 of 12</td>
                 <td>The optimum on this content</td>
               </tr>
               <tr>
                 <td>100</td>
-                <td class="warn">+0.073%</td>
-                <td>38.7%</td>
+                <td class="warn">+0.116</td>
+                <td>38.0%</td>
+                <td>8 of 12</td>
                 <td>Past the optimum</td>
               </tr>
               <tr>
                 <td>200</td>
-                <td class="warn">+0.639%</td>
-                <td>31.2%</td>
+                <td class="warn">+0.557</td>
+                <td>30.7%</td>
+                <td>5 of 12</td>
                 <td>Distortion dominates</td>
               </tr>
             </tbody>
@@ -120,8 +126,8 @@
             explicit mode, over twelve CIF sequences at four QP points, on
             the luma plane. Negative means the inferred mode is smaller.
             The whole-frame figure, which includes the chroma planes, is
-            −0.104% at the margin of 50, and the inferred mode is smaller
-            on eight sequences of the twelve.
+            −0.156% at the margin of 50, and the inferred mode is smaller
+            on ten sequences of the twelve.
           </p>
         </section>
 
@@ -138,70 +144,109 @@
             <tbody>
               <tr>
                 <td>deadline_cif</td>
-                <td class="good">−1.388%</td>
+                <td class="good">−0.902</td>
                 <td>Motion, texture and noise</td>
               </tr>
               <tr>
-                <td>city_cif</td>
-                <td class="good">−0.497%</td>
-                <td>Dense detail, little large-scale structure</td>
+                <td>foreman_cif</td>
+                <td class="good">−0.639</td>
+                <td>Fine texture, strong edges</td>
+              </tr>
+              <tr>
+                <td>stefan_cif</td>
+                <td class="good">−0.565</td>
+                <td>Motion, texture and noise</td>
+              </tr>
+              <tr>
+                <td>coastguard_cif</td>
+                <td class="good">−0.478</td>
+                <td>Water texture, fine detail</td>
               </tr>
               <tr>
                 <td>container_cif</td>
-                <td class="good">−0.468%</td>
+                <td class="good">−0.374</td>
                 <td>Sharp edges, flat panels</td>
               </tr>
               <tr>
                 <td>bus_cif</td>
-                <td class="good">−0.350%</td>
+                <td class="good">−0.334</td>
                 <td>Moving subject, uniform background</td>
               </tr>
               <tr>
+                <td>flower_cif</td>
+                <td class="good">−0.330</td>
+                <td>Fine foliage texture</td>
+              </tr>
+              <tr>
+                <td>city_cif</td>
+                <td class="good">−0.284</td>
+                <td>Dense detail, little large-scale structure</td>
+              </tr>
+              <tr>
                 <td>mobile_cif</td>
-                <td class="good">−0.301%</td>
+                <td class="good">−0.275</td>
                 <td>Moving subject, detailed background</td>
               </tr>
               <tr>
                 <td>crew_cif</td>
-                <td class="good">−0.296%</td>
+                <td class="good">−0.214</td>
                 <td>Motion and texture</td>
               </tr>
               <tr>
-                <td>foreman_cif</td>
-                <td class="good">−0.228%</td>
-                <td>Fine texture, strong edges</td>
-              </tr>
-              <tr>
-                <td>flower_cif</td>
-                <td class="good">−0.163%</td>
-                <td>Fine foliage texture</td>
-              </tr>
-              <tr>
                 <td>highway_cif</td>
-                <td class="good">−0.109%</td>
+                <td class="warn">+0.129</td>
                 <td>Fast panning, strong horizontal structure</td>
               </tr>
               <tr>
-                <td>coastguard_cif</td>
-                <td class="warn">+0.054%</td>
-                <td>Water texture, fine detail</td>
-              </tr>
-              <tr>
-                <td>stefan_cif</td>
-                <td class="warn">+0.147%</td>
-                <td>Motion, texture and noise</td>
-              </tr>
-              <tr>
                 <td>akiyo_cif</td>
-                <td class="bad">+1.501%</td>
+                <td class="bad">+1.403</td>
                 <td>Flat, high detail, little motion</td>
               </tr>
             </tbody>
           </table>
           <p class="muted">
             Margin of 50, QP 22 to 37, luma plane, 8×8 blocks, ten frames
-            per sequence. The mean over the twelve is −0.175% and the
-            median −0.262%.
+            per sequence. The mean over the twelve is −0.239% and the
+            median −0.332%.
+          </p>
+        </section>
+
+        <section>
+          <h2>Does the learned predictor earn its keep?</h2>
+          <p>
+            A claim about a trained predictor has to beat the alternative
+            that needs no training and no model: always predict the plain
+            DCT-II. The benchmark runs both over the same content, the
+            same quantization parameters and the same margin, and reports
+            them in the same file.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Predictor</th>
+                <th>Mean BD-rate, luma</th>
+                <th>Better on</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Constant, always the plain DCT-II</td>
+                <td class="warn">−0.120%</td>
+                <td>10 of 12</td>
+              </tr>
+              <tr>
+                <td><strong>The shipped learned model</strong></td>
+                <td class="good"><strong>−0.239%</strong></td>
+                <td>10 of 12</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="muted">
+            The learned model is ahead on nine of the twelve sequences, and
+            the gap between the two is 0.119 percentage points of BD-rate,
+            which is twice the mechanism's own effect. The model is one
+            multinomial logistic regression over the joint mode, fitted on
+            760,320 real block records from the twelve sequences.
           </p>
         </section>
 
@@ -336,7 +381,7 @@
               models the two axes separately and composes them.
             </p>
             <p>
-              Even so, the saving is 0.175%, not a headline number. The
+              Even so, the saving is 0.239%, not a headline number. The
               explicit signalling is already cheap for a context-adaptive
               coder to code, and the mechanism removes an overhead that is
               close to the distortion it costs to remove it. The margin
