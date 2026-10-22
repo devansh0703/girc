@@ -143,16 +143,33 @@ The margin sweep, on the luma plane:
 The training set is rebuilt the same way:
 
 ```sh
+mkdir -p bench-out/train-pred
 for sequence in data/seq/*.y4m; do
   for qp in 22 27 32 37; do
-    ./target/release/girc collect --input "$sequence" --qp "$qp"
+    ./target/release/girc collect --input "$sequence" --qp "$qp" --frames 10
   done
-done > bench-out/training.jsonl
+done > bench-out/train-pred/mixed.jsonl
 
 PYTHONPATH=python/girc-train python3 -m girc_train fit \
-  --input bench-out/training.jsonl \
-  --output models/girc-predictor.json
+  --input bench-out/train-pred/mixed.jsonl \
+  --output models/girc-predictor.json \
+  --model-version v7-joint-prediction
 ```
+
+That produces 760,320 records, and the model records the SHA-256 of the
+data it was fitted on, so a re-run that produced different data would
+be visible:
+
+```
+sha256  247e62742c56ead475195cf9dbebb9043b9308608274f8a75213d7fd9d2ef229
+```
+
+The data itself is 422 MB and is not in the repository; the collection
+is deterministic, because the encoder's search is, so re-running the
+command above reproduces it. The fitted model is in the repository, and
+`crates/girc-core/tests/shipped_model.rs` checks that it loads, that
+its weights match the codec's feature count, and that it is not the
+constant predictor.
 
 The harness records the tool versions it ran against inside the report,
 so a re-run that produced a different figure would show why.
