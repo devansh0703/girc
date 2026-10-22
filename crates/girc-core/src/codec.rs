@@ -26,7 +26,8 @@ use crate::bitstream::{BinDecoder, BinEncoder, BitstreamError, BitstreamHeader, 
 use crate::chroma;
 use crate::frame::Frame;
 use crate::geometry::{
-    extract_features, extract_features_from_window, BlockContext, GeometryFeatures, MotionContext,
+    extract_features, extract_features_from_window, prediction_features, BlockContext, GeometryFeatures,
+    MotionContext,
     NeighbourTransforms, TransformPredictor, TransformSignal, TransformSignalling,
 };
 use crate::inter::{compensate, search, MotionField, MotionVector};
@@ -463,6 +464,7 @@ fn encode_luma_sequence(
                         mode,
                         is_inter,
                         qp: config.qp,
+                        prediction: &prediction,
                     });
                     Some(config.predictor.predict_with_margin(&features).0)
                 } else {
@@ -511,6 +513,7 @@ fn encode_luma_sequence(
                             mode,
                             is_inter,
                             qp: config.qp,
+                            prediction: &prediction,
                         }),
                         transform: choice.optimal,
                     });
@@ -735,6 +738,7 @@ fn decode_luma_sequence(
                         mode,
                         is_inter,
                         qp: header.qp as i32,
+                        prediction: &prediction,
                     },
                 )?;
 
@@ -1501,6 +1505,14 @@ pub struct PredictionContext<'a> {
     pub is_inter: bool,
     /// The quantization parameter, from the bitstream header.
     pub qp: i32,
+    /// The block's own prediction, which both sides have computed by the
+    /// time the transform type is needed.
+    ///
+    /// The prediction's orientation is the most direct evidence of which
+    /// transform the encoder will want, because the transform has to
+    /// compact the residual and the residual inherits the prediction's
+    /// directional structure.
+    pub prediction: &'a [i32],
 }
 
 /// The features the predictor would see for a block.
@@ -1522,6 +1534,7 @@ pub fn predict_features(context: &PredictionContext<'_>) -> GeometryFeatures {
             qp: context.qp,
             neighbours: context.transforms.neighbours(bx, by),
             motion: motion_context(context.motion, bx, by, context.is_inter),
+            prediction: prediction_features(context.prediction, BLOCK_SIZE),
         },
     )
 }
@@ -1554,6 +1567,7 @@ pub fn block_features(context: &PredictionContext<'_>) -> GeometryFeatures {
             qp: context.qp,
             neighbours: context.transforms.neighbours(bx, by),
             motion: motion_context(context.motion, bx, by, context.is_inter),
+            prediction: prediction_features(context.prediction, BLOCK_SIZE),
         },
     )
 }

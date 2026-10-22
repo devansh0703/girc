@@ -83,6 +83,13 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[-]` cut
       rate and the whole-frame rate can be measured separately, and
       the benchmark reports both. The anchor comparison is now a
       like-for-like one: both sides code all three planes.
-- [ ] A deployment of the evaluation portal: TLS, a reverse proxy, real
-      secret injection, backups and distributed rate limiting.
+- [x] A deployment of the evaluation portal: TLS, a reverse proxy, real
+      secret injection, backups and distributed rate limiting. It is in
+      `deploy/`, it was brought up against PostgreSQL, and the whole
+      lifecycle was exercised in the container: register, sign in,
+      reach the dashboard, write the audit log, back it up and restore
+      it. The Caddyfile validates, and the proxy chain was run: the
+      login page comes back with every security header applied and the
+      Server header removed, and the audit log records the client's
+      address.
 

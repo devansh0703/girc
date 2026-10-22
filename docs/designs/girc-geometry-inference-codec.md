@@ -225,10 +225,29 @@ it to *geometry*:
   choice is not the predicted one. The correction is relative to the
   prediction, and selects among the four non-predicted modes. Zero bits
   when the prediction is right.
-- The predictor is a trained model — two per-axis logistic regressors over
-  a 2-D structure tensor of the causal neighbourhood, plus the decoded
-  neighbours' own transform modes — shipped as a frozen, versioned artifact,
-  so encoder and decoder are guaranteed bit-identical.
+- The predictor is a trained model — one multinomial logistic regression over
+  the joint mode, reading a 2-D structure tensor of the causal neighbourhood,
+  the decoded neighbours' own transform modes, the motion context, and the
+  block's own prediction plane — shipped as a frozen, versioned artifact, so
+  encoder and decoder are guaranteed bit-identical.
+
+  The model is over the joint mode rather than over the two axes, and that
+  was measured. Each axis on its own predicted well above the majority class
+  (about 54.6% against 49.8%), and the two were then composed into a mode —
+  and the composed mode came out *below* the majority, at 48.3%. The five
+  modes are not a product space: the plain DCT-II appears on an axis only in
+  the mode where both axes are the plain DCT-II, and the four multiple
+  transform selection modes are correlated. Composing two independent
+  per-axis models cannot recover the joint distribution, and the measurement
+  showed it losing. One model over the five modes is simpler and better.
+
+  The prediction plane is in the feature set because the encoder chooses the
+  transform that best compacts the residual, and the residual inherits the
+  prediction's directional structure. Both sides have the prediction before
+  they need the transform type, since the intra mode and the motion vector
+  are both decoded first. For an inter block the prediction comes from the
+  previous frame at a motion-compensated position, so it carries
+  information the causal window of the current frame does not have at all.
 
 This is precisely the brief's "geometry-transform inference lets a video codec
 infer some transforms instead of sending each one", and it is precisely the

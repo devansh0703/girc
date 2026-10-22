@@ -64,12 +64,36 @@ def compose_mode(horizontal: int, vertical: int) -> int:
 # isotropy and reference coverage, then the per-axis energies and their
 # correlation, then the quantization parameter, then the one-hot intra
 # prediction mode, then the one-hot transforms of the four neighbouring
-# blocks.
+# blocks, then the inter flag and the six motion components.
+#
+# The layout has to match the core's exactly, or the model reads the
+# wrong feature at every position. The core's own test checks the
+# count, and `girc_core::geometry::GeometryFeatures::LEN` is the
+# authority.
 NUM_ORIENTATION_BINS = 8
 NUM_INTRA_MODES = 10
 # The four neighbouring blocks, in the order the core uses: left, above,
 # above-left, above-right.
 NEIGHBOUR_SLOTS = ("left", "above", "above_left", "above_right")
+# The motion features: the block's own vector, then the left one, then
+# the above one, each with two components.
+MOTION_FEATURES = (
+    "motion_own_dx",
+    "motion_own_dy",
+    "motion_left_dx",
+    "motion_left_dy",
+    "motion_above_dx",
+    "motion_above_dy",
+)
+# The prediction's own orientation: the eight bins of the gradient's
+# direction, the energy along each axis, and the correlation between
+# them.
+PREDICTION_FEATURES = (
+    *[f"prediction_bin_{i}" for i in range(NUM_ORIENTATION_BINS)],
+    "prediction_horizontal_energy",
+    "prediction_vertical_energy",
+    "prediction_axis_correlation",
+)
 # The window-based features replace the reference-line ones; the layout is
 # unchanged, so the count stays the same.
 FEATURE_NAMES = (
@@ -88,6 +112,9 @@ FEATURE_NAMES = (
         for slot in NEIGHBOUR_SLOTS
         for name in TRANSFORM_NAMES
     ],
+    "is_inter",
+    *MOTION_FEATURES,
+    *PREDICTION_FEATURES,
 )
 NUM_FEATURES = len(FEATURE_NAMES)
 
@@ -232,45 +259,33 @@ def fit_model(
         features, labels, test_size=0.2, random_state=seed, stratify=stratify
     )
 
-    # The predictor models the two axes separately and composes them,
-    # rather than modelling the joint mode. The measurement behind that
-    # is in the patent package: the joint mode is barely predictable from
-    # the causal neighbourhood, because the rate-distortion choice
-    # between the five modes is close to a tie, but each axis on its own
-    # is more predictable, because the geometry of a neighbourhood says
-    # more about the transform on one axis than about the mode as a
-    # whole.
-    horizontal = np.asarray([HORIZONTAL_OF_MODE[m] for m in y_train])
-    vertical = np.asarray([VERTICAL_OF_MODE[m] for m in y_train])
-    horizontal_test = np.asarray([HORIZONTAL_OF_MODE[m] for m in y_test])
-    vertical_test = np.asarray([VERTICAL_OF_MODE[m] for m in y_test])
-
+    # The predictor models the joint mode directly.
+    #
+    # An earlier version modelled the two axes separately and composed
+    # them, on the grounds that each axis is more predictable on its own.
+    # The measurement said otherwise: each axis was well above the
+    # majority class, and the composed mode was *below* it. The five
+    # modes are not a product space -- the plain DCT-II appears on an
+    # axis only in the mode where both axes are the plain DCT-II, and
+    # the four multiple transform selection modes are correlated -- so
+    # composing two independent per-axis models cannot recover the joint
+    # distribution. One model over the five modes is both simpler and
+    # better.
+    #
     # The classes are imbalanced: the DCT-II is chosen for the majority
     # of blocks. A class weight is deliberately *not* used, because
     # balancing pushes the fit towards the rare classes and costs more
-    # overall accuracy than it gains; the unweighted fit reaches 43.2%
-    # on the joint mode against a 44.3% majority baseline, with each
-    # axis at 51%, while the balanced fit reaches only 39.9%.
-    def fit_axis(labels):
-        return LogisticRegression(
-            max_iter=5000,
-            random_state=seed,
-            C=1.0,
-        ).fit(x_train, labels)
+    # overall accuracy than it gains.
+    model = LogisticRegression(
+        max_iter=5000,
+        random_state=seed,
+        C=1.0,
+    ).fit(x_train, y_train)
 
-    horizontal_model = fit_axis(horizontal)
-    vertical_model = fit_axis(vertical)
+    prediction = model.predict(x_test)
+    composed = prediction
 
-    horizontal_prediction = horizontal_model.predict(x_test)
-    vertical_prediction = vertical_model.predict(x_test)
-    composed = np.asarray(
-        [
-            compose_mode(int(h), int(v))
-            for h, v in zip(horizontal_prediction, vertical_prediction)
-        ]
-    )
-
-    train_accuracy = float((composed == y_test).mean())
+    train_accuracy = float((model.predict(x_train) == y_train).mean())
     test_accuracy = float((composed == y_test).mean())
 
     # Per-class accuracy, which shows whether the model has learned the
@@ -292,12 +307,8 @@ def fit_model(
         "feature_count": NUM_FEATURES,
         "feature_names": list(FEATURE_NAMES),
         "class_names": list(TRANSFORM_NAMES),
-        "horizontal_biases": [float(b) for b in horizontal_model.intercept_],
-        "horizontal_weights": [
-            [float(w) for w in row] for row in horizontal_model.coef_
-        ],
-        "vertical_biases": [float(b) for b in vertical_model.intercept_],
-        "vertical_weights": [[float(w) for w in row] for row in vertical_model.coef_],
+        "biases": [float(b) for b in model.intercept_],
+        "weights": [[float(w) for w in row] for row in model.coef_],
         "training": {
             "samples": len(samples),
             "train_samples": int(len(y_train)),
@@ -307,10 +318,16 @@ def fit_model(
             "majority_class_accuracy": majority,
             "per_class_test_accuracy": per_class,
             "horizontal_axis_accuracy": float(
-                (horizontal_prediction == horizontal_test).mean()
+                (
+                    np.asarray([HORIZONTAL_OF_MODE[m] for m in composed])
+                    == np.asarray([HORIZONTAL_OF_MODE[m] for m in y_test])
+                ).mean()
             ),
             "vertical_axis_accuracy": float(
-                (vertical_prediction == vertical_test).mean()
+                (
+                    np.asarray([VERTICAL_OF_MODE[m] for m in composed])
+                    == np.asarray([VERTICAL_OF_MODE[m] for m in y_test])
+                ).mean()
             ),
             "random_state": seed,
             "predictability_ceiling": ceiling,

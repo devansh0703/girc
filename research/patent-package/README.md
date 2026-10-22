@@ -106,16 +106,27 @@ has to be narrowed to match:
   encoder takes the prediction when it is within a margin of the best
   mode.
 
-- **The prediction is per axis, and the axes are composed.** This is
-  the most crowded element. US11785254B2 claim 1 claims "a plurality
-  of pairs of transform types, each of the plurality of pairs including
-  a vertical transform type and a horizontal transform type", and
-  EP2991352A1 claim 4 claims that "horizontal and vertical directions
-  of the transforms are capable of being different". A claim to
-  predicting the two axes separately is not available. What may be
-  available is the specific composition: two *learned* per-axis
-  predictors, a composition rule that forces the plain DCT-II when
-  either axis predicts it, and the margin applied to the composed mode.
+- **The prediction is over the joint mode.** This is the most crowded
+  element. US11785254B2 claim 1 claims "a plurality of pairs of
+  transform types, each of the plurality of pairs including a vertical
+  transform type and a horizontal transform type", and EP2991352A1
+  claim 4 claims that "horizontal and vertical directions of the
+  transforms are capable of being different". A claim to predicting
+  the transform pair at all is not available. What may be available is
+  the specific prediction: a *learned* model over the joint mode, its
+  features, and the margin applied to the predicted mode.
+
+  The implementation predicts the joint mode with one model rather
+  than two per-axis models composed together, and that was a measured
+  decision rather than a preference. Each axis on its own was well
+  above the majority class — about 54.6% against a 49.8% baseline —
+  and the composed mode came out *below* the majority, at 48.3%. The
+  five modes are not a product space: the plain DCT-II appears on an
+  axis only in the mode where both axes are the plain DCT-II, and the
+  four multiple transform selection modes are correlated. Composing
+  two independent per-axis models therefore cannot recover the joint
+  distribution, and the measurement showed it losing. One model over
+  the five modes is both simpler and better.
 
 - **The mechanism replaces exactly the signalling the standard has.**
   ITU-T H.266 clause 7.3.9 codes a transform type for the luma plane;

@@ -143,6 +143,25 @@ pub struct GeometryFeatures {
     /// block's transform mode better than the prediction of an intra
     /// block's.
     pub motion: [f32; MOTION_FEATURE_COUNT],
+    /// The orientation structure of the block's own prediction.
+    ///
+    /// The prediction is the block's content minus its residual, and
+    /// the encoder chooses the transform that best compacts the
+    /// residual. A residual inherits the directional structure of the
+    /// prediction it is subtracted from, so the prediction's own
+    /// gradient orientation is the most direct evidence of which
+    /// transform the encoder will want.
+    ///
+    /// The decoder has the prediction, because the prediction mode and
+    /// the motion vector are both decoded before the transform type.
+    /// For an inter block the prediction comes from the previous frame
+    /// at a motion-compensated position, so this carries information
+    /// the causal window of the current frame does not have at all.
+    ///
+    /// The features are the same orientation histogram the causal
+    /// window produces, over the prediction block: the eight bins, the
+    /// two axis energies and their correlation.
+    pub prediction: [f32; PREDICTION_FEATURE_COUNT],
 }
 
 impl GeometryFeatures {
@@ -154,7 +173,8 @@ impl GeometryFeatures {
         + IntraMode::COUNT
         + NEIGHBOUR_TRANSFORM_SLOTS * MODE_COUNT
         + 1
-        + MOTION_FEATURE_COUNT;
+        + MOTION_FEATURE_COUNT
+        + PREDICTION_FEATURE_COUNT;
 
     /// The feature vector in the order the trained model expects.
     pub fn to_vec(&self) -> Vec<f32> {
@@ -172,6 +192,7 @@ impl GeometryFeatures {
         out.extend_from_slice(&self.neighbour_transforms);
         out.push(self.is_inter);
         out.extend_from_slice(&self.motion);
+        out.extend_from_slice(&self.prediction);
         out
     }
 }
@@ -207,6 +228,8 @@ pub struct BlockContext {
     pub neighbours: NeighbourTransforms,
     /// The block's motion context.
     pub motion: MotionContext,
+    /// The orientation structure of the block's own prediction.
+    pub prediction: [f32; PREDICTION_FEATURE_COUNT],
 }
 
 impl BlockContext {
@@ -217,6 +240,7 @@ impl BlockContext {
             qp,
             neighbours: NeighbourTransforms::default(),
             motion: MotionContext::intra(),
+            prediction: [0.0; PREDICTION_FEATURE_COUNT],
         }
     }
 }
@@ -226,6 +250,13 @@ impl BlockContext {
 /// The block's own motion vector and the motion vectors of the blocks
 /// to its left and above, two components each.
 pub const MOTION_FEATURE_COUNT: usize = 6;
+
+/// The number of features the prediction's own orientation contributes.
+///
+/// The same shape as the causal window's: the eight orientation bins,
+/// the horizontal and vertical energies, and the correlation between
+/// them.
+pub const PREDICTION_FEATURE_COUNT: usize = 8 + 2 + 1;
 
 /// The motion context of a block.
 ///
@@ -401,6 +432,7 @@ pub fn extract_features(
         qp,
         neighbours,
         motion,
+        prediction,
     } = context;
     let mut histogram = [0f32; ORIENTATION_BINS];
     let mut total = 0f32;
@@ -470,6 +502,7 @@ pub fn extract_features(
             neighbour_transforms: neighbours.one_hot(),
             is_inter: motion.is_inter,
             motion: motion.features,
+            prediction,
         };
     }
 
@@ -513,6 +546,7 @@ pub fn extract_features(
         neighbour_transforms: neighbours.one_hot(),
         is_inter: motion.is_inter,
         motion: motion.features,
+        prediction,
     }
 }
 
@@ -540,6 +574,7 @@ pub fn extract_features_from_window(
         qp,
         neighbours,
         motion,
+        prediction,
     } = context;
     let (origin_x, origin_y) = origin;
     let mut histogram = [0f32; ORIENTATION_BINS];
@@ -570,6 +605,7 @@ pub fn extract_features_from_window(
             neighbour_transforms: neighbours.one_hot(),
             is_inter: motion.is_inter,
             motion: motion.features,
+            prediction,
         };
     }
 
@@ -608,6 +644,7 @@ pub fn extract_features_from_window(
             neighbour_transforms: neighbours.one_hot(),
             is_inter: motion.is_inter,
             motion: motion.features,
+            prediction,
         };
     }
 
@@ -646,7 +683,59 @@ pub fn extract_features_from_window(
         neighbour_transforms: neighbours.one_hot(),
         is_inter: motion.is_inter,
         motion: motion.features,
+        prediction,
     }
+}
+
+/// The orientation structure of a prediction block.
+///
+/// The block is a square of samples, and the features are the same
+/// orientation histogram the causal window produces: the eight bins of
+/// the gradient's direction, the energy along each axis, and the
+/// correlation between them.
+///
+/// The gradient is taken with central differences, the same as the
+/// window's, so the two sets of features are comparable.
+pub fn prediction_features(samples: &[i32], size: usize) -> [f32; PREDICTION_FEATURE_COUNT] {
+    let mut out = [0f32; PREDICTION_FEATURE_COUNT];
+    if size < 3 {
+        return out;
+    }
+    let mut histogram = [0f32; ORIENTATION_BINS];
+    let mut total = 0f32;
+    let mut horizontal = 0f32;
+    let mut vertical = 0f32;
+    let mut cross = 0f32;
+
+    for y in 1..size - 1 {
+        for x in 1..size - 1 {
+            let at = |xx: usize, yy: usize| samples[yy * size + xx] as f32;
+            let dx = at(x + 1, y) - at(x - 1, y);
+            let dy = at(x, y + 1) - at(x, y - 1);
+            let magnitude = (dx * dx + dy * dy).sqrt();
+            accumulate(&mut histogram, &mut total, dx, dy, magnitude);
+            horizontal += dx * dx;
+            vertical += dy * dy;
+            cross += dx * dy;
+        }
+    }
+
+    if total <= 0.0 {
+        // A flat prediction carries no orientation information.
+        return out;
+    }
+
+    for i in 0..ORIENTATION_BINS {
+        out[i] = histogram[i] / total;
+    }
+    out[8] = horizontal.max(1.0).log2();
+    out[9] = vertical.max(1.0).log2();
+    out[10] = if horizontal > 0.0 && vertical > 0.0 {
+        (cross / (horizontal * vertical).sqrt()).clamp(-1.0, 1.0)
+    } else {
+        0.0
+    };
+    out
 }
 
 /// Add a gradient sample to the orientation histogram.
@@ -689,23 +778,21 @@ fn coverage(left: &[Option<i32>], top: &[Option<i32>]) -> f32 {
 /// always agree.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransformPredictor {
-    /// The horizontal-axis predictor: three bias terms and three weight
-    /// vectors, indexed by [`AxisTransform::as_index`].
+    /// The bias term of each of the five modes.
     ///
-    /// The predictor models the two axes separately rather than the joint
-    /// mode. The measurement behind that is in the patent package: the
-    /// joint mode is barely predictable from the causal neighbourhood,
-    /// because the rate-distortion choice between the five modes is close
-    /// to a tie, but each axis on its own is noticeably more
-    /// predictable, because the geometry of a neighbourhood says more
-    /// about the transform on one axis than about the mode as a whole.
-    pub horizontal_biases: [f32; 3],
-    /// The horizontal-axis weight vectors.
-    pub horizontal_weights: [[f32; GeometryFeatures::LEN]; 3],
-    /// The vertical-axis bias terms.
-    pub vertical_biases: [f32; 3],
-    /// The vertical-axis weight vectors.
-    pub vertical_weights: [[f32; GeometryFeatures::LEN]; 3],
+    /// The model is over the joint mode, not over the two axes
+    /// separately, and that is a measured choice. The five modes are
+    /// not a product space: the plain DCT-II appears on an axis only in
+    /// the mode where both axes are the plain DCT-II, and the four
+    /// multiple transform selection modes are correlated. Composing two
+    /// independent per-axis models therefore cannot recover the joint
+    /// distribution, and the measurement confirmed it: each axis on its
+    /// own was well above the majority class, and the composed mode was
+    /// below it. One model over the five modes is both simpler and
+    /// better.
+    pub biases: [f32; MODE_COUNT],
+    /// The weight vector of each of the five modes.
+    pub weights: [[f32; GeometryFeatures::LEN]; MODE_COUNT],
     /// The version of the training data the model was fitted on, recorded
     /// so a report can state which model produced a number.
     pub model_version: String,
@@ -717,37 +804,30 @@ impl TransformPredictor {
     /// Used when no trained model is available; the explicit-signalling
     /// baseline does not need a predictor at all.
     pub fn constant_dct2() -> Self {
-        // A positive bias on DCT-II wins the argmax whenever every feature
-        // is zero.
-        let mut horizontal = [[0f32; GeometryFeatures::LEN]; 3];
-        horizontal[0][0] = 1.0;
-        let mut vertical = [[0f32; GeometryFeatures::LEN]; 3];
-        vertical[0][0] = 1.0;
+        // A positive bias on the plain DCT-II wins the argmax whenever
+        // every feature is zero.
+        let mut weights = [[0f32; GeometryFeatures::LEN]; MODE_COUNT];
+        weights[0][0] = 1.0;
         Self {
-            horizontal_biases: [1.0, 0.0, 0.0],
-            horizontal_weights: horizontal,
-            vertical_biases: [1.0, 0.0, 0.0],
-            vertical_weights: vertical,
+            biases: [1.0, 0.0, 0.0, 0.0, 0.0],
+            weights,
             model_version: "constant-dct2".into(),
         }
     }
 
     /// The three logits of one axis.
-    fn axis_logits(&self, features: &GeometryFeatures, horizontal: bool) -> [f32; 3] {
-        let (biases, weights) = if horizontal {
-            (&self.horizontal_biases, &self.horizontal_weights)
-        } else {
-            (&self.vertical_biases, &self.vertical_weights)
-        };
+    /// The logit of each of the five modes.
+    fn mode_logits(&self, features: &GeometryFeatures) -> [f32; MODE_COUNT] {
         let vector = features.to_vec();
-        let mut logits = [0f32; 3];
+        let mut logits = [0f32; MODE_COUNT];
         for (class, logit) in logits.iter_mut().enumerate() {
-            let mut sum = biases[class];
+            let mut sum = self.biases[class];
             for (i, value) in vector.iter().enumerate() {
-                sum += weights[class][i] * value;
+                sum += self.weights[class][i] * value;
             }
             *logit = sum;
         }
+
         logits
     }
 
@@ -759,48 +839,29 @@ impl TransformPredictor {
     /// Ties break toward the lower class index, so the result is a
     /// deterministic function of the inputs.
     pub fn predict(&self, features: &GeometryFeatures) -> TransformMode {
-        AxisTransform::compose(
-            self.predict_axis(features, true),
-            self.predict_axis(features, false),
-        )
-    }
-
-    /// The predicted transform on one axis.
-    pub fn predict_axis(&self, features: &GeometryFeatures, horizontal: bool) -> AxisTransform {
-        let (biases, weights) = if horizontal {
-            (&self.horizontal_biases, &self.horizontal_weights)
-        } else {
-            (&self.vertical_biases, &self.vertical_weights)
-        };
-        let vector = features.to_vec();
+        let logits = self.mode_logits(features);
         let mut best = 0usize;
         let mut best_logit = f32::NEG_INFINITY;
-        for class in 0..3 {
-            let mut logit = biases[class];
-            for (i, value) in vector.iter().enumerate() {
-                logit += weights[class][i] * value;
-            }
-            if logit > best_logit {
-                best_logit = logit;
+        for (class, logit) in logits.iter().enumerate() {
+            if *logit > best_logit {
+                best_logit = *logit;
                 best = class;
             }
         }
-        AxisTransform::ALL[best]
+        TransformMode::ALL[best]
     }
 
+    /// The predicted transform on one axis.
     /// The predicted transform and the probability margin over the runner-up.
     ///
     /// The margin is the signal the encoder uses to decide whether to trust
     /// the prediction or to override it: a confident prediction is worth
     /// spending the override bit on.
     pub fn predict_with_margin(&self, features: &GeometryFeatures) -> (TransformMode, f32) {
-        // The margin is the gap between the winning and the runner-up on
-        // the axis the prediction is least sure about, because that is
-        // the axis that decides the mode.
-        let horizontal = self.axis_logits(features, true);
-        let vertical = self.axis_logits(features, false);
-        let margin = (gap(&horizontal) / 3.0).min(gap(&vertical) / 3.0);
-        (self.predict(features), margin)
+        // The margin is the gap between the winning mode and the
+        // runner-up, which is how sure the prediction is.
+        let logits = self.mode_logits(features);
+        (self.predict(features), gap(&logits))
     }
 
     /// Parse a model from its JSON representation.
@@ -820,28 +881,31 @@ impl TransformPredictor {
                 .collect()
         };
 
-        // The per-axis predictors.
-        let horizontal_biases = parse_vec("horizontal_biases")?;
-        if horizontal_biases.len() != 3 {
+        // The joint predictor over the five modes.
+        let biases = parse_vec("biases")?;
+        if biases.len() != MODE_COUNT {
             return Err(format!(
-                "model has {} horizontal biases, expected 3",
-                horizontal_biases.len()
+                "model has {} biases, expected {MODE_COUNT}",
+                biases.len()
             ));
         }
-        let mut horizontal_bias_array = [0f32; 3];
-        horizontal_bias_array.copy_from_slice(&horizontal_biases);
-        let horizontal_weights =
-            parse_weight_rows(&value["horizontal_weights"], "horizontal_weights")?;
-        let vertical_biases = parse_vec("vertical_biases")?;
-        if vertical_biases.len() != 3 {
-            return Err(format!(
-                "model has {} vertical biases, expected 3",
-                vertical_biases.len()
-            ));
+        let mut bias_array = [0f32; MODE_COUNT];
+        bias_array.copy_from_slice(&biases);
+        let weights = parse_weight_rows(&value["weights"], "weights")?;
+
+        // The model records the feature count it was trained on, and
+        // it has to match the features this code produces. A model
+        // trained on an older feature layout would otherwise be read
+        // with every weight at the wrong position, and the predictor
+        // would quietly predict nonsense.
+        if let Some(count) = value["feature_count"].as_u64() {
+            if count as usize != GeometryFeatures::LEN {
+                return Err(format!(
+                    "model was trained on {count} features, this codec produces {}",
+                    GeometryFeatures::LEN
+                ));
+            }
         }
-        let mut vertical_bias_array = [0f32; 3];
-        vertical_bias_array.copy_from_slice(&vertical_biases);
-        let vertical_weights = parse_weight_rows(&value["vertical_weights"], "vertical_weights")?;
 
         let model_version = value["model_version"]
             .as_str()
@@ -849,32 +913,20 @@ impl TransformPredictor {
             .to_string();
 
         Ok(Self {
-            horizontal_biases: horizontal_bias_array,
-            horizontal_weights,
-            vertical_biases: vertical_bias_array,
-            vertical_weights,
+            biases: bias_array,
+            weights,
             model_version,
         })
     }
 
     /// The model in its JSON representation.
     pub fn to_json(&self) -> String {
-        let horizontal: Vec<Vec<f32>> = self
-            .horizontal_weights
-            .iter()
-            .map(|row| row.to_vec())
-            .collect();
-        let vertical: Vec<Vec<f32>> = self
-            .vertical_weights
-            .iter()
-            .map(|row| row.to_vec())
-            .collect();
+        let weights: Vec<Vec<f32>> = self.weights.iter().map(|row| row.to_vec()).collect();
         serde_json::json!({
             "model_version": self.model_version,
-            "horizontal_biases": self.horizontal_biases,
-            "horizontal_weights": horizontal,
-            "vertical_biases": self.vertical_biases,
-            "vertical_weights": vertical,
+            "feature_count": GeometryFeatures::LEN,
+            "biases": self.biases,
+            "weights": weights,
         })
         .to_string()
     }
@@ -884,14 +936,17 @@ impl TransformPredictor {
 fn parse_weight_rows(
     value: &serde_json::Value,
     name: &str,
-) -> Result<[[f32; GeometryFeatures::LEN]; 3], String> {
+) -> Result<[[f32; GeometryFeatures::LEN]; MODE_COUNT], String> {
     let rows = value
         .as_array()
         .ok_or_else(|| format!("model is missing the {name} array"))?;
-    if rows.len() != 3 {
-        return Err(format!("model has {} {name} rows, expected 3", rows.len()));
+    if rows.len() != MODE_COUNT {
+        return Err(format!(
+            "model has {} {name} rows, expected {MODE_COUNT}",
+            rows.len()
+        ));
     }
-    let mut weights = [[0f32; GeometryFeatures::LEN]; 3];
+    let mut weights = [[0f32; GeometryFeatures::LEN]; MODE_COUNT];
     for (i, row) in rows.iter().enumerate() {
         let values = parse_vec_from(row)?;
         if values.len() != GeometryFeatures::LEN {
@@ -907,8 +962,8 @@ fn parse_weight_rows(
 }
 
 /// The gap between the two highest logits.
-fn gap(logits: &[f32; 3]) -> f32 {
-    let mut order = [0usize, 1, 2];
+fn gap(logits: &[f32; MODE_COUNT]) -> f32 {
+    let mut order = [0usize, 1, 2, 3, 4];
     order.sort_by(|a, b| {
         logits[*b]
             .partial_cmp(&logits[*a])
@@ -1084,10 +1139,8 @@ mod tests {
     #[test]
     fn predictor_is_deterministic() {
         let predictor = TransformPredictor {
-            horizontal_biases: [0.0, 1.0, -1.0],
-            horizontal_weights: [[0.0; GeometryFeatures::LEN]; 3],
-            vertical_biases: [0.0, 1.0, -1.0],
-            vertical_weights: [[0.0; GeometryFeatures::LEN]; 3],
+            biases: [0.0, 0.0, 1.0, -1.0, -2.0],
+            weights: [[0.0; GeometryFeatures::LEN]; MODE_COUNT],
             model_version: "test".into(),
         };
         let features = extract_features(
@@ -1098,34 +1151,42 @@ mod tests {
         let a = predictor.predict(&features);
         let b = predictor.predict(&features);
         assert_eq!(a, b);
-        // Both axes carry the same biases, so both pick the DCT-VIII and
-        // the composed mode is DCT-VIII/DCT-VIII.
-        assert_eq!(a, TransformMode::MTS[3], "highest bias wins");
+        // The highest bias wins, so the DCT-VIII/DST-VII mode is chosen.
+        assert_eq!(a, TransformMode::MTS[1], "highest bias wins");
     }
 
     #[test]
     fn model_json_round_trips() {
         let mut predictor = TransformPredictor {
-            horizontal_biases: [0.1, 0.2, 0.3],
-            horizontal_weights: [[0.0; GeometryFeatures::LEN]; 3],
-            vertical_biases: [0.4, 0.5, 0.6],
-            vertical_weights: [[0.0; GeometryFeatures::LEN]; 3],
+            biases: [0.1, 0.2, 0.3, 0.4, 0.5],
+            weights: [[0.0; GeometryFeatures::LEN]; MODE_COUNT],
             model_version: "v1".into(),
         };
-        predictor.horizontal_weights[2][0] = 1.5;
+        predictor.weights[2][0] = 1.5;
         let json = predictor.to_json();
         let parsed = TransformPredictor::from_json(&json).unwrap();
         assert_eq!(parsed, predictor);
     }
 
     #[test]
+    fn a_model_trained_on_another_feature_layout_is_rejected() {
+        // A model that says it was trained on a different number of
+        // features is rejected, rather than read with every weight at
+        // the wrong position.
+        let model = TransformPredictor::constant_dct2();
+        let json = model.to_json();
+        let wrong = json.replace(
+            &format!("\"feature_count\":{}", GeometryFeatures::LEN),
+            "\"feature_count\":46",
+        );
+        let error = TransformPredictor::from_json(&wrong).unwrap_err();
+        assert!(error.contains("features"), "{error}");
+    }
+
+    #[test]
     fn malformed_model_is_rejected() {
         assert!(TransformPredictor::from_json("not json").is_err());
         assert!(TransformPredictor::from_json("{\"biases\":[1,2]}").is_err());
-        assert!(TransformPredictor::from_json(
-            "{\"biases\":[1,2,3],\"weights\":[[1,2],[3,4],[5,6]]}"
-        )
-        .is_err());
         // A model with the wrong number of classes is rejected, so a
         // model trained for the three-transform set cannot be used with
         // the five-mode set.
