@@ -359,3 +359,148 @@ def _approve_request(settings: Settings, reference: str) -> None:
             .first()
         )
         request.status = RequestStatus.approved
+
+
+# ---------------------------------------------------------------- security
+
+
+def test_an_upload_cannot_escape_the_upload_directory(environment):
+    """A result file's name is the uploader's, and must not choose a path.
+
+    Without the fix, a file named `../../escaped.txt` is written outside
+    the upload directory.
+    """
+    client, settings, root = environment
+    register(client)
+    client.post("/agreement/accept")
+    client.post(
+        "/requests",
+        data={
+            "title": "Test",
+            "target_codec": "VVC",
+            "test_content_description": "Some content",
+            "sampling_plan": "QP 22 to 37",
+            "motivation": "To see whether it helps",
+        },
+    )
+    _approve_request(settings, "EVAL-0001")
+
+    response = client.post(
+        "/requests/EVAL-0001/results",
+        data={"label": "run", "summary": "s"},
+        files={"file": ("../../escaped.txt", b"payload", "text/plain")},
+    )
+    assert response.status_code == 200, response.text
+
+    assert not (root / "escaped.txt").exists(), "the upload escaped the upload directory"
+    assert not (settings.artifact_root.parent / "escaped.txt").exists()
+
+
+def test_a_registered_artifact_cannot_escape_the_store(environment):
+    """The slug and version of a registered artifact must not choose a path."""
+    client, settings, root = environment
+    register(client)
+    _promote_to_admin(client, settings)
+
+    payload = b"the evaluation package"
+    incoming = settings.artifact_root / "incoming"
+    incoming.mkdir(parents=True, exist_ok=True)
+    (incoming / "normal").write_bytes(payload)
+
+    response = client.post(
+        "/admin/artifacts",
+        data={
+            "slug": "../../escaped",
+            "title": "T",
+            "description": "D",
+            "version": "../../../etc",
+            "requires_agreement_version": "2026-10-01",
+        },
+    )
+    # The slug no longer names a file, so the registration is refused.
+    assert response.status_code == 404, response.text
+    assert not (root / "escaped-etc.tar.gz").exists()
+    assert not (root.parent / "escaped-etc.tar.gz").exists()
+
+
+def test_the_forwarded_header_does_not_spoof_the_audit_log(environment):
+    """A client cannot choose the address the audit log records.
+
+    The `X-Forwarded-For` header is client-controlled, so it is only
+    trusted when the deployment says a proxy sets it.
+    """
+    client, settings, _ = environment
+    register(client)
+    client.post(
+        "/login",
+        data={"email": "lead@acme.invalid", "password": "wrong-password-here"},
+        headers={"X-Forwarded-For": "203.0.113.9"},
+    )
+
+    database = Database(_settings_of(client))
+    from girc_eval import audit
+
+    with database.session() as session:
+        addresses = [entry.source_ip for entry in audit.recent(session, limit=50)]
+
+    assert "203.0.113.9" not in addresses, "the forged address was recorded"
+
+
+def test_the_forwarded_header_is_trusted_when_a_proxy_is_configured(environment):
+    """A deployment behind a proxy records the address the proxy reports."""
+    client, settings, _ = environment
+    settings.trust_forwarded_for = True
+    register(client)
+    client.post(
+        "/login",
+        data={"email": "lead@acme.invalid", "password": "wrong-password-here"},
+        headers={"X-Forwarded-For": "203.0.113.9"},
+    )
+
+    database = Database(_settings_of(client))
+    from girc_eval import audit
+
+    with database.session() as session:
+        addresses = [entry.source_ip for entry in audit.recent(session, limit=50)]
+
+    assert "203.0.113.9" in addresses
+
+
+def test_repeated_failed_sign_ins_are_rate_limited(environment):
+    """A guessing run is stopped rather than allowed to continue."""
+    client, settings, _ = environment
+    register(client)
+    for _ in range(settings.max_login_attempts):
+        response = client.post(
+            "/login",
+            data={"email": "lead@acme.invalid", "password": "wrong-password-here"},
+        )
+        assert response.status_code == 401, response.text
+    response = client.post(
+        "/login",
+        data={"email": "lead@acme.invalid", "password": "wrong-password-here"},
+    )
+    assert response.status_code == 429, "the address was not locked out"
+
+
+def test_safe_filename_rejects_a_directory_component():
+    from girc_eval.security import safe_filename
+
+    assert "/" not in safe_filename("../../etc/passwd")
+    assert ".." not in safe_filename("../../etc/passwd")
+    assert safe_filename("../../etc/passwd") == "passwd"
+    assert safe_filename("") == "file"
+    assert safe_filename("..") == "file"
+    assert safe_filename("report-2026.pdf") == "report-2026.pdf"
+
+
+def test_resolve_within_refuses_a_path_outside_the_root():
+    from girc_eval.security import resolve_within
+
+    root = Path(tempfile.mkdtemp(prefix="girc-root-"))
+    try:
+        assert resolve_within(root, "artifacts", "a.tar.gz")
+        with pytest.raises(ValueError):
+            resolve_within(root, "..", "outside.txt")
+    finally:
+        shutil.rmtree(root, ignore_errors=True)

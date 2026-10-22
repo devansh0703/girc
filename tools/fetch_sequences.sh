@@ -40,7 +40,7 @@ for name in "${SEQUENCES[@]}"; do
   curl -fsSL -o "$target.part" "$BASE/$name.y4m"
   # A truncated or error response would poison the benchmark, so the
   # header is checked before the file is accepted.
-  if ! head -c 6 "$target.part" | grep -q YUV4MPEG2; then
+  if ! head -c 9 "$target.part" | grep -q YUV4MPEG2; then
     rm -f "$target.part"
     echo "not a Y4M file: $name" >&2
     exit 1

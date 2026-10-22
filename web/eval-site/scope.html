@@ -79,11 +79,14 @@
         <section>
           <h2>What we would most like to learn</h2>
           <p>
-            The mechanism's published result is close to break-even, and the
-            reason is measurable: with three transform types over a skewed
-            distribution, the explicit signalling is already nearly free
-            for a context-adaptive coder, and the distortion the inference
-            costs exceeds the rate it saves.
+            The mechanism's published result is a 0.226% saving over twelve
+            sequences, and the reason it is not larger is measurable: the
+            joint transform mode is barely predictable from the causal
+            neighbourhood, because the rate-distortion choice between the
+            modes is close to a tie. The explicit signalling is already
+            nearly free for a context-adaptive coder to code, so the
+            distortion the inference costs comes close to the rate it
+            saves. That is the number the evaluation is meant to move.
           </p>
           <p>
             The three things most likely to change that are outside what

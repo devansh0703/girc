@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import secrets
 from datetime import datetime, timezone
+from pathlib import Path
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
@@ -77,6 +79,46 @@ def sha256_file(path) -> str:
 def constant_time_equal(left: str, right: str) -> bool:
     """Compare two strings without leaking their contents through timing."""
     return hmac.compare_digest(left.encode("utf-8"), right.encode("utf-8"))
+
+
+#: The characters a stored file name may contain.
+#:
+#: Anything else is replaced, so a name coming from a user or an upload
+#: header cannot escape the directory it is meant to live in.
+_SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def safe_filename(name: str, fallback: str = "file") -> str:
+    """A file name that cannot escape its directory.
+
+    A path is made of a name and a location, and only the name is under
+    the caller's control. This keeps the name to a conservative
+    character set, drops any directory component entirely, and refuses
+    the names that are special to a filesystem.
+
+    Without this, an upload whose `filename` is `../../etc/passwd` writes
+    outside the directory it was meant to stay in.
+    """
+    # Only the last component is ever used, so a name with a directory
+    # in it loses the directory rather than escaping with it.
+    candidate = name.replace("\\", "/").rsplit("/", 1)[-1]
+    candidate = _SAFE_NAME.sub("_", candidate).strip("._")
+    if not candidate or candidate in {".", ".."}:
+        return fallback
+    return candidate[:200]
+
+
+def resolve_within(root: Path, *parts: str) -> Path:
+    """Join `parts` onto `root` and refuse a path that leaves it.
+
+    The result is checked against the root after resolution, so a
+    symlink or a `..` cannot reach outside.
+    """
+    root = root.resolve()
+    candidate = root.joinpath(*parts).resolve()
+    if candidate != root and root not in candidate.parents:
+        raise ValueError(f"the path {candidate} is outside {root}")
+    return candidate
 
 
 def _serializer(secret_key: str, salt: str) -> URLSafeTimedSerializer:

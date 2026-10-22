@@ -12,8 +12,10 @@ touches gated material checks the agreement before releasing anything.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
@@ -37,6 +39,7 @@ from girc_eval.models import (
     Organization,
     RequestStatus,
     ResultStatus,
+    ResultSubmission,
     User,
     UserRole,
 )
@@ -45,6 +48,8 @@ from girc_eval.security import (
     hash_password,
     read_download,
     read_session,
+    resolve_within,
+    safe_filename,
     sign_download,
     sign_session,
     verify_password,
@@ -114,11 +119,45 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=403, detail="administrator access required")
         return user
 
+    # The failed sign-in attempts, by address.
+    #
+    # The portal is a single process, so an in-memory table is enough to
+    # slow a guessing run down. A deployment that runs more than one
+    # process puts a shared limiter in front of it instead.
+    login_failures: dict[str, list[float]] = {}
+
+    def login_allowed(address: str) -> bool:
+        """Whether an address may attempt to sign in."""
+        failures = login_failures.get(address)
+        if not failures:
+            return True
+        if time.monotonic() - failures[-1] > settings.login_lockout_seconds:
+            login_failures.pop(address, None)
+            return True
+        return len(failures) < settings.max_login_attempts
+
+    def record_login_failure(address: str) -> None:
+        """Count a failed sign-in against an address."""
+        failures = login_failures.setdefault(address, [])
+        failures.append(time.monotonic())
+
+    def clear_login_failures(address: str) -> None:
+        """Forget an address's failed sign-ins after a success."""
+        login_failures.pop(address, None)
+
     def source_ip(request: Request) -> str:
-        """The address the request came from."""
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+        """The address the request came from.
+
+        The `X-Forwarded-For` header is only consulted when the
+        deployment says a proxy sets it, because a client can send any
+        value it likes and the address ends up in the audit log. When no
+        proxy is configured, the socket's own address is used, which
+        cannot be forged.
+        """
+        if settings.trust_forwarded_for:
+            forwarded = request.headers.get("x-forwarded-for")
+            if forwarded:
+                return forwarded.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
 
     # ---------------------------------------------------------------- pages
@@ -286,9 +325,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         password: Annotated[str, Form()],
         db: Session = Depends(db_session),
     ):
-        """Sign in."""
+        """Sign in.
+
+        The route is rate limited per address, because a portal that
+        hands out confidential material is worth guessing at.
+        """
+        address = source_ip(request)
+        if not login_allowed(address):
+            audit.record(
+                db,
+                action="login.locked_out",
+                detail=f"the sign-in attempts from {address} exceeded the limit",
+                actor_email="",
+                source_ip=address,
+            )
+            db.commit()
+            raise HTTPException(
+                status_code=429,
+                detail="too many sign-in attempts; try again later",
+            )
+
         user = db.scalar(select(User).where(User.email == email.lower()))
         if user is None or not verify_password(user.password_hash, password):
+            record_login_failure(address)
             audit.record(
                 db,
                 action="login.failed",
@@ -300,6 +359,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=401, detail="those credentials are wrong")
         if not user.is_active:
             raise HTTPException(status_code=403, detail="that account is disabled")
+        clear_login_failures(address)
         audit.record(
             db,
             action="login.succeeded",
@@ -524,7 +584,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail="an approved evaluation is required to download the package",
             )
 
-        path = settings.artifact_root / artifact.stored_path
+        try:
+            path = resolve_within(settings.artifact_root, artifact.stored_path)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="the artifact is not available")
         if not path.exists():
             raise HTTPException(status_code=404, detail="the artifact is not available")
 
@@ -572,12 +635,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             content = await file.read()
             if len(content) > settings.max_upload_bytes:
                 raise HTTPException(status_code=413, detail="the result file is too large")
-            digest = __import__("hashlib").sha256(content).hexdigest()
+            digest = hashlib.sha256(content).hexdigest()
             size = len(content)
-            uploads = settings.artifact_root / "uploads" / reference
+            # The name is the uploader's, so it is reduced to a safe one
+            # and the destination is resolved inside the upload
+            # directory, so a name like `../../etc/passwd` cannot write
+            # outside it.
+            name = safe_filename(file.filename, fallback="result.bin")
+            uploads = resolve_within(settings.artifact_root, "uploads", reference)
             uploads.mkdir(parents=True, exist_ok=True)
-            stored_path = str((uploads / file.filename).relative_to(settings.artifact_root))
-            (settings.artifact_root / stored_path).write_bytes(content)
+            target = resolve_within(uploads, name)
+            target.write_bytes(content)
+            stored_path = str(target.relative_to(settings.artifact_root.resolve()))
 
         try:
             bd_rate = float(reported_bd_rate) if reported_bd_rate.strip() else None
@@ -659,13 +728,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         db: Session = Depends(db_session),
     ):
         """Register a gated artifact from a file already in the store."""
-        source = settings.artifact_root / "incoming" / slug
+        # Both the name the file is looked up under and the name it is
+        # stored under are the safe ones, so a slug carrying a directory
+        # component simply does not name a file.
+        safe_slug = safe_filename(slug, fallback="artifact")
+        safe_version = safe_filename(version, fallback="1")
+        source = resolve_within(settings.artifact_root, "incoming", safe_slug)
         if not source.exists():
             raise HTTPException(status_code=404, detail="the artifact file is not present")
 
-        digest = __import__("hashlib").sha256(source.read_bytes()).hexdigest()
-        stored = f"artifacts/{slug}-{version}.tar.gz"
-        target = settings.artifact_root / stored
+        digest = hashlib.sha256(source.read_bytes()).hexdigest()
+        stored = f"artifacts/{safe_slug}-{safe_version}.tar.gz"
+        target = resolve_within(settings.artifact_root, stored)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
 
