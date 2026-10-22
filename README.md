@@ -31,20 +31,42 @@ results.
 
 ## The result, stated honestly
 
-At a margin of 10 bits, the inferred mode is **0.064% smaller** than the
-explicit mode, averaged over four Xiph.Org CIF sequences at QP 22 to 37.
-Without a margin it is 0.146% *larger*.
+The mechanism removes the explicit signalling of the transform mode and
+replaces it with the decoder's own prediction of it. Over twelve
+Xiph.Org CIF sequences at QP 22 to 37, on the current model:
 
-The mechanism is close to break-even, and the reason is measurable: with
-three transform types over a skewed distribution, the explicit signalling
-is already nearly free for a context-adaptive coder, and the distortion
-the inference costs exceeds the rate it saves. The predictability ceiling
-of the feature set is 56.44% against a 55.53% majority-class baseline.
+| Margin (bits) | Mean BD-rate | Prediction mismatch |
+|---|---|---|
+| 0 | +0.137% | 58.0% |
+| 25 | −0.055% | 55.3% |
+| 50 | −0.041% | 53.3% |
+| 100 | −0.106% | 48.9% |
+| 200 | +0.193% | 40.8% |
 
-The closest prior art reports the same kind of result — InterDigital's
-EP3977732B1 reports +0.34% overall for its implicit transform design.
-The full discussion, and the conditions under which the trade changes, are
-in the [patent package](research/patent-package/README.md).
+The mechanism is a small win, and the reason it is not a larger one is
+measurable rather than mysterious. The predictability ceiling of the
+feature set is 44.98% against a 44.31% majority-class baseline for the
+joint five-class mode, and 51.75% for one axis on its own. The joint
+mode is barely predictable because the rate-distortion choice between
+the modes is close to a tie, so the implementation models the two axes
+separately and composes them.
+
+The closest prior art reports the same kind of result. InterDigital's
+EP3977732B1 reports **+0.34% overall** for its implicit transform
+design, against an MTS-disabled anchor.
+
+**The rate-distortion margin is the only part of the disclosure that
+the prior art does not reach.** The claim text of ten references was
+extracted and read; every reference derives the transform implicitly,
+four read reconstructed data, four select the horizontal and the
+vertical transform separately, two use training data, and two signal
+the transform only when the decoder's own state does not already hold
+it. No claim in any of them reads a threshold, a margin, a sub-optimal
+choice, or a trade of distortion against signalling. The search, the
+claim charts and the quotations are in
+[the prior art report](research/patent-package/PRIOR_ART.md), and every
+quotation in it is checked against the extracted claim text by the
+test suite.
 
 ## Building
 

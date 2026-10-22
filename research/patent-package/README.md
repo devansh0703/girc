@@ -69,31 +69,53 @@ Three components:
 
 ### 1.3 The distinguishing feature
 
-Prior art on implicit transform selection derives the transform from
-*syntax*: the block's size, the intra prediction mode, whether intra
-sub-block partitioning is used, or the presence of particular coefficients.
-Those are quantities the standard already defines and the decoder already
-has.
+The claim text of the ten references in the prior-art search was
+extracted and read, and the analysis is in
+[`PRIOR_ART.md`](PRIOR_ART.md) with the supporting quotations in
+`claim_charts.json`. Every quotation in both is checked against the
+extracted claim text by `tools/verify_claim_charts.py`.
 
-The mechanism disclosed here differs in two ways that the prior art does
-not anticipate:
+The prior art derives the transform from *syntax*: the block's size,
+the intra prediction mode, whether intra sub-block partitioning is
+used, the presence of particular coefficients, or the transform modes
+of a plurality the decoder maintains. Those are quantities the
+standard already defines and the decoder already has.
+
+The findings are narrower than they first looked, and the disclosure
+has to be narrowed to match:
 
 - **The inference is geometric, not syntactic.** The features are a
-  gradient field over the reconstructed causal window. The transform
-  depends on the *content's* directional structure, not on a mode index.
+  structure tensor over the reconstructed causal window, and the
+  transform depends on the *content's* directional structure, not on a
+  mode index. EP2991352A1 and US9357221B2 (Thomson, priority 2009) claim
+  a transform set "derived from reconstructed video data" and "using
+  training data", so a claim to reading reconstructed data is not
+  available. US20240040151A1 (Apple, priority 2022) claims the
+  transform type inferred from the decoded coefficients' pattern, which
+  is the closest art to the geometric reading, though its claims do not
+  reach the neighbouring blocks and only its description does.
 
 - **The encoder has a rate-distortion margin.** The encoder is not
   obliged to signal the mode the search chose; it may take a mode the
-  decoder will infer, at a cost bounded in bits of rate. No reference
-  found derives the mode by rule and then lets the encoder trade
-  distortion against the signalling it would otherwise spend.
+  decoder will infer, at a cost bounded in bits of rate. No claim in
+  any of the ten references reads a threshold, a margin, a sub-optimal
+  choice, or a trade of distortion against signalling. US9357221B2
+  claim 20 is the closest art, and it signals the transform only when
+  the decoder's plurality does not already hold it, which is a
+  different decision rule: there the default is free, whereas here the
+  encoder takes the prediction when it is within a margin of the best
+  mode.
 
-- **The prediction is per axis, and the axes are composed.** The prior art
-  that predicts a mode at all predicts it jointly or by table lookup on
-  syntax. Predicting the two axes separately, and composing them under
-  the standard's own rule that a mode is either the plain DCT-II on both
-  axes or a multiple transform selection mode in which neither axis is
-  the DCT-II, is not among them.
+- **The prediction is per axis, and the axes are composed.** This is
+  the most crowded element. US11785254B2 claim 1 claims "a plurality
+  of pairs of transform types, each of the plurality of pairs including
+  a vertical transform type and a horizontal transform type", and
+  EP2991352A1 claim 4 claims that "horizontal and vertical directions
+  of the transforms are capable of being different". A claim to
+  predicting the two axes separately is not available. What may be
+  available is the specific composition: two *learned* per-axis
+  predictors, a composition rule that forces the plain DCT-II when
+  either axis predicts it, and the margin applied to the composed mode.
 
 ### 1.4 What the measurements actually show
 
@@ -160,28 +182,48 @@ with a real codec can:
 
 ## 2. Prior art
 
-The following were identified and reviewed. Each is mapped to the
-disclosure in §3.
+The claim text of the ten references below was extracted from the
+publications themselves and read. The full analysis, with the
+supporting claim language for each element, is in
+[`PRIOR_ART.md`](PRIOR_ART.md) and in `claim_charts.json`, and every
+quotation in both is checked against the extracted text by
+`tools/verify_claim_charts.py`.
 
-| Reference | Assignee | Priority | What it discloses | Distinction |
-|---|---|---|---|---|
-| US 16/815,920 / HK40058354A, "Implicit transform selection in video coding" | Qualcomm | 2019-03-12 | Derives the transform type from the block's size and whether intra sub-block partitioning is used | Syntactic derivation; no geometry; no rate-distortion margin |
-| EP19305698.3 / EP3977732B1, "Implicit multiple transform selection" | InterDigital | 2019-07-26 | Derives the horizontal and vertical transform type from the block's width and height by table lookup; reports **+0.34% overall** against an MTS-disabled anchor | Syntactic derivation; no geometry; no margin; and its own reported result is a loss |
-| US 17/066,791 / US11785254B2, "Implicit mode dependent primary transforms" | Tencent America | 2021-01-21 | Derives the primary transform from the intra prediction mode and the block size | Syntactic derivation; no geometry; no margin |
-| US 16/646,624 / US11363302B2, "Method and apparatus of neural network for video coding" | MediaTek | 2019-03-27 | Uses a neural network to decide the multiple core transforms for a block, from the reconstructed block | A learned predictor exists, but the input is the current block's own reconstruction and the transform is not derived from a *causal* neighbourhood with a rate-distortion margin |
-| US12143605, "Inter-prediction Mode-dependent Transforms for Video Coding" | — | — | Derives transform modes for inter blocks from side information | Syntactic derivation |
-| EP3843395A1, "Transform selection in a video encoder and/or video decoder" | — | — | Improved process for selecting the transform set | Selection process; no causal geometric inference |
-| US12368889B2, "Coefficient-based transform and mode signaling" | — | — | Modifies MTS to skip transform signalling under end-of-block conditions | Rule-based skipping, not geometric inference |
-| TW202131697A, "Multiple transform set signaling for video coding" | — | — | Derives the MTS index by a predetermined rule when only the DC coefficient is non-zero | Rule-based derivation |
+| Reference | Assignee | Priority | What its claims disclose |
+|---|---|---|---|
+| EP2991352A1, "Methods and apparatus for transform selection in video encoding and decoding" | Thomson Licensing | 2009-01-27 | A transform set "derived from reconstructed video data from one or more previous pictures" and determined "using training data", with "horizontal and vertical directions of the transforms capable of being different", and the transform signalled only above a threshold block size |
+| US9357221B2, "Methods and apparatus for adaptive transform selection for video encoding and decoding" | Thomson Licensing | 2009-07-23 | A plurality of transforms adapted from "residue information from the encoded one or more pictures", trained, and the encoder transmits the selected transform "when the selected transform is not present at the corresponding decoder" |
+| US11297348B2, "Implicit transform settings for coding a block of pixels" | MediaTek | 2018-04-13 | The transform mode derived from a sub-block transform's partitioning orientation and the transformed sub-block's position |
+| EP3977732B1, "Implicit multiple transform selection" | InterDigital | 2019-05-31 | The transform selected from the low frequency non-separable transform mode and the matrix-based intra prediction mode; the description reports **+0.34% overall** against an MTS-disabled anchor |
+| US11134275B2, "Method and apparatus for performing primary transform based on filtering of blocks" | Tencent America | 2019-06-04 | The primary transform chosen from the filtering mode and the block's width and height, with the horizontal and the vertical transform selected separately |
+| HK40058354A, "Implicit transform selection in video coding" | Qualcomm | 2020-03-12 | The transform type inferred from the block's size and its intra sub-block partitioning, with "selecting the transform type for horizontal use and selecting the transform type for vertical use" |
+| US11785254B2, "Implicit mode dependent primary transforms" | Tencent America | 2020-05-29 | A set of "pairs of transform types, each of the plurality of pairs including a vertical transform type and a horizontal transform type", selected implicitly from the intra prediction mode and the block size |
+| US12219138B2, "Simplified transform coding tools" | ByteDance | 2020-06-08 | A transform coefficient zero-out based on "an implicit selected transform of a multiple transform selection process", with the horizontal and the vertical matrix derived from the block's own representative coefficients |
+| US20230086769A1, "High-level syntax control on implicit transform" | Tencent America | 2021-09-01 | The enabling of an implicit MTS by high-level syntax and the block's prediction mode, with "no transform type information is signaled by the implicit MTS" |
+| US20240040151A1, "Coefficient-based transform and mode signaling" | Apple | 2022-07-28 | The transform type inferred from the block's own coefficient pattern, and the transform signalling omitted when the inferred value matches a default |
 
-The two closest references are the InterDigital and the MediaTek
-applications. The distinction from each is stated in §3.
+**US11363302B2 is not transform art.** It is *"Neural post-filter for
+video coding"*, and its claims are about a neural network that
+generates a filtered reconstruction from a luma and a chroma component.
+An earlier table in this project listed it as transform art, and that
+was wrong; the relevant MediaTek reference is US11297348B2.
 
-**This is an exploratory search, not a freedom-to-operate opinion.** It was
-conducted with web search against public patent databases. A counsel-led
-search across Espacenet, the USPTO and the EPO registers, in the
-jurisdictions that matter, has not been performed and is required before
-any filing.
+The result of the search is that **only the rate-distortion margin is
+undisclosed**. Every reference derives the transform implicitly, four
+read reconstructed data, four select the horizontal and the vertical
+transform separately, two use training data, and two signal the
+transform only when the decoder's own state does not already hold it.
+No claim in any of the ten reads a threshold, a margin, a sub-optimal
+choice, or a trade of distortion against signalling. The distinction
+for each element is stated in §3 and in `PRIOR_ART.md`.
+
+**This is a public-record search, not a freedom-to-operate opinion.** It
+was conducted against Google Patents and the EPO's publication server,
+reading the claim text of the publications themselves. It did not
+search the national phase filings of the families in the set, and it did
+not search the non-patent literature. A counsel-led search across
+Espacenet, the USPTO and the EPO registers, in the jurisdictions that
+matter, is required before any filing.
 
 ---
 

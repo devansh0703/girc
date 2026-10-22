@@ -1023,11 +1023,29 @@ fn decode_transform_signal(
         return Ok(predicted);
     }
     // Two bins select among the four modes the prediction rules out.
-    let high = decoder.decode(CTX_TRANSFORM_INDEX)?;
-    let low = decoder.decode(CTX_TRANSFORM_INDEX)?;
-    let position = (high as usize) * 2 + low as usize;
+    // The encoder writes the high bit of the position first, so the
+    // decoder reads it in that order.
+    decode_transform_override(decoder, predicted)
+}
+
+/// Decode the correction, given the prediction it corrects.
+///
+/// The prediction is known to the decoder, so the two bins that select
+/// the actual mode are read against the list the prediction rules out.
+fn decode_transform_override(
+    decoder: &mut BinDecoder,
+    predicted: TransformMode,
+) -> Result<TransformMode, CodecError> {
+    let two = decoder.decode(CTX_TRANSFORM_INDEX)?;
+    let one = decoder.decode(CTX_TRANSFORM_INDEX)?;
+    let position = (two as usize) * 2 + one as usize;
     let remaining = remaining_modes(predicted);
-    Ok(remaining[position])
+    remaining.get(position).copied().ok_or_else(|| {
+        CodecError::Predictor(format!(
+            "the correction selects mode {position} of {}",
+            remaining.len()
+        ))
+    })
 }
 
 /// Code the quantized residual levels.
@@ -1516,6 +1534,58 @@ mod tests {
         );
         let decoded = decode(&encoded.bitstream, &config).unwrap();
         assert_eq!(decoded[1], encoded.reconstructions[1]);
+    }
+
+    /// Every predicted and actual pair must round-trip.
+    ///
+    /// The correction is signalled relative to the prediction, so the
+    /// decoder has to derive the same list of remaining modes that the
+    /// encoder did. This checks every pair of the five modes, which is
+    /// twenty-five cases, and it checks that the list is a bijection
+    /// onto the four modes the prediction rules out.
+    #[test]
+    fn every_correction_round_trips() {
+        for predicted in TransformMode::ALL {
+            let remaining = remaining_modes(predicted);
+            assert_eq!(
+                remaining.len(),
+                TransformMode::ALL.len() - 1,
+                "the prediction rules out exactly one mode"
+            );
+            assert!(
+                !remaining.contains(&predicted),
+                "the remaining list does not hold the prediction"
+            );
+            for actual in TransformMode::ALL {
+                if actual == predicted {
+                    continue;
+                }
+                assert!(
+                    remaining.contains(&actual),
+                    "the remaining list holds the actual mode"
+                );
+
+                // The correction's two bins are coded and decoded on
+                // their own, so the test is of the correction and not of
+                // the block around it.
+                let remaining = remaining_modes(predicted);
+                let position = remaining
+                    .iter()
+                    .position(|m| *m == actual)
+                    .expect("the actual mode differs from the prediction");
+                let mut encoder = BinEncoder::new(NUM_CONTEXTS);
+                encoder.encode(CTX_TRANSFORM_INDEX, position & 2 != 0);
+                encoder.encode(CTX_TRANSFORM_INDEX, position & 1 != 0);
+                let words = encoder.finish();
+                let mut decoder = BinDecoder::new(&words, NUM_CONTEXTS).unwrap();
+
+                let decoded = decode_transform_override(&mut decoder, predicted).unwrap();
+                assert_eq!(
+                    decoded, actual,
+                    "the correction from {predicted:?} to {actual:?} did not round-trip"
+                );
+            }
+        }
     }
 
     /// The explicit mode must never use the override-only path, so its

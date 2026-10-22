@@ -99,6 +99,20 @@ jobs:
       - name: Check the transforms against VVenC
         run: cargo test -p girc-core transform
 
+  prior-art:
+    name: Prior art
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check that every quotation is in the claim text
+        run: python3 tools/verify_claim_charts.py
+
   sites:
     name: Sites
     runs-on: ubuntu-latest

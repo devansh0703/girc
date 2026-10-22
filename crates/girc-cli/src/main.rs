@@ -255,7 +255,12 @@ fn run() -> Result<()> {
                 writeln!(out, "{payload}").context("writing the collection records")?;
             }
         }
-        Command::Evaluate { input, qp, model, frames } => {
+        Command::Evaluate {
+            input,
+            qp,
+            model,
+            frames,
+        } => {
             let read = Yuv4Frame::read_many(&input, frames.max(1))
                 .with_context(|| format!("reading the input frames at {}", input.display()))?;
             let text = fs::read_to_string(&model)

@@ -57,6 +57,22 @@ pub struct CodecResult {
     /// The number of blocks coded.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_count: Option<u64>,
+    /// The blocks whose transform differed from the decoder's
+    /// prediction, split by whether the block was intra or inter
+    /// predicted.
+    ///
+    /// The split is what the inter hypothesis is about: an inter
+    /// residual is more structured, so the transform should be more
+    /// predictable, and the mismatch rate should be lower for the
+    /// inter blocks.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intra_mismatches: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inter_mismatches: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intra_blocks: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inter_blocks: Option<u64>,
 }
 
 impl CodecResult {
@@ -300,6 +316,10 @@ pub fn run_girc(
     let mut points = Vec::new();
     let mut mismatches = 0u64;
     let mut blocks = 0u64;
+    let mut intra_mismatches = 0u64;
+    let mut inter_mismatches = 0u64;
+    let mut intra_blocks = 0u64;
+    let mut inter_blocks = 0u64;
 
     for qp in qps {
         let config = EncoderConfig {
@@ -326,6 +346,10 @@ pub fn run_girc(
         });
         mismatches += result.prediction_mismatches as u64;
         blocks += result.block_count as u64;
+        intra_mismatches += result.intra_mismatches as u64;
+        inter_mismatches += result.inter_mismatches as u64;
+        intra_blocks += result.intra_blocks as u64;
+        inter_blocks += result.inter_blocks as u64;
     }
 
     Ok(CodecResult {
@@ -343,6 +367,10 @@ pub fn run_girc(
         points,
         prediction_mismatches: Some(mismatches),
         block_count: Some(blocks),
+        intra_mismatches: Some(intra_mismatches),
+        inter_mismatches: Some(inter_mismatches),
+        intra_blocks: Some(intra_blocks),
+        inter_blocks: Some(inter_blocks),
     })
 }
 
@@ -396,6 +424,10 @@ pub fn run_anchor(
         points,
         prediction_mismatches: None,
         block_count: None,
+        intra_mismatches: None,
+        inter_mismatches: None,
+        intra_blocks: None,
+        inter_blocks: None,
     })
 }
 
@@ -640,6 +672,10 @@ pub struct MarginPoint {
     pub mean_bd_rate: f64,
     /// The fraction of blocks where the decoder's prediction was wrong.
     pub mean_mismatch_rate: f64,
+    /// The same rate, for the intra blocks alone.
+    pub mean_intra_mismatch_rate: f64,
+    /// The same rate, for the inter blocks alone.
+    pub mean_inter_mismatch_rate: f64,
     /// The mean whole-frame encode time of the two modes, in seconds.
     pub mean_encode_seconds: f64,
 }
@@ -662,6 +698,8 @@ fn run_margin_sweep(
         let mut per_sequence = BTreeMap::new();
         let mut rates = Vec::new();
         let mut mismatch_rates = Vec::new();
+        let mut intra_mismatch_rates = Vec::new();
+        let mut inter_mismatch_rates = Vec::new();
         let mut times = Vec::new();
 
         for sequence in sequences {
@@ -674,6 +712,10 @@ fn run_margin_sweep(
             let mut inferred = Vec::new();
             let mut mismatches = 0u64;
             let mut blocks = 0u64;
+            let mut intra_mismatches = 0u64;
+            let mut inter_mismatches = 0u64;
+            let mut intra_blocks = 0u64;
+            let mut inter_blocks = 0u64;
             let mut seconds = 0.0;
 
             for signalling in [TransformSignalling::Explicit, TransformSignalling::Inferred] {
@@ -705,6 +747,10 @@ fn run_margin_sweep(
                     if signalling == TransformSignalling::Inferred {
                         mismatches += result.prediction_mismatches as u64;
                         blocks += result.block_count as u64;
+                        intra_mismatches += result.intra_mismatches as u64;
+                        inter_mismatches += result.inter_mismatches as u64;
+                        intra_blocks += result.intra_blocks as u64;
+                        inter_blocks += result.inter_blocks as u64;
                     }
                 }
                 if signalling == TransformSignalling::Explicit {
@@ -721,6 +767,12 @@ fn run_margin_sweep(
             if blocks > 0 {
                 mismatch_rates.push(mismatches as f64 / blocks as f64);
             }
+            if intra_blocks > 0 {
+                intra_mismatch_rates.push(intra_mismatches as f64 / intra_blocks as f64);
+            }
+            if inter_blocks > 0 {
+                inter_mismatch_rates.push(inter_mismatches as f64 / inter_blocks as f64);
+            }
             times.push(seconds);
         }
 
@@ -736,6 +788,16 @@ fn run_margin_sweep(
                 f64::NAN
             } else {
                 mismatch_rates.iter().sum::<f64>() / mismatch_rates.len() as f64
+            },
+            mean_intra_mismatch_rate: if intra_mismatch_rates.is_empty() {
+                f64::NAN
+            } else {
+                intra_mismatch_rates.iter().sum::<f64>() / intra_mismatch_rates.len() as f64
+            },
+            mean_inter_mismatch_rate: if inter_mismatch_rates.is_empty() {
+                f64::NAN
+            } else {
+                inter_mismatch_rates.iter().sum::<f64>() / inter_mismatch_rates.len() as f64
             },
             mean_encode_seconds: if times.is_empty() {
                 f64::NAN
