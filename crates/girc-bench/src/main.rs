@@ -331,6 +331,13 @@ pub enum Anchor {
     GircExplicit,
     /// GIRC with geometry-inference transform signalling.
     GircInferred,
+    /// GIRC with geometry-inference signalling and the constant
+    /// predictor, which always predicts the plain DCT-II.
+    ///
+    /// This is the baseline the learned predictor has to beat, and the
+    /// patent's claim rests on the learned one being better. It is
+    /// measured in the same report so the comparison is checkable.
+    GircConstant,
     /// x265, the HEVC encoder.
     X265,
     /// SVT-AV1, the AV1 encoder.
@@ -345,6 +352,7 @@ impl Anchor {
         match self {
             Anchor::GircExplicit => "girc-explicit",
             Anchor::GircInferred => "girc-inferred",
+            Anchor::GircConstant => "girc-constant",
             Anchor::X265 => "x265",
             Anchor::SvtAv1 => "svt-av1",
             Anchor::VVenC => "vvenc",
@@ -364,6 +372,35 @@ pub fn run_girc(
     predictor: &TransformPredictor,
     transform_margin: f32,
     frames: usize,
+) -> Result<CodecResult> {
+    run_girc_named(
+        sequence,
+        qps,
+        signalling,
+        predictor,
+        transform_margin,
+        frames,
+        match signalling {
+            TransformSignalling::Explicit => Anchor::GircExplicit.name(),
+            TransformSignalling::Inferred => Anchor::GircInferred.name(),
+        },
+    )
+}
+
+/// Run GIRC and give the result a name of its own.
+///
+/// The name is a parameter so that the same code can produce the
+/// learned predictor's result and the constant predictor's, under two
+/// names, in one report.
+#[allow(clippy::too_many_arguments)]
+pub fn run_girc_named(
+    sequence: &Path,
+    qps: &[i32],
+    signalling: TransformSignalling,
+    predictor: &TransformPredictor,
+    transform_margin: f32,
+    frames: usize,
+    codec_name: &str,
 ) -> Result<CodecResult> {
     let read = Yuv4Frame::read_many(sequence, frames.max(1))?;
     let frames: Vec<_> = read.iter().map(|f| f.frame()).collect();
@@ -418,11 +455,7 @@ pub fn run_girc(
     }
 
     Ok(CodecResult {
-        codec: match signalling {
-            TransformSignalling::Explicit => Anchor::GircExplicit.name(),
-            TransformSignalling::Inferred => Anchor::GircInferred.name(),
-        }
-        .to_string(),
+        codec: codec_name.to_string(),
         sequence: sequence
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())
@@ -557,7 +590,7 @@ fn run_anchor_command(
             .args(["--preset", "medium", "-q", &qp.to_string()])
             .args(["--frames", &frames])
             .status(),
-        Anchor::GircExplicit | Anchor::GircInferred => {
+        Anchor::GircExplicit | Anchor::GircInferred | Anchor::GircConstant => {
             bail!("GIRC anchors are run in-process, not through a command line")
         }
     };
@@ -647,7 +680,7 @@ fn decode_with_anchor(
                 .arg(&output)
                 .status()
         }
-        Anchor::GircExplicit | Anchor::GircInferred => {
+        Anchor::GircExplicit | Anchor::GircInferred | Anchor::GircConstant => {
             bail!("GIRC anchors are decoded in-process")
         }
     };
@@ -684,6 +717,15 @@ struct Args {
     /// A trained predictor model for the inferred mode.
     #[arg(long)]
     model: Option<PathBuf>,
+    /// Also measure the constant predictor, which always predicts the
+    /// plain DCT-II.
+    ///
+    /// The constant predictor is the baseline the learned one has to
+    /// beat, and the patent's claim rests on the learned one being
+    /// better. Measuring both in one report is what makes the claim
+    /// checkable rather than asserted.
+    #[arg(long)]
+    compare_constant: bool,
     /// The rate-distortion margin within which the encoder accepts the
     /// decoder's predicted transform.
     #[arg(long, default_value_t = 0.0)]
@@ -736,6 +778,13 @@ pub struct Report {
     /// it is the number that corresponds to what a deployment would
     /// actually save.
     pub mechanism_bd_rate_total: BTreeMap<String, f64>,
+    /// The mechanism's effect on the luma plane, with the constant
+    /// predictor.
+    ///
+    /// The learned predictor has to beat this, because the constant is
+    /// the alternative that requires no training and no model. The
+    /// numbers are in the same report so the comparison is checkable.
+    pub constant_bd_rate: BTreeMap<String, f64>,
     /// The margin sweep, when one was run.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub margin_sweep: Option<Vec<MarginPoint>>,
@@ -938,6 +987,21 @@ fn main() -> Result<()> {
             args.margin,
             args.frames,
         )?);
+        if args.compare_constant {
+            // The constant predictor is the baseline the learned one
+            // has to beat, and the patent's claim rests on the learned
+            // one being better. It is run over the same content, the
+            // same quantization parameters and the same margin.
+            results.push(run_girc_named(
+                sequence,
+                &qps,
+                TransformSignalling::Inferred,
+                &TransformPredictor::constant_dct2(),
+                args.margin,
+                args.frames,
+                Anchor::GircConstant.name(),
+            )?);
+        }
 
         for anchor_name in &args.anchors {
             // An empty entry means no anchor; the flag accepts a list, and
@@ -967,6 +1031,7 @@ fn main() -> Result<()> {
     let mut bd_rate_vs_baseline: BTreeMap<String, BTreeMap<String, f64>> = BTreeMap::new();
     let mut mechanism_bd_rate: BTreeMap<String, f64> = BTreeMap::new();
     let mut mechanism_bd_rate_total: BTreeMap<String, f64> = BTreeMap::new();
+    let mut constant_bd_rate: BTreeMap<String, f64> = BTreeMap::new();
 
     for sequence in &args.sequence {
         let name = sequence
@@ -992,12 +1057,18 @@ fn main() -> Result<()> {
                 }
             }
             // The mechanism's own effect, on the luma plane.
-            if result.codec == Anchor::GircInferred.name() {
+            if result.codec == Anchor::GircInferred.name()
+                || result.codec == Anchor::GircConstant.name()
+            {
                 if let (Some(baseline_luma), Some(result_luma)) =
                     (&baseline.luma_points, &result.luma_points)
                 {
                     if let Some(rate) = bd_rate_luma(baseline_luma, result_luma) {
-                        mechanism_bd_rate.insert(name.clone(), rate);
+                        if result.codec == Anchor::GircInferred.name() {
+                            mechanism_bd_rate.insert(name.clone(), rate);
+                        } else {
+                            constant_bd_rate.insert(name.clone(), rate);
+                        }
                     }
                 }
             }
@@ -1026,6 +1097,7 @@ fn main() -> Result<()> {
         bd_rate_vs_baseline,
         mechanism_bd_rate,
         mechanism_bd_rate_total,
+        constant_bd_rate,
         margin_sweep,
     };
 
@@ -1039,6 +1111,9 @@ fn main() -> Result<()> {
     }
     for (sequence, rate) in &report.mechanism_bd_rate_total {
         eprintln!("mechanism BD-rate on {sequence}: {rate:+.3}% (whole frame)");
+    }
+    for (sequence, rate) in &report.constant_bd_rate {
+        eprintln!("constant-predictor BD-rate on {sequence}: {rate:+.3}% (luma)");
     }
     Ok(())
 }
