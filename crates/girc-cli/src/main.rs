@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! girc encode --input <y4m> --output <bitstream> [--signalling explicit|inferred]
-//!            [--qp N] [--model <model.json>]
+//!            [--qp N] [--model <model.json>] [--margin BITS]
 //! girc decode --input <bitstream> --output <y4m> [--signalling ...] [--model ...]
 //! girc inspect --input <bitstream>
 //! ```
@@ -49,6 +49,14 @@ enum Command {
         /// A trained predictor model, required for inferred signalling.
         #[arg(long)]
         model: Option<PathBuf>,
+        /// The rate-distortion margin, in bits.
+        ///
+        /// The encoder may take a transform the decoder will infer, when
+        /// doing so costs less in distortion than the override would
+        /// cost in rate. This is the mechanism's only free parameter,
+        /// and the published result uses 50.
+        #[arg(long, default_value_t = 0.0)]
+        margin: f32,
     },
     /// Decode a GIRC bitstream into a Y4M file.
     Decode {
@@ -62,6 +70,10 @@ enum Command {
         #[arg(long, value_enum, default_value_t = Signalling::Explicit)]
         signalling: Signalling,
         /// A trained predictor model; must match the encoder's.
+        ///
+        /// The margin is not needed here: it decides which transform the
+        /// encoder takes, and the decoder's prediction does not depend
+        /// on it.
         #[arg(long)]
         model: Option<PathBuf>,
     },
@@ -116,7 +128,12 @@ impl From<Signalling> for TransformSignalling {
 }
 
 /// Build the encoder configuration from the command-line arguments.
-fn build_config(signalling: Signalling, qp: i32, model: Option<&PathBuf>) -> Result<EncoderConfig> {
+fn build_config(
+    signalling: Signalling,
+    qp: i32,
+    model: Option<&PathBuf>,
+    margin: f32,
+) -> Result<EncoderConfig> {
     let predictor = match model {
         Some(path) => {
             let text = fs::read_to_string(path)
@@ -130,6 +147,7 @@ fn build_config(signalling: Signalling, qp: i32, model: Option<&PathBuf>) -> Res
         qp,
         signalling: signalling.into(),
         predictor,
+        transform_margin: margin,
         ..Default::default()
     })
 }
@@ -143,10 +161,11 @@ fn run() -> Result<()> {
             signalling,
             qp,
             model,
+            margin,
         } => {
             let frame = Yuv4Frame::read(&input)
                 .with_context(|| format!("reading the input frame at {}", input.display()))?;
-            let config = build_config(signalling, qp, model.as_ref())?;
+            let config = build_config(signalling, qp, model.as_ref(), margin)?;
             let picture = frame.luma_picture();
             let result = encode(&picture, &config)?;
             fs::write(&output, &result.bitstream)
@@ -173,7 +192,7 @@ fn run() -> Result<()> {
             let bitstream = fs::read(&input)
                 .with_context(|| format!("reading the bitstream at {}", input.display()))?;
             let (header, _) = BitstreamHeader::read(&bitstream)?;
-            let config = build_config(signalling, header.qp as i32, model.as_ref())?;
+            let config = build_config(signalling, header.qp as i32, model.as_ref(), 0.0)?;
             let picture = decode(&bitstream, &config)?;
             let frame = Yuv4Frame::from_luma_picture(&picture, 128);
             frame
@@ -259,5 +278,55 @@ fn main() -> ExitCode {
             eprintln!("error: {error:#}");
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The command-line interface must accept the margin, and it must be
+    /// the rate-distortion knob the benchmark sweeps.
+    #[test]
+    fn the_margin_is_accepted_by_the_parser() {
+        let cli = Cli::try_parse_from([
+            "girc",
+            "encode",
+            "--input",
+            "in.y4m",
+            "--output",
+            "out.girc",
+            "--signalling",
+            "inferred",
+            "--margin",
+            "50",
+        ])
+        .expect("the margin parses");
+        match cli.command {
+            Command::Encode { margin, .. } => assert_eq!(margin, 50.0),
+            other => panic!("expected the encode command, got {other:?}"),
+        }
+    }
+
+    /// The decode command does not take a margin: it decides which
+    /// transform the encoder takes, and the decoder's prediction does not
+    /// depend on it.
+    #[test]
+    fn the_decoder_does_not_take_a_margin() {
+        assert!(
+            Cli::try_parse_from([
+                "girc", "decode", "--input", "in.girc", "--output", "out.y4m", "--margin", "50",
+            ])
+            .is_err(),
+            "the decode command must reject a margin"
+        );
+    }
+
+    /// The configuration the margin reaches must be the encoder's.
+    #[test]
+    fn the_margin_reaches_the_encoder_configuration() {
+        let config = build_config(Signalling::Inferred, 27, None, 50.0).expect("the config builds");
+        assert_eq!(config.transform_margin, 50.0);
+        assert_eq!(config.signalling, TransformSignalling::Inferred);
     }
 }
