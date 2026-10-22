@@ -70,32 +70,35 @@ class Settings:
         """Build the settings from the environment."""
         import os
 
+        # The defaults are read off an instance, because a field with a
+        # default factory has no class attribute to read.
+        defaults = cls()
         return cls(
-            database_url=os.environ.get("GIRC_DATABASE_URL", cls.database_url),
+            database_url=os.environ.get("GIRC_DATABASE_URL", defaults.database_url),
             artifact_root=Path(
-                os.environ.get("GIRC_ARTIFACT_ROOT", str(cls.artifact_root))
+                os.environ.get("GIRC_ARTIFACT_ROOT", str(defaults.artifact_root))
             ),
-            secret_key=os.environ.get("GIRC_SECRET_KEY", cls.secret_key),
-            session_hours=int(os.environ.get("GIRC_SESSION_HOURS", cls.session_hours)),
+            secret_key=os.environ.get("GIRC_SECRET_KEY", defaults.secret_key),
+            session_hours=int(os.environ.get("GIRC_SESSION_HOURS", defaults.session_hours)),
             download_token_minutes=int(
-                os.environ.get("GIRC_DOWNLOAD_TOKEN_MINUTES", cls.download_token_minutes)
+                os.environ.get("GIRC_DOWNLOAD_TOKEN_MINUTES", defaults.download_token_minutes)
             ),
-            admin_email=os.environ.get("GIRC_ADMIN_EMAIL", cls.admin_email),
+            admin_email=os.environ.get("GIRC_ADMIN_EMAIL", defaults.admin_email),
             max_upload_bytes=int(
-                os.environ.get("GIRC_MAX_UPLOAD_BYTES", cls.max_upload_bytes)
+                os.environ.get("GIRC_MAX_UPLOAD_BYTES", defaults.max_upload_bytes)
             ),
             trust_forwarded_for=os.environ.get(
                 "GIRC_TRUST_FORWARDED_FOR", ""
             ).lower()
             in {"1", "true", "yes", "on"},
             max_login_attempts=int(
-                os.environ.get("GIRC_MAX_LOGIN_ATTEMPTS", cls.max_login_attempts)
+                os.environ.get("GIRC_MAX_LOGIN_ATTEMPTS", defaults.max_login_attempts)
             ),
             login_lockout_seconds=int(
                 os.environ.get(
-                    "GIRC_LOGIN_LOCKOUT_SECONDS", cls.login_lockout_seconds
+                    "GIRC_LOGIN_LOCKOUT_SECONDS", defaults.login_lockout_seconds
                 )
             ),
-            redis_url=os.environ.get("GIRC_REDIS_URL", cls.redis_url),
-            redis_token=os.environ.get("GIRC_REDIS_TOKEN", cls.redis_token),
+            redis_url=os.environ.get("GIRC_REDIS_URL", defaults.redis_url),
+            redis_token=os.environ.get("GIRC_REDIS_TOKEN", defaults.redis_token),
         )

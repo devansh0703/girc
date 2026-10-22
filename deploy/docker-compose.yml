@@ -1,0 +1,99 @@
+# The evaluation portal, in production.
+#
+# The portal hands out confidential material, so the deployment is
+# built around three things: the secret is never in the image, the
+# database and the artifacts are both backed up, and the traffic
+# arrives over TLS at a reverse proxy that is the only thing exposed.
+#
+# The stack is three containers:
+#
+#   proxy    Caddy, which terminates TLS and serves the portal
+#   portal   uvicorn, running the application
+#   db       PostgreSQL, holding the organisations and the audit log
+#
+# The artifacts live on a volume, because the whole point of the portal
+# is the files.
+#
+# To bring it up:
+#
+#   cd deploy
+#   cp .env.example .env      # then fill in the values
+#   docker compose up -d
+#
+# To take a backup:
+#
+#   ./backup.sh
+#
+# The environment file is read by compose, and its values are passed
+# to the portal as environment variables. It is mode 600 and it is not
+# in the repository.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${GIRC_DB_NAME}
+      POSTGRES_USER: ${GIRC_DB_USER}
+      POSTGRES_PASSWORD: ${GIRC_DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${GIRC_DB_USER} -d ${GIRC_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # The database is not exposed to the host. The portal reaches it
+    # over the compose network, and nothing else can.
+
+  portal:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GIRC_DATABASE_URL: postgresql+psycopg://${GIRC_DB_USER}:${GIRC_DB_PASSWORD}@db:5432/${GIRC_DB_NAME}
+      GIRC_SECRET_KEY: ${GIRC_SECRET_KEY}
+      GIRC_ARTIFACT_ROOT: /var/lib/girc/artifacts
+      GIRC_ADMIN_EMAIL: ${GIRC_ADMIN_EMAIL}
+      GIRC_REDIS_URL: ${GIRC_REDIS_URL}
+      GIRC_REDIS_TOKEN: ${GIRC_REDIS_TOKEN}
+      GIRC_TRUST_FORWARDED_FOR: "true"
+      GIRC_LOGIN_MAX_ATTEMPTS: ${GIRC_LOGIN_MAX_ATTEMPTS:-10}
+      GIRC_LOGIN_LOCKOUT_SECONDS: ${GIRC_LOGIN_LOCKOUT_SECONDS:-900}
+    volumes:
+      - artifact-data:/var/lib/girc/artifacts
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      portal:
+        condition: service_healthy
+    environment:
+      GIRC_DOMAIN: ${GIRC_DOMAIN}
+      GIRC_EMAIL: ${GIRC_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  db-data:
+  artifact-data:
+  caddy-data:
+  caddy-config:

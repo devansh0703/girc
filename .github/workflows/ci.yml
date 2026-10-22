@@ -143,3 +143,45 @@ jobs:
                           failed = True
           sys.exit(1 if failed else 0)
           PY
+
+  deployment:
+    name: Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the compose file
+        run: docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example config
+
+      - name: Check the shell scripts
+        run: |
+          for script in deploy/*.sh; do
+            bash -n "$script"
+            echo "$script parses"
+          done
+
+      - name: Check the container image builds
+        run: docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example build portal
+
+      - name: Check the portal answers in the container
+        run: |
+          # The portal creates its schema on startup, so it needs the
+          # database, and the database needs its password. The example
+          # environment file has placeholders, which is enough.
+          docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example \
+            up -d db portal
+          for _ in $(seq 1 40); do
+            if docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example \
+                exec -T portal \
+                python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')" 2>/dev/null; then
+              echo "the portal answers"
+              break
+            fi
+            sleep 3
+          done
+          docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example logs --tail 40 portal
+          docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example \
+            exec -T portal \
+            python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
+          echo "the portal answers and the schema was created"
+          docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example down -v

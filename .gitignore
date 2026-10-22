@@ -10,6 +10,9 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
+deploy/backups/
 *.db
 *.sqlite3
 apps/portal/var/

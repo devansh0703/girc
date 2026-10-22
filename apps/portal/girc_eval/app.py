@@ -174,12 +174,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/login", response_class=HTMLResponse)
     def login_page(request: Request):
         """The sign-in page."""
-        return templates.TemplateResponse("login.html", {"request": request})
+        return templates.TemplateResponse(
+            request, "login.html", {"request": request}
+        )
 
     @app.get("/register", response_class=HTMLResponse)
     def register_page(request: Request):
         """The registration page."""
-        return templates.TemplateResponse("register.html", {"request": request})
+        return templates.TemplateResponse(
+            request, "register.html", {"request": request}
+        )
 
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard(
@@ -802,3 +806,12 @@ def has_approved_evaluation(db: Session, user: User) -> bool:
         .limit(1)
     )
     return approved is not None
+
+
+#: The application the container serves.
+#:
+#: The deployment passes its settings in the environment, so the module
+#: level application is built from those. The tests build their own
+#: through :func:`create_app` with a temporary database, so this does
+#: not affect them.
+app = create_app(Settings.from_env())

@@ -586,3 +586,18 @@ def test_the_redis_limiter_speaks_the_upstash_command_shape():
     commands = [entry[0] for entry in sent]
     assert "ZADD" in commands, commands
     assert "EXPIRE" in commands, commands
+
+
+def test_every_page_renders(environment):
+    """Every page of the portal must render.
+
+    The templates are rendered with the request-first signature that
+    the current Starlette expects, and a page that used the older
+    two-argument form would fail with a 500 rather than a missing
+    template, so each page is fetched here.
+    """
+    client, _, _ = environment
+    for path in ("/", "/login", "/register"):
+        response = client.get(path)
+        assert response.status_code == 200, f"{path} gave {response.status_code}"
+        assert b"<html" in response.content.lower(), path

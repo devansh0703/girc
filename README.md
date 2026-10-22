@@ -98,6 +98,28 @@ numbers: the effect on the luma plane, which is the mechanism's own
 effect, and the effect on the whole frame, which is what a deployment
 would save. The anchor comparison uses the whole frame, on both sides.
 
+## The evaluation portal, in production
+
+The portal is in `deploy/`. It is three containers: Caddy in front,
+terminating TLS and setting the security headers; the portal itself
+on uvicorn; and PostgreSQL, which is not published to the host at all.
+The artifacts are on their own volume.
+
+The secret is not in the image. It is passed in at run time through a
+mode-600 environment file that is not in the repository. The sign-in
+rate limit is kept in Redis, so it holds across every worker rather
+than one.
+
+The backup script dumps the database with `pg_dump` — including the
+audit log, which is the record of who was given what — archives the
+artifacts, writes a manifest, and verifies the backup against it before
+calling the run a success. The restore script cannot half-apply: it
+drops the database, loads the dump into a new one, and empties the
+artifacts volume before unpacking into it.
+
+`deploy/README.md` has the whole procedure, including how to rotate
+the signing secret.
+
 ## Building
 
 ```sh

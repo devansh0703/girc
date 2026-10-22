@@ -1,0 +1,68 @@
+# The reverse proxy in front of the portal.
+#
+# Caddy obtains and renews the certificate on its own, so the portal
+# is served over TLS without anybody having to run certbot.
+#
+# The two things worth noting:
+#
+#   * The request body is capped, because the portal has its own cap
+#     and a proxy that accepts an unbounded body is a way around it.
+#   * The headers that say who is calling are set by the proxy, so the
+#     portal can trust them. The portal only trusts them because the
+#     deployment says it is behind a proxy.
+
+# The global options, in the block Caddy 2 expects them in.
+{
+	# An email for the certificate's expiry, so the renewal fails
+	# loudly rather than silently.
+	email {$GIRC_EMAIL}
+}
+
+{$GIRC_DOMAIN} {
+	encode zstd gzip
+
+	request_body {
+		max_size 64MB
+	}
+
+	header {
+		# The portal's own headers are what the browser should see.
+		-Server
+		# Nothing may frame the portal.
+		X-Frame-Options "DENY"
+		# No cross-origin access to the portal's own responses.
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		# The portal must only ever be loaded over TLS.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# The portal loads no third-party code and makes no third-party
+		# requests, so the policy can be as tight as it goes.
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
+	}
+
+	reverse_proxy portal:8000 {
+		# The health check endpoint is not in the access log, because
+		# the proxy polls it every fifteen seconds and the log would
+		# be mostly that.
+		health_uri /health
+		# The proxy sets the client's address in the request's
+		# X-Forwarded-For, and the portal records it in the audit log
+		# because the deployment says a proxy is in front of it.
+		# The portal only believes the header when it has been told a
+		# proxy is there, because otherwise a client could write it.
+	}
+}
+
+# A plain HTTP request is redirected, and the ACME challenges are
+# answered directly, because the certificate has to be obtained before
+# the redirect can be enforced.
+http://{$GIRC_DOMAIN} {
+	@acme path /.well-known/acme-challenge/*
+	handle @acme {
+		root * /var/lib/caddy
+		file_server
+	}
+	handle {
+		redir https://{host}{uri} permanent
+	}
+}
