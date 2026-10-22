@@ -15,7 +15,7 @@ use std::process::ExitCode;
 use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use girc_core::bitstream::BitstreamHeader;
-use girc_core::codec::{block_features, decode, encode, EncoderConfig};
+use girc_core::codec::{collect_training_examples, decode, encode, EncoderConfig};
 use girc_core::geometry::{TransformPredictor, TransformSignalling};
 use girc_core::yuv::Yuv4Frame;
 
@@ -161,7 +161,7 @@ fn run() -> Result<()> {
                 result.block_count,
                 result.payload_bytes,
                 result.prediction_mismatches,
-                result.transform_signalling_bits,
+                result.transform_signalling_bins,
             );
         }
         Command::Decode {
@@ -194,11 +194,15 @@ fn run() -> Result<()> {
                 qp,
                 ..Default::default()
             };
-            let records = collect_records(&frame.luma_picture(), &config)?;
+            let examples = collect_training_examples(&frame.luma_picture(), &config)?;
             let stdout = std::io::stdout();
             let mut out = stdout.lock();
-            for record in records {
-                writeln!(out, "{record}").context("writing the collection records")?;
+            for example in examples {
+                let payload = serde_json::json!({
+                    "features": example.features.to_vec(),
+                    "transform": example.transform.as_index(),
+                });
+                writeln!(out, "{payload}").context("writing the collection records")?;
             }
         }
         Command::Evaluate { input, qp, model } => {
@@ -221,7 +225,7 @@ fn run() -> Result<()> {
                 "block_count": result.block_count,
                 "prediction_mismatches": result.prediction_mismatches,
                 "mismatch_rate": result.prediction_mismatches as f64 / result.block_count as f64,
-                "transform_signalling_bits": result.transform_signalling_bits,
+                "transform_signalling_bins": result.transform_signalling_bins,
             });
             println!("{payload}");
         }
@@ -238,52 +242,6 @@ fn run() -> Result<()> {
         }
     }
     Ok(())
-}
-
-/// Collect one JSON record per coded block, for the training pipeline.
-///
-/// Each record holds the block's geometry features and the transform the
-/// rate-distortion search chose, so the training pipeline learns the
-/// encoder's actual decision rather than an approximation of it.
-fn collect_records(
-    picture: &girc_core::codec::Picture,
-    config: &EncoderConfig,
-) -> Result<Vec<String>> {
-    use girc_core::codec::BLOCK_SIZE;
-
-    let blocks_x = picture.width / BLOCK_SIZE;
-    let blocks_y = picture.height / BLOCK_SIZE;
-    let mut records = Vec::with_capacity(blocks_x * blocks_y);
-
-    for by in 0..blocks_y {
-        for bx in 0..blocks_x {
-            let features = block_features(picture, bx, by);
-            // The encoder's chosen transform is recovered by re-running the
-            // per-block search on the original samples.
-            let original: Vec<u8> = (0..BLOCK_SIZE)
-                .flat_map(|y| {
-                    (0..BLOCK_SIZE).map(move |x| {
-                        picture
-                            .sample(
-                                (bx * BLOCK_SIZE + x) as isize,
-                                (by * BLOCK_SIZE + y) as isize,
-                            )
-                            .unwrap_or(0)
-                    })
-                })
-                .collect();
-            let reference = girc_core::codec::reference_samples_for(picture, bx, by);
-            let (_, transform, _, _, _) =
-                girc_core::codec::search_block(&original, &reference, config);
-
-            let payload = serde_json::json!({
-                "features": features.to_vec(),
-                "transform": transform.as_index(),
-            });
-            records.push(payload.to_string());
-        }
-    }
-    Ok(records)
 }
 
 /// The display name of a signalling mode.

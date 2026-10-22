@@ -34,6 +34,8 @@ use constriction::stream::queue::DefaultRangeDecoder;
 use constriction::stream::queue::DefaultRangeEncoder;
 use constriction::stream::{Decode, Encode};
 
+use crate::geometry::TransformSignalling;
+
 /// The entropy coder's word type.
 pub type Word = u32;
 
@@ -61,7 +63,17 @@ pub struct BitstreamHeader {
     pub width: u32,
     pub height: u32,
     pub qp: u8,
+    /// The signalling mode the payload uses.
+    ///
+    /// The mode has to be in the header rather than out of band: an
+    /// explicit-signalling stream and an inferred-signalling stream have
+    /// different syntax, so a decoder that guessed wrong would
+    /// desynchronise. Recording it makes a stream self-describing.
+    pub signalling: TransformSignalling,
 }
+
+/// The header flag that records the signalling mode.
+const FLAG_INFERRED: u16 = 1;
 
 impl BitstreamHeader {
     /// The size of the header in bytes, excluding the payload.
@@ -69,9 +81,13 @@ impl BitstreamHeader {
 
     /// Write a complete bitstream: the header followed by the payload.
     pub fn write(&self, out: &mut Vec<u8>, payload: &[Word]) {
+        let flags = match self.signalling {
+            TransformSignalling::Explicit => 0,
+            TransformSignalling::Inferred => FLAG_INFERRED,
+        };
         out.extend_from_slice(MAGIC);
         out.extend_from_slice(&self.version.to_le_bytes());
-        out.extend_from_slice(&0u16.to_le_bytes()); // flags, reserved
+        out.extend_from_slice(&flags.to_le_bytes());
         out.extend_from_slice(&self.width.to_le_bytes());
         out.extend_from_slice(&self.height.to_le_bytes());
         out.push(self.qp);
@@ -97,6 +113,12 @@ impl BitstreamHeader {
         let width = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
         let height = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]);
         let qp = bytes[16];
+        let flags = u16::from_le_bytes([bytes[6], bytes[7]]);
+        let signalling = if flags & FLAG_INFERRED != 0 {
+            TransformSignalling::Inferred
+        } else {
+            TransformSignalling::Explicit
+        };
         let payload_len = u32::from_le_bytes([bytes[17], bytes[18], bytes[19], bytes[20]]) as usize;
         Ok((
             Self {
@@ -104,6 +126,7 @@ impl BitstreamHeader {
                 width,
                 height,
                 qp,
+                signalling,
             },
             Self::SIZE + payload_len * 4,
         ))
@@ -289,6 +312,7 @@ mod tests {
             width: 352,
             height: 288,
             qp: 27,
+            signalling: TransformSignalling::Inferred,
         };
         let payload = vec![1u32, 2, 3, 4];
         let mut bytes = Vec::new();

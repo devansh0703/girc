@@ -59,9 +59,6 @@ pub const MAX_LOG2_TR_DYNAMIC_RANGE: i32 = 15;
 /// The quantizer's fixed-point shift, as in VVenC's `QUANT_SHIFT`.
 const QUANT_SHIFT: i32 = 14;
 
-/// The inverse quantizer's fixed-point shift, as in VVenC's `IQUANT_SHIFT`.
-const IQUANT_SHIFT: i32 = 6;
-
 /// VVC's `g_quantScales` table, indexed by `qp % 6`.
 ///
 /// These are the values VVenC uses in `source/Lib/CommonLib/Rom.cpp`. The

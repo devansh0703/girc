@@ -24,7 +24,8 @@
 
 use crate::bitstream::{BinDecoder, BinEncoder, BitstreamError, BitstreamHeader};
 use crate::geometry::{
-    extract_features, GeometryFeatures, TransformPredictor, TransformSignal, TransformSignalling,
+    extract_features, extract_features_from_window, GeometryFeatures, TransformPredictor,
+    TransformSignal, TransformSignalling,
 };
 use crate::intra::{predict, IntraMode, ReferenceSamples};
 use crate::quant::{dequantize, dequantize_with, quantize_with, sse, QuantParams};
@@ -32,6 +33,13 @@ use crate::transform::{forward, inverse, TransformKind};
 
 /// The block size GIRC codes, in samples.
 pub const BLOCK_SIZE: usize = 8;
+
+/// The size of the causal window the predictor reads, in samples.
+///
+/// The window is the square region ending at the block's top-left corner.
+/// Every sample in it has already been reconstructed when the decoder
+/// reaches the current block, so reading it costs nothing in signalling.
+pub const CONTEXT_WINDOW: usize = 16;
 
 /// The number of entropy-coding contexts in the payload.
 const NUM_CONTEXTS: usize = 16;
@@ -97,6 +105,25 @@ pub struct EncoderConfig {
     pub predictor: TransformPredictor,
     /// The rate-distortion lambda, as a fraction of the quantizer step.
     pub lambda: f32,
+    /// The rate-distortion margin within which the encoder accepts the
+    /// decoder's predicted transform.
+    ///
+    /// This is the knob that makes the mechanism work. A transform's
+    /// rate-distortion cost is often very close to the best available, and
+    /// the encoder can take the slightly worse transform that the decoder
+    /// already knows in exchange for not having to signal the choice.
+    ///
+    /// The margin is expressed in bits of rate, and it is the amount of
+    /// rate the encoder is willing to give up to save the signalling. The
+    /// encoder accepts the predicted transform when doing so costs less
+    /// rate-distortion than the override would.
+    ///
+    /// A margin of zero makes the encoder take the strictly optimal
+    /// transform and override whenever the prediction differs, which is
+    /// the mechanism at its least favourable. A large margin makes the
+    /// encoder follow the prediction almost always, at the cost of
+    /// distortion.
+    pub transform_margin: f32,
 }
 
 impl Default for EncoderConfig {
@@ -106,6 +133,7 @@ impl Default for EncoderConfig {
             signalling: TransformSignalling::Explicit,
             predictor: TransformPredictor::constant_dct2(),
             lambda: 0.85,
+            transform_margin: 0.0,
         }
     }
 }
@@ -119,15 +147,22 @@ pub struct EncodeResult {
     pub reconstruction: Picture,
     /// The number of bytes the payload occupies.
     pub payload_bytes: usize,
-    /// How many blocks the encoder chose a transform that differed from the
-    /// decoder's prediction. Only meaningful in inferred mode.
-    pub prediction_mismatches: usize,
     /// How many blocks the encoder coded.
     pub block_count: usize,
-    /// The number of bits the transform-type signalling cost, as the encoder
-    /// accounted for it. This is the quantity the mechanism is meant to
-    /// reduce.
-    pub transform_signalling_bits: usize,
+    /// The number of syntax elements the transform-type signalling used.
+    ///
+    /// This counts the bins the signalling contributes, not the bits the
+    /// entropy coder charged for them: a context-adaptive coder charges
+    /// less than one bit per bin for a skewed distribution. The rate the
+    /// signalling actually cost is the difference between the two modes'
+    /// bitstreams, which the benchmark measures directly.
+    pub transform_signalling_bins: usize,
+    /// The number of blocks whose transform differed from the decoder's
+    /// prediction.
+    ///
+    /// In explicit mode this is always zero, because there is no
+    /// prediction to differ from.
+    pub prediction_mismatches: usize,
 }
 
 /// Errors produced by the encoder or decoder.
@@ -179,23 +214,40 @@ pub fn encode(picture: &Picture, config: &EncoderConfig) -> Result<EncodeResult,
     let mut reconstruction = Picture::filled(picture.width, picture.height, 0);
 
     let mut mismatches = 0usize;
-    let mut signalling_bits = 0usize;
+    let mut signalling_bins = 0usize;
 
     for by in 0..blocks_y {
         for bx in 0..blocks_x {
             let reference = reference_samples(&reconstruction, bx, by);
             let original = block_samples(picture, bx, by);
 
-            let (mode, chosen_transform, chosen_levels, chosen_reconstruction, chosen_cost) =
-                best_block(&original, &reference, config);
+            // The search runs in the decoder's order: the intra mode is
+            // chosen first, because the transform type is signalled after
+            // it and the predictor's features depend on it.
+            let mode = choose_mode(&original, &reference, config);
 
-            // The decoder's prediction, which the encoder must match.
-            let features = extract_features(&reference.left, &reference.top);
-            let (predicted, _) = config.predictor.predict_with_margin(&features);
+            // The decoder's prediction, which the encoder must match. The
+            // intra mode is decoded before the transform type, so it is
+            // available on both sides.
+            //
+            // The prediction is computed from the encoder's own
+            // reconstruction, which is what the decoder will have.
+            // The explicit mode always takes the rate-distortion optimal
+            // transform and signals it; the margin only applies to the
+            // inferred mode, where it is the mechanism's trade.
+            let predicted = if config.signalling == TransformSignalling::Inferred {
+                let features = predict_features(&reconstruction, bx, by, mode, config.qp);
+                Some(config.predictor.predict_with_margin(&features).0)
+            } else {
+                None
+            };
 
-            let signal = match config.signalling {
-                TransformSignalling::Explicit => TransformSignal::Explicit(chosen_transform),
-                TransformSignalling::Inferred => {
+            let (chosen_transform, chosen_levels, chosen_reconstruction, chosen_cost) =
+                choose_transform(&original, &reference, config, mode, predicted);
+
+            let signal = match (config.signalling, predicted) {
+                (TransformSignalling::Explicit, _) => TransformSignal::Explicit(chosen_transform),
+                (TransformSignalling::Inferred, Some(predicted)) => {
                     if predicted == chosen_transform {
                         TransformSignal::Predicted
                     } else {
@@ -206,8 +258,11 @@ pub fn encode(picture: &Picture, config: &EncoderConfig) -> Result<EncodeResult,
                         }
                     }
                 }
+                (TransformSignalling::Inferred, None) => {
+                    TransformSignal::Explicit(chosen_transform)
+                }
             };
-            signalling_bits += signal.bin_count();
+            signalling_bins += signal.bin_count();
 
             // Code the syntax elements.
             code_intra_mode(&mut encoder, mode);
@@ -235,6 +290,7 @@ pub fn encode(picture: &Picture, config: &EncoderConfig) -> Result<EncodeResult,
         width: picture.width as u32,
         height: picture.height as u32,
         qp: config.qp as u8,
+        signalling: config.signalling,
     };
     let mut bitstream = Vec::new();
     header.write(&mut bitstream, &payload);
@@ -245,7 +301,7 @@ pub fn encode(picture: &Picture, config: &EncoderConfig) -> Result<EncodeResult,
         reconstruction,
         prediction_mismatches: mismatches,
         block_count,
-        transform_signalling_bits: signalling_bits,
+        transform_signalling_bins: signalling_bins,
     })
 }
 
@@ -275,7 +331,16 @@ pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Picture, Codec
         for bx in 0..blocks_x {
             let reference = reference_samples(&picture, bx, by);
             let mode = decode_intra_mode(&mut decoder)?;
-            let transform = decode_transform_signal(&mut decoder, config, &reference)?;
+            let transform = decode_transform_signal(
+                &mut decoder,
+                config,
+                header.signalling,
+                &picture,
+                bx,
+                by,
+                mode,
+                header.qp as i32,
+            )?;
 
             let skip = decoder.decode(CTX_SKIP)?;
             let levels = if skip {
@@ -307,6 +372,135 @@ fn rd_cost(distortion: i64, bits: f32, lambda: f32) -> f32 {
     distortion as f32 + lambda * bits
 }
 
+/// The candidate for one intra mode and one transform.
+#[derive(Clone)]
+struct Candidate {
+    transform: TransformKind,
+    levels: Vec<i32>,
+    reconstruction: Vec<i32>,
+    cost: f32,
+}
+
+/// Evaluate one intra mode with one transform.
+fn evaluate(
+    original: &[u8],
+    reference: &ReferenceSamples,
+    config: &EncoderConfig,
+    mode: IntraMode,
+    transform: TransformKind,
+) -> Option<Candidate> {
+    let prediction = predict(mode, BLOCK_SIZE, reference);
+    let residual: Vec<i32> = original
+        .iter()
+        .zip(prediction.iter())
+        .map(|(o, p)| *o as i32 - p)
+        .collect();
+    let coefficients = forward(transform, BLOCK_SIZE, &residual).ok()?;
+    let params = QuantParams::new(config.qp, BLOCK_SIZE);
+    let levels = quantize_with(&coefficients, &params);
+    let dequantized = dequantize_with(&levels, &params);
+    let samples = inverse(transform, BLOCK_SIZE, &dequantized).ok()?;
+    let reconstruction: Vec<i32> = prediction
+        .iter()
+        .zip(samples.iter())
+        .map(|(p, s)| p + s)
+        .collect();
+    let distortion = sse(
+        &original.iter().map(|v| *v as i32).collect::<Vec<_>>(),
+        &reconstruction,
+    );
+    // The rate is estimated from the number of non-zero levels and their
+    // magnitudes. The exact cost is only known after coding, so the
+    // search uses this estimate; the reported bit counts come from the
+    // real entropy coder.
+    let bits = estimate_level_bits(&levels);
+    let cost = rd_cost(distortion, bits, config.lambda);
+    Some(Candidate {
+        transform,
+        levels,
+        reconstruction,
+        cost,
+    })
+}
+
+/// Choose the intra mode for a block.
+///
+/// The mode is chosen first, in the decoder's order, because the transform
+/// type is signalled after it and the predictor's features depend on it.
+/// The mode is the one whose best transform gives the lowest
+/// rate-distortion cost.
+fn choose_mode(original: &[u8], reference: &ReferenceSamples, config: &EncoderConfig) -> IntraMode {
+    let mut best_mode = IntraMode::Dc;
+    let mut best_cost = f32::INFINITY;
+    for mode in IntraMode::all() {
+        let mut mode_cost = f32::INFINITY;
+        for transform in TransformKind::ALL {
+            if let Some(candidate) = evaluate(original, reference, config, mode, transform) {
+                mode_cost = mode_cost.min(candidate.cost);
+            }
+        }
+        if mode_cost < best_cost {
+            best_cost = mode_cost;
+            best_mode = mode;
+        }
+    }
+    best_mode
+}
+
+/// Choose the transform for a block, given its intra mode.
+///
+/// When `predicted` is given and the margin is non-zero, the encoder takes
+/// the predicted transform if it is within the margin of the best
+/// candidate. That is the mechanism's rate-distortion trade: the encoder
+/// gives up a little distortion to avoid spending the override bit.
+fn choose_transform(
+    original: &[u8],
+    reference: &ReferenceSamples,
+    config: &EncoderConfig,
+    mode: IntraMode,
+    predicted: Option<TransformKind>,
+) -> (TransformKind, Vec<i32>, Vec<i32>, f32) {
+    let mut best: Option<Candidate> = None;
+    let mut predicted_candidate: Option<Candidate> = None;
+
+    for transform in TransformKind::ALL {
+        let Some(candidate) = evaluate(original, reference, config, mode, transform) else {
+            continue;
+        };
+        if Some(transform) == predicted {
+            predicted_candidate = Some(candidate.clone());
+        }
+        let better = match &best {
+            None => true,
+            Some(current) => candidate.cost < current.cost,
+        };
+        if better {
+            best = Some(candidate);
+        }
+    }
+
+    let best = best.expect("the transform set is non-empty");
+
+    if config.transform_margin > 0.0 {
+        if let Some(candidate) = predicted_candidate {
+            // The margin is a rate budget, so it is compared against the
+            // rate the encoder gives up, which is the distortion it
+            // trades away converted through lambda.
+            let rate_given_up = (candidate.cost - best.cost) / config.lambda;
+            if candidate.transform != best.transform && rate_given_up <= config.transform_margin {
+                return (
+                    candidate.transform,
+                    candidate.levels,
+                    candidate.reconstruction,
+                    candidate.cost,
+                );
+            }
+        }
+    }
+
+    (best.transform, best.levels, best.reconstruction, best.cost)
+}
+
 /// Search the intra modes and transform types for a block, and return the
 /// best candidate.
 ///
@@ -317,64 +511,10 @@ pub fn search_block(
     reference: &ReferenceSamples,
     config: &EncoderConfig,
 ) -> (IntraMode, TransformKind, Vec<i32>, Vec<i32>, f32) {
-    best_block(original, reference, config)
-}
-
-/// Search the intra modes and transform types for a block, and return the
-/// best candidate.
-fn best_block(
-    original: &[u8],
-    reference: &ReferenceSamples,
-    config: &EncoderConfig,
-) -> (IntraMode, TransformKind, Vec<i32>, Vec<i32>, f32) {
-    let mut best: Option<(IntraMode, TransformKind, Vec<i32>, Vec<i32>, f32)> = None;
-    let quant_params = QuantParams::new(config.qp, BLOCK_SIZE);
-
-    for mode in IntraMode::all() {
-        let prediction = predict(mode, BLOCK_SIZE, reference);
-        let residual: Vec<i32> = original
-            .iter()
-            .zip(prediction.iter())
-            .map(|(o, p)| *o as i32 - p)
-            .collect();
-
-        for transform in TransformKind::ALL {
-            let Ok(coefficients) = forward(transform, BLOCK_SIZE, &residual) else {
-                continue;
-            };
-            let levels = quantize_with(&coefficients, &quant_params);
-            let dequantized = dequantize_with(&levels, &quant_params);
-            let Ok(samples) = inverse(transform, BLOCK_SIZE, &dequantized) else {
-                continue;
-            };
-            let reconstruction: Vec<i32> = prediction
-                .iter()
-                .zip(samples.iter())
-                .map(|(p, s)| p + s)
-                .collect();
-
-            let distortion = sse(
-                &original.iter().map(|v| *v as i32).collect::<Vec<_>>(),
-                &reconstruction,
-            );
-            // The rate is estimated from the number of non-zero levels and
-            // their magnitudes. The exact cost is only known after coding, so
-            // the search uses this estimate; the reported bit counts come
-            // from the real entropy coder.
-            let bits = estimate_level_bits(&levels);
-            let cost = rd_cost(distortion, bits, config.lambda);
-
-            let better = match &best {
-                None => true,
-                Some((_, _, _, _, best_cost)) => cost < *best_cost,
-            };
-            if better {
-                best = Some((mode, transform, levels, reconstruction, cost));
-            }
-        }
-    }
-
-    best.expect("the mode and transform sets are non-empty")
+    let mode = choose_mode(original, reference, config);
+    let (transform, levels, reconstruction, cost) =
+        choose_transform(original, reference, config, mode, None);
+    (mode, transform, levels, reconstruction, cost)
 }
 
 /// An estimate of the bits needed to code a set of quantized levels.
@@ -518,11 +658,16 @@ fn override_bit(predicted: TransformKind, actual: TransformKind) -> bool {
 fn decode_transform_signal(
     decoder: &mut BinDecoder,
     config: &EncoderConfig,
-    reference: &ReferenceSamples,
+    signalling: TransformSignalling,
+    picture: &Picture,
+    bx: usize,
+    by: usize,
+    mode: IntraMode,
+    qp: i32,
 ) -> Result<TransformKind, CodecError> {
     // The explicit mode has no override flag; the transform type is coded
     // directly.
-    if config.signalling == TransformSignalling::Explicit {
+    if signalling == TransformSignalling::Explicit {
         let first = decoder.decode(CTX_TRANSFORM_TYPE)?;
         let index = if first {
             if decoder.decode(CTX_TRANSFORM_TYPE)? {
@@ -538,7 +683,7 @@ fn decode_transform_signal(
     }
 
     let override_flag = decoder.decode(CTX_TRANSFORM_OVERRIDE)?;
-    let features = extract_features(&reference.left, &reference.top);
+    let features = predict_features(picture, bx, by, mode, qp);
     let (predicted, _) = config.predictor.predict_with_margin(&features);
     if !override_flag {
         return Ok(predicted);
@@ -623,7 +768,7 @@ fn decode_coefficients(decoder: &mut BinDecoder) -> Result<Vec<i32>, CodecError>
         let negative = decoder.decode(CTX_COEF_SIGN)?;
 
         // The magnitude is one, two, or three plus the Golomb remainder.
-        let mut magnitude = if greater2 {
+        let magnitude = if greater2 {
             3 + decode_exp_golomb(decoder)?
         } else if greater1 {
             2
@@ -661,11 +806,101 @@ fn decode_exp_golomb(decoder: &mut BinDecoder) -> Result<u32, CodecError> {
     Ok(suffix + (1u32 << prefix_len) - 1)
 }
 
+/// The features the predictor would see for a block.
+///
+/// The encoder and the decoder both call this, on their own
+/// reconstructions, so the two always see the same features. That is what
+/// makes the inference exact rather than approximate.
+pub fn predict_features(
+    picture: &Picture,
+    bx: usize,
+    by: usize,
+    mode: IntraMode,
+    qp: i32,
+) -> GeometryFeatures {
+    let origin_x = bx * BLOCK_SIZE;
+    let origin_y = by * BLOCK_SIZE;
+    extract_features_from_window(
+        &picture.samples,
+        picture.width,
+        origin_x,
+        origin_y,
+        CONTEXT_WINDOW,
+        mode,
+        qp,
+    )
+}
+
 /// The features the predictor would see for a block, exposed for the
 /// training pipeline.
-pub fn block_features(picture: &Picture, bx: usize, by: usize) -> GeometryFeatures {
+pub fn block_features(
+    picture: &Picture,
+    bx: usize,
+    by: usize,
+    mode: IntraMode,
+    qp: i32,
+) -> GeometryFeatures {
     let reference = reference_samples(picture, bx, by);
-    extract_features(&reference.left, &reference.top)
+    extract_features(&reference.left, &reference.top, mode, qp)
+}
+
+/// A training example: a block's geometry features and the transform the
+/// encoder chose for it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrainingExample {
+    /// The geometry features of the block's causal neighbourhood.
+    pub features: GeometryFeatures,
+    /// The transform the rate-distortion search chose.
+    pub transform: TransformKind,
+}
+
+/// Collect training examples by running the encoder's own block loop.
+///
+/// The examples come from the encoder rather than from a separate
+/// implementation of it, and the features are taken from the *reconstructed*
+/// neighbourhood, exactly as the decoder will see them. A training set
+/// gathered any other way would describe a situation the predictor never
+/// meets at inference time.
+pub fn collect_training_examples(
+    picture: &Picture,
+    config: &EncoderConfig,
+) -> Result<Vec<TrainingExample>, CodecError> {
+    if picture.width % BLOCK_SIZE != 0 || picture.height % BLOCK_SIZE != 0 {
+        return Err(CodecError::Dimensions {
+            width: picture.width,
+            height: picture.height,
+        });
+    }
+
+    let blocks_x = picture.width / BLOCK_SIZE;
+    let blocks_y = picture.height / BLOCK_SIZE;
+    let mut reconstruction = Picture::filled(picture.width, picture.height, 0);
+    let mut examples = Vec::with_capacity(blocks_x * blocks_y);
+
+    for by in 0..blocks_y {
+        for bx in 0..blocks_x {
+            let reference = reference_samples(&reconstruction, bx, by);
+            let original = block_samples(picture, bx, by);
+            let (mode, transform, _, reconstruction_block, _) =
+                search_block(&original, &reference, config);
+
+            examples.push(TrainingExample {
+                features: predict_features(&reconstruction, bx, by, mode, config.qp),
+                transform,
+            });
+
+            // Commit the reconstruction, so the next block's features are
+            // the ones the decoder will have.
+            for y in 0..BLOCK_SIZE {
+                for x in 0..BLOCK_SIZE {
+                    let value = reconstruction_block[y * BLOCK_SIZE + x].clamp(0, 255) as u8;
+                    reconstruction.set_sample(bx * BLOCK_SIZE + x, by * BLOCK_SIZE + y, value);
+                }
+            }
+        }
+    }
+
+    Ok(examples)
 }
 
 #[cfg(test)]
@@ -810,11 +1045,11 @@ mod tests {
         // The explicit mode's truncated binary code costs one bin for a
         // DCT-II block and two for the others.
         assert!(
-            encoded.transform_signalling_bits >= encoded.block_count,
+            encoded.transform_signalling_bins >= encoded.block_count,
             "explicit mode codes at least one bin per block"
         );
         assert!(
-            encoded.transform_signalling_bits <= encoded.block_count * 2,
+            encoded.transform_signalling_bins <= encoded.block_count * 2,
             "explicit mode codes at most two bins per block"
         );
     }

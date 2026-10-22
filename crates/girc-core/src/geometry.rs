@@ -54,6 +54,7 @@
 //! the rate-distortion cost of the occasional wrong prediction is paid in
 //! quality rather than in bits. The benchmark measures both effects.
 
+use crate::intra::IntraMode;
 use crate::transform::TransformKind;
 
 /// The geometry features extracted from a block's causal neighbourhood.
@@ -66,7 +67,8 @@ pub struct GeometryFeatures {
     /// Gradient orientation histogram of the neighbourhood.
     ///
     /// Bins cover the full circle; bin `i` covers angles
-    /// `[i * 45deg, (i+1) * 45deg)`.
+    /// `[i * 45deg, (i+1) * 45deg)`. The histogram is taken over a
+    /// two-dimensional gradient field, so every bin is reachable.
     pub orientation_histogram: [f32; 8],
     /// The total gradient magnitude, log-scaled.
     pub gradient_energy: f32,
@@ -79,11 +81,36 @@ pub struct GeometryFeatures {
     pub isotropy: f32,
     /// The number of available reference samples, normalised.
     pub reference_coverage: f32,
+    /// The horizontal gradient energy, log-scaled.
+    ///
+    /// The horizontal and vertical energies are kept apart because the
+    /// transforms differ in how they treat the two axes.
+    pub horizontal_energy: f32,
+    /// The vertical gradient energy, log-scaled.
+    pub vertical_energy: f32,
+    /// The correlation between the horizontal and vertical gradients.
+    ///
+    /// A value near one means the gradients point the same way, which
+    /// marks an edge; a value near minus one marks a corner.
+    pub axis_correlation: f32,
+    /// The quantization parameter, normalised.
+    ///
+    /// The quantization parameter changes which transform the
+    /// rate-distortion search prefers, and the decoder reads it from the
+    /// bitstream header, so it is available on both sides.
+    pub quantization_parameter: f32,
+    /// The one-hot encoding of the intra prediction mode.
+    ///
+    /// The mode is decoded before the transform type, so the decoder
+    /// always has it. It is the single most informative signal about
+    /// which transform the encoder will want: the transform has to match
+    /// the direction the prediction residual runs in.
+    pub intra_mode: [f32; IntraMode::COUNT],
 }
 
 impl GeometryFeatures {
     /// The number of features in the vector.
-    pub const LEN: usize = 8 + 4;
+    pub const LEN: usize = 8 + 4 + 3 + 1 + IntraMode::COUNT;
 
     /// The feature vector in the order the trained model expects.
     pub fn to_vec(&self) -> Vec<f32> {
@@ -93,6 +120,11 @@ impl GeometryFeatures {
         out.push(self.dominance);
         out.push(self.isotropy);
         out.push(self.reference_coverage);
+        out.push(self.horizontal_energy);
+        out.push(self.vertical_energy);
+        out.push(self.axis_correlation);
+        out.push(self.quantization_parameter);
+        out.extend_from_slice(&self.intra_mode);
         out
     }
 }
@@ -105,49 +137,71 @@ const ORIENTATION_BINS: usize = 8;
 /// `left` holds the reconstructed samples to the left of the block (top to
 /// bottom) and `top` the samples above it (left to right). Both may contain
 /// gaps where a neighbour does not exist.
-pub fn extract_features(left: &[Option<i32>], top: &[Option<i32>]) -> GeometryFeatures {
+///
+/// The gradient is taken in two dimensions rather than along the reference
+/// lines alone. The decoder has already reconstructed every sample above
+/// and to the left of the current block, and the block diagonally above
+/// and to the left is the one whose structure the current block most
+/// resembles. Restricting the gradient to the two reference lines throws
+/// away exactly the diagonal information that distinguishes the three
+/// transforms.
+pub fn extract_features(
+    left: &[Option<i32>],
+    top: &[Option<i32>],
+    mode: IntraMode,
+    qp: i32,
+) -> GeometryFeatures {
     let mut histogram = [0f32; ORIENTATION_BINS];
     let mut total = 0f32;
+    let mut horizontal = 0f32;
+    let mut vertical = 0f32;
+    let mut cross = 0f32;
 
-    // The gradient of the neighbourhood is taken along the reference lines
-    // themselves: the vertical gradient of the top row and the horizontal
-    // gradient of the left column. These are the only directions the
-    // decoder has already reconstructed when it reaches this block.
-    let mut add = |dx: i32, dy: i32, magnitude: f32| {
-        if magnitude <= 0.0 {
-            return;
-        }
-        // Map the gradient direction to a bin. The angle is measured
-        // clockwise from the positive x axis.
-        let angle = (dy as f32).atan2(dx as f32);
-        let mut bin = ((angle + std::f32::consts::PI) / (2.0 * std::f32::consts::PI)
-            * ORIENTATION_BINS as f32)
-            .floor() as isize;
-        bin = bin.rem_euclid(ORIENTATION_BINS as isize);
-        histogram[bin as usize] += magnitude;
-        total += magnitude;
-    };
-
-    // Horizontal gradient along the top row.
+    // The gradient of the top row, in the horizontal direction.
     for window in top.windows(2) {
         let (Some(a), Some(b)) = (window[0], window[1]) else {
             continue;
         };
-        let dx = b - a;
-        // A single-sample step gives a coarse but usable gradient.
-        let magnitude = (dx as f32).abs();
-        add(dx, 0, magnitude);
+        let dx = (b - a) as f32;
+        accumulate(&mut histogram, &mut total, dx, 0.0, dx.abs());
+        horizontal += dx * dx;
     }
 
-    // Vertical gradient along the left column.
+    // The gradient of the left column, in the vertical direction.
     for window in left.windows(2) {
         let (Some(a), Some(b)) = (window[0], window[1]) else {
             continue;
         };
-        let dy = b - a;
-        let magnitude = (dy as f32).abs();
-        add(0, dy, magnitude);
+        let dy = (b - a) as f32;
+        accumulate(&mut histogram, &mut total, 0.0, dy, dy.abs());
+        vertical += dy * dy;
     }
+
+    // The diagonal block: the samples above and to the left of the
+    // top-left corner. Their two-dimensional gradient is what carries the
+    // diagonal orientation information.
+    //
+    // The top row's rightmost sample and the left column's topmost sample
+    // meet at the top-left corner, so the diagonal pairs are the ones
+    // spanning that corner.
+    if let (Some(corner), Some(above), Some(beside)) = (
+        top.last().copied().flatten(),
+        top.get(top.len().saturating_sub(2)).copied().flatten(),
+        left.first().copied().flatten(),
+    ) {
+        // The gradient across the corner: one axis runs along the top
+        // row, the other down the left column.
+        let dx = (corner - above) as f32;
+        let dy = (beside - corner) as f32;
+        let magnitude = (dx * dx + dy * dy).sqrt();
+        accumulate(&mut histogram, &mut total, dx, dy, magnitude);
+        horizontal += dx * dx;
+        vertical += dy * dy;
+        cross += dx * dy;
+    }
+
+    let mut intra_mode = [0f32; IntraMode::COUNT];
+    intra_mode[mode.as_index() as usize] = 1.0;
 
     if total <= 0.0 {
         // A flat neighbourhood carries no orientation information.
@@ -157,6 +211,11 @@ pub fn extract_features(left: &[Option<i32>], top: &[Option<i32>]) -> GeometryFe
             dominance: 0.0,
             isotropy: 1.0,
             reference_coverage: coverage(left, top),
+            horizontal_energy: 0.0,
+            vertical_energy: 0.0,
+            axis_correlation: 0.0,
+            quantization_parameter: qp as f32 / 51.0,
+            intra_mode,
         };
     }
 
@@ -177,13 +236,167 @@ pub fn extract_features(left: &[Option<i32>], top: &[Option<i32>]) -> GeometryFe
     let max_entropy = (ORIENTATION_BINS as f32).log2();
     let isotropy = (entropy / max_entropy).clamp(0.0, 1.0);
 
+    // The correlation between the two axes, normalised by their energies.
+    let axis_correlation = if horizontal > 0.0 && vertical > 0.0 {
+        (cross / (horizontal * vertical).sqrt()).clamp(-1.0, 1.0)
+    } else {
+        0.0
+    };
+
     GeometryFeatures {
         orientation_histogram: normalised,
         gradient_energy: total.log2().max(0.0),
         dominance,
         isotropy,
         reference_coverage: coverage(left, top),
+        // The energies are log-scaled; a zero energy would give a
+        // negative infinity, so it is floored at one.
+        horizontal_energy: horizontal.max(1.0).log2(),
+        vertical_energy: vertical.max(1.0).log2(),
+        axis_correlation,
+        quantization_parameter: qp as f32 / 51.0,
+        intra_mode,
     }
+}
+
+/// Extract the geometry features from a two-dimensional causal window.
+///
+/// This is the form the decoder uses in practice. The decoder has already
+/// reconstructed every sample above and to the left of the current block,
+/// so it can read a genuine two-dimensional neighbourhood rather than the
+/// two reference lines alone. The diagonal information in such a window is
+/// what distinguishes the three transforms, and it is not visible on the
+/// reference lines.
+///
+/// The window is the square region that ends at the block's top-left
+/// corner, `window` samples wide and high. Every sample in it has already
+/// been reconstructed when the decoder reaches the current block.
+pub fn extract_features_from_window(
+    samples: &[u8],
+    stride: usize,
+    origin_x: usize,
+    origin_y: usize,
+    window: usize,
+    mode: IntraMode,
+    qp: i32,
+) -> GeometryFeatures {
+    let mut histogram = [0f32; ORIENTATION_BINS];
+    let mut total = 0f32;
+    let mut horizontal = 0f32;
+    let mut vertical = 0f32;
+    let mut cross = 0f32;
+    let mut count = 0usize;
+
+    // The gradient is taken with central differences, so the window has to
+    // be at least three samples wide in each direction.
+    if window < 3 || origin_x < window || origin_y < window {
+        return GeometryFeatures {
+            orientation_histogram: [0.0; ORIENTATION_BINS],
+            gradient_energy: 0.0,
+            dominance: 0.0,
+            isotropy: 1.0,
+            reference_coverage: 0.0,
+            horizontal_energy: 0.0,
+            vertical_energy: 0.0,
+            axis_correlation: 0.0,
+            quantization_parameter: qp as f32 / 51.0,
+            intra_mode: {
+                let mut modes = [0f32; IntraMode::COUNT];
+                modes[mode.as_index() as usize] = 1.0;
+                modes
+            },
+        };
+    }
+
+    let x0 = origin_x - window;
+    let y0 = origin_y - window;
+
+    for y in y0 + 1..origin_y - 1 {
+        for x in x0 + 1..origin_x - 1 {
+            let at = |xx: usize, yy: usize| samples[yy * stride + xx] as f32;
+            let dx = at(x + 1, y) - at(x - 1, y);
+            let dy = at(x, y + 1) - at(x, y - 1);
+            let magnitude = (dx * dx + dy * dy).sqrt();
+            accumulate(&mut histogram, &mut total, dx, dy, magnitude);
+            horizontal += dx * dx;
+            vertical += dy * dy;
+            cross += dx * dy;
+            count += 1;
+        }
+    }
+
+    let mut intra_mode = [0f32; IntraMode::COUNT];
+    intra_mode[mode.as_index() as usize] = 1.0;
+
+    if total <= 0.0 || count == 0 {
+        return GeometryFeatures {
+            orientation_histogram: [0.0; ORIENTATION_BINS],
+            gradient_energy: 0.0,
+            dominance: 0.0,
+            isotropy: 1.0,
+            reference_coverage: 0.0,
+            horizontal_energy: 0.0,
+            vertical_energy: 0.0,
+            axis_correlation: 0.0,
+            quantization_parameter: qp as f32 / 51.0,
+            intra_mode,
+        };
+    }
+
+    let mut normalised = [0f32; ORIENTATION_BINS];
+    for i in 0..ORIENTATION_BINS {
+        normalised[i] = histogram[i] / total;
+    }
+
+    let dominance = normalised.iter().copied().fold(0f32, f32::max);
+
+    let entropy: f32 = normalised
+        .iter()
+        .filter(|p| **p > 0.0)
+        .map(|p| -p * p.log2())
+        .sum();
+    let max_entropy = (ORIENTATION_BINS as f32).log2();
+    let isotropy = (entropy / max_entropy).clamp(0.0, 1.0);
+
+    let axis_correlation = if horizontal > 0.0 && vertical > 0.0 {
+        (cross / (horizontal * vertical).sqrt()).clamp(-1.0, 1.0)
+    } else {
+        0.0
+    };
+
+    GeometryFeatures {
+        orientation_histogram: normalised,
+        gradient_energy: total.log2().max(0.0),
+        dominance,
+        isotropy,
+        reference_coverage: 1.0,
+        horizontal_energy: horizontal.max(1.0).log2(),
+        vertical_energy: vertical.max(1.0).log2(),
+        axis_correlation,
+        quantization_parameter: qp as f32 / 51.0,
+        intra_mode,
+    }
+}
+
+/// Add a gradient sample to the orientation histogram.
+fn accumulate(
+    histogram: &mut [f32; ORIENTATION_BINS],
+    total: &mut f32,
+    dx: f32,
+    dy: f32,
+    magnitude: f32,
+) {
+    if magnitude <= 0.0 {
+        return;
+    }
+    // The angle is measured counter-clockwise from the positive x axis.
+    let angle = dy.atan2(dx);
+    let mut bin = ((angle + std::f32::consts::PI) / (2.0 * std::f32::consts::PI)
+        * ORIENTATION_BINS as f32)
+        .floor() as isize;
+    bin = bin.rem_euclid(ORIENTATION_BINS as isize);
+    histogram[bin as usize] += magnitude;
+    *total += magnitude;
 }
 
 /// The fraction of reference samples that are available.
@@ -431,7 +644,7 @@ mod tests {
     fn features_are_length_and_normalised() {
         let left = vec![Some(0), Some(10), Some(20), Some(30)];
         let top = vec![Some(0), Some(5), Some(10), Some(15)];
-        let features = extract_features(&left, &top);
+        let features = extract_features(&left, &top, IntraMode::Planar, 27);
         assert_eq!(features.to_vec().len(), GeometryFeatures::LEN);
         let sum: f32 = features.orientation_histogram.iter().sum();
         assert!((sum - 1.0).abs() < 1e-5, "histogram sums to 1, got {sum}");
@@ -443,7 +656,7 @@ mod tests {
     fn flat_neighbourhood_is_isotropic() {
         let left = vec![Some(5); 8];
         let top = vec![Some(5); 8];
-        let features = extract_features(&left, &top);
+        let features = extract_features(&left, &top, IntraMode::Planar, 27);
         assert_eq!(features.gradient_energy, 0.0);
         assert_eq!(features.isotropy, 1.0);
     }
@@ -455,7 +668,12 @@ mod tests {
             weights: [[0.0; GeometryFeatures::LEN]; 3],
             model_version: "test".into(),
         };
-        let features = extract_features(&[Some(1), Some(2)], &[Some(3), Some(4)]);
+        let features = extract_features(
+            &[Some(1), Some(2)],
+            &[Some(3), Some(4)],
+            IntraMode::Planar,
+            27,
+        );
         let a = predictor.predict(&features);
         let b = predictor.predict(&features);
         assert_eq!(a, b);

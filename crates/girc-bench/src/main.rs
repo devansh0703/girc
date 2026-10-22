@@ -266,6 +266,7 @@ pub fn run_girc(
     qps: &[i32],
     signalling: TransformSignalling,
     predictor: &TransformPredictor,
+    transform_margin: f32,
 ) -> Result<CodecResult> {
     let frame = Yuv4Frame::read(sequence)?;
     let picture = frame.luma_picture();
@@ -278,6 +279,7 @@ pub fn run_girc(
             qp: *qp,
             signalling,
             predictor: predictor.clone(),
+            transform_margin,
             ..Default::default()
         };
         let result = encode(&picture, &config)?;
@@ -494,6 +496,10 @@ struct Args {
     /// A trained predictor model for the inferred mode.
     #[arg(long)]
     model: Option<PathBuf>,
+    /// The rate-distortion margin within which the encoder accepts the
+    /// decoder's predicted transform.
+    #[arg(long, default_value_t = 0.0)]
+    margin: f32,
     /// The external encoders to run, by name.
     #[arg(long, value_delimiter = ',', default_value = "x265,svt-av1,vvenc")]
     anchors: Vec<String>,
@@ -547,15 +553,22 @@ fn main() -> Result<()> {
             &qps,
             TransformSignalling::Explicit,
             &predictor,
+            args.margin,
         )?);
         results.push(run_girc(
             sequence,
             &qps,
             TransformSignalling::Inferred,
             &predictor,
+            args.margin,
         )?);
 
         for anchor_name in &args.anchors {
+            // An empty entry means no anchor; the flag accepts a list, and
+            // an empty list is a way to run GIRC on its own.
+            if anchor_name.trim().is_empty() {
+                continue;
+            }
             let anchor = match anchor_name.as_str() {
                 "x265" => Anchor::X265,
                 "svt-av1" => Anchor::SvtAv1,
