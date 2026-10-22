@@ -25,9 +25,14 @@ NUM_CLASSES = len(TRANSFORM_NAMES)
 # The feature layout, matching `girc_core::geometry::GeometryFeatures`:
 # eight orientation-histogram bins, then gradient energy, dominance,
 # isotropy and reference coverage, then the per-axis energies and their
-# correlation, then the one-hot intra prediction mode.
+# correlation, then the quantization parameter, then the one-hot intra
+# prediction mode, then the one-hot transforms of the four neighbouring
+# blocks.
 NUM_ORIENTATION_BINS = 8
 NUM_INTRA_MODES = 10
+# The four neighbouring blocks, in the order the core uses: left, above,
+# above-left, above-right.
+NEIGHBOUR_SLOTS = ("left", "above", "above_left", "above_right")
 # The window-based features replace the reference-line ones; the layout is
 # unchanged, so the count stays the same.
 FEATURE_NAMES = (
@@ -41,6 +46,11 @@ FEATURE_NAMES = (
     "axis_correlation",
     "quantization_parameter",
     *[f"intra_mode_{i}" for i in range(NUM_INTRA_MODES)],
+    *[
+        f"neighbour_{slot}_{name}"
+        for slot in NEIGHBOUR_SLOTS
+        for name in TRANSFORM_NAMES
+    ],
 )
 NUM_FEATURES = len(FEATURE_NAMES)
 

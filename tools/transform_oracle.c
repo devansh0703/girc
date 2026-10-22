@@ -136,6 +136,93 @@ static void forward(int type, int n, const coeff_t *src, coeff_t *dst)
   }
 }
 
+// Run the forward transform with a different matrix per axis, matching
+// TrQuant::xT with a multiple transform selection mode.
+static void forward_pair(int type_hor, int type_ver, int n, const coeff_t *src, coeff_t *dst)
+{
+  coeff_t block[MAX_N * MAX_N];
+  coeff_t tmp[MAX_N * MAX_N];
+  memcpy(block, src, sizeof(coeff_t) * n * n);
+
+  const int shift_1st = ( log2i( n ) + bitDepth + TRANSFORM_MATRIX_SHIFT ) - maxLog2TrDynamicRange;
+  const int shift_2nd = log2i( n ) + TRANSFORM_MATRIX_SHIFT;
+
+#define FWD_PICK( fn )                       \
+  switch ( n )                               \
+  {                                          \
+  case 4:  fn##_B4 ( block, tmp, shift_1st, n, 0, 0 ); break;   \
+  case 8:  fn##_B8 ( block, tmp, shift_1st, n, 0, 0 ); break;   \
+  case 16: fn##_B16( block, tmp, shift_1st, n, 0, 0 ); break;   \
+  case 32: fn##_B32( block, tmp, shift_1st, n, 0, 0 ); break;   \
+  default: exit( 1 );                        \
+  }
+
+  if ( type_hor == DCT2 ) FWD_PICK( fastForwardDCT2 )
+  else if ( type_hor == DCT8 ) FWD_PICK( fastForwardDCT8 )
+  else FWD_PICK( fastForwardDST7 )
+
+#undef FWD_PICK
+
+#define FWD_PICK2( fn )                      \
+  switch ( n )                               \
+  {                                          \
+  case 4:  fn##_B4 ( tmp, dst, shift_2nd, n, 0, 0 ); break;   \
+  case 8:  fn##_B8 ( tmp, dst, shift_2nd, n, 0, 0 ); break;   \
+  case 16: fn##_B16( tmp, dst, shift_2nd, n, 0, 0 ); break;   \
+  case 32: fn##_B32( tmp, dst, shift_2nd, n, 0, 0 ); break;   \
+  default: exit( 1 );                        \
+  }
+
+  if ( type_ver == DCT2 ) FWD_PICK2( fastForwardDCT2 )
+  else if ( type_ver == DCT8 ) FWD_PICK2( fastForwardDCT8 )
+  else FWD_PICK2( fastForwardDST7 )
+
+#undef FWD_PICK2
+}
+
+// Run the inverse transform with a different matrix per axis, matching
+// TrQuant::xIT with a multiple transform selection mode.
+static void inverse_pair(int type_hor, int type_ver, int n, const coeff_t *src, coeff_t *dst)
+{
+  coeff_t tmp[MAX_N * MAX_N];
+  const int shift_1st = TRANSFORM_MATRIX_SHIFT + 1;
+  const int shift_2nd = ( TRANSFORM_MATRIX_SHIFT + maxLog2TrDynamicRange - 1 ) - bitDepth;
+  const coeff_t clip_min = -( 1 << maxLog2TrDynamicRange );
+  const coeff_t clip_max = ( 1 << maxLog2TrDynamicRange ) - 1;
+
+#define INV_PICK( fn )                                            \
+  switch ( n )                                                   \
+  {                                                              \
+  case 4:  fn##_B4 ( src, tmp, shift_1st, n, 0, 0, clip_min, clip_max ); break;   \
+  case 8:  fn##_B8 ( src, tmp, shift_1st, n, 0, 0, clip_min, clip_max ); break;   \
+  case 16: fn##_B16( src, tmp, shift_1st, n, 0, 0, clip_min, clip_max ); break;   \
+  case 32: fn##_B32( src, tmp, shift_1st, n, 0, 0, clip_min, clip_max ); break;   \
+  default: exit( 1 );                                            \
+  }
+
+  if ( type_ver == DCT2 ) INV_PICK( fastInverseDCT2 )
+  else if ( type_ver == DCT8 ) INV_PICK( fastInverseDCT8 )
+  else INV_PICK( fastInverseDST7 )
+
+#undef INV_PICK
+
+#define INV_PICK2( fn)                                           \
+  switch ( n )                                                   \
+  {                                                              \
+  case 4:  fn##_B4 ( tmp, dst, shift_2nd, n, 0, 0, clip_min, clip_max ); break;   \
+  case 8:  fn##_B8 ( tmp, dst, shift_2nd, n, 0, 0, clip_min, clip_max ); break;   \
+  case 16: fn##_B16( tmp, dst, shift_2nd, n, 0, 0, clip_min, clip_max ); break;   \
+  case 32: fn##_B32( tmp, dst, shift_2nd, n, 0, 0, clip_min, clip_max ); break;   \
+  default: exit( 1 );                                            \
+  }
+
+  if ( type_hor == DCT2 ) INV_PICK2( fastInverseDCT2 )
+  else if ( type_hor == DCT8 ) INV_PICK2( fastInverseDCT8 )
+  else INV_PICK2( fastInverseDST7 )
+
+#undef INV_PICK2
+}
+
 // Run the inverse transform of the given type over an n x n coefficient
 // block, using the same structure and shifts as TrQuant::xIT.
 static void inverse(int type, int n, const coeff_t *src, coeff_t *dst)
@@ -273,6 +360,19 @@ int main(void)
   printf( "    pub inverse: &'static [i32],\n" );
   printf( "}\n" );
   printf( "\n" );
+  printf( "/// A reference vector for a multiple transform selection mode.\n" );
+  printf( "///\n" );
+  printf( "/// The mode is the pair of per-axis transforms, in the order the\n" );
+  printf( "/// standard numbers the modes.\n" );
+  printf( "pub struct OracleModeVector {\n" );
+  printf( "    pub horizontal: usize,\n" );
+  printf( "    pub vertical: usize,\n" );
+  printf( "    pub size: usize,\n" );
+  printf( "    pub input: &'static [i32],\n" );
+  printf( "    pub forward: &'static [i32],\n" );
+  printf( "    pub inverse: &'static [i32],\n" );
+  printf( "}\n" );
+  printf( "\n" );
   printf( "pub static ORACLE_VECTORS: &[OracleVector] = &[\n" );
 
   for ( int s = 0; s < n_sizes; s++ )
@@ -302,6 +402,49 @@ int main(void)
       printf( "        inverse: &[" );
       for ( int i = 0; i < n * n; i++ )
         printf( "%s%d", i ? ", " : "", inv[i]);
+      printf( "],\n" );
+      printf( "    },\n" );
+    }
+  }
+
+  printf( "];\n" );
+
+  printf( "\n" );
+  printf( "pub static ORACLE_MODE_VECTORS: &[OracleModeVector] = &[\n" );
+
+  // The four multiple transform selection modes, in the order the
+  // standard numbers them.
+  const int mode_hor[] = { DST7, DCT8, DST7, DCT8 };
+  const int mode_ver[] = { DST7, DST7, DCT8, DCT8 };
+
+  for ( int s = 0; s < n_sizes; s++ )
+  {
+    const int n = sizes[s];
+    for ( int m = 0; m < 4; m++ )
+    {
+      coeff_t in[MAX_N * MAX_N];
+      coeff_t fwd[MAX_N * MAX_N];
+      coeff_t inv[MAX_N * MAX_N];
+      fill_block( in, n, 0x5EED5EEDu + (unsigned)( s * 4 + m ), 64 );
+
+      forward_pair( mode_hor[m], mode_ver[m], n, in, fwd );
+      inverse_pair( mode_hor[m], mode_ver[m], n, fwd, inv );
+
+      printf( "    OracleModeVector {\n" );
+      printf( "        horizontal: %d,\n", mode_hor[m] == DCT2 ? 0 : ( mode_hor[m] == DCT8 ? 1 : 2 ) );
+      printf( "        vertical: %d,\n", mode_ver[m] == DCT2 ? 0 : ( mode_ver[m] == DCT8 ? 1 : 2 ) );
+      printf( "        size: %d,\n", n );
+      printf( "        input: &[" );
+      for ( int i = 0; i < n * n; i++ )
+        printf( "%s%d", i ? ", " : "", in[i] );
+      printf( "],\n" );
+      printf( "        forward: &[" );
+      for ( int i = 0; i < n * n; i++ )
+        printf( "%s%d", i ? ", " : "", fwd[i] );
+      printf( "],\n" );
+      printf( "        inverse: &[" );
+      for ( int i = 0; i < n * n; i++ )
+        printf( "%s%d", i ? ", " : "", inv[i] );
       printf( "],\n" );
       printf( "    },\n" );
     }

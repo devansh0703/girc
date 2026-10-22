@@ -24,8 +24,8 @@
 
 use crate::bitstream::{BinDecoder, BinEncoder, BitstreamError, BitstreamHeader};
 use crate::geometry::{
-    extract_features, extract_features_from_window, GeometryFeatures, TransformPredictor,
-    TransformSignal, TransformSignalling,
+    extract_features, extract_features_from_window, GeometryFeatures, NeighbourTransforms,
+    TransformPredictor, TransformSignal, TransformSignalling,
 };
 use crate::intra::{predict, IntraMode, ReferenceSamples};
 use crate::quant::{dequantize, dequantize_with, quantize_with, sse, QuantParams};
@@ -43,6 +43,61 @@ pub const CONTEXT_WINDOW: usize = 16;
 
 /// The number of entropy-coding contexts in the payload.
 const NUM_CONTEXTS: usize = 16;
+
+/// The transform each coded block used.
+///
+/// The map is indexed in raster order. The decoder fills it as it codes,
+/// so the transform of every already-coded block is known; that is the
+/// context the predictor reads to know the transforms of the
+/// neighbouring blocks.
+#[derive(Debug, Clone, Default)]
+pub struct TransformMap {
+    kinds: Vec<Option<TransformKind>>,
+    blocks_x: usize,
+}
+
+impl TransformMap {
+    /// A map for a picture of the given block dimensions.
+    pub fn new(blocks_x: usize, blocks_y: usize) -> Self {
+        Self {
+            kinds: vec![None; blocks_x * blocks_y],
+            blocks_x,
+        }
+    }
+
+    /// Record the transform a block used.
+    pub fn set(&mut self, bx: usize, by: usize, kind: TransformKind) {
+        self.kinds[by * self.blocks_x + bx] = Some(kind);
+    }
+
+    fn get(&self, bx: usize, by: usize) -> Option<TransformKind> {
+        let index = by.checked_mul(self.blocks_x)?.checked_add(bx)?;
+        self.kinds.get(index).copied().flatten()
+    }
+
+    /// The transforms of the four neighbouring blocks, in the order the
+    /// predictor expects: left, above, above-left, above-right.
+    ///
+    /// A neighbour that has not been coded yet is empty. The raster
+    /// order means the above-right block is always available by the time
+    /// the current block is reached, because the row above is finished.
+    fn neighbours(&self, bx: usize, by: usize) -> NeighbourTransforms {
+        NeighbourTransforms([
+            if bx > 0 { self.get(bx - 1, by) } else { None },
+            if by > 0 { self.get(bx, by - 1) } else { None },
+            if bx > 0 && by > 0 {
+                self.get(bx - 1, by - 1)
+            } else {
+                None
+            },
+            if by > 0 {
+                self.get(bx + 1, by - 1)
+            } else {
+                None
+            },
+        ])
+    }
+}
 
 // Context indices.
 const CTX_INTRA_MODE: usize = 0;
@@ -212,6 +267,7 @@ pub fn encode(picture: &Picture, config: &EncoderConfig) -> Result<EncodeResult,
 
     let mut encoder = BinEncoder::new(NUM_CONTEXTS);
     let mut reconstruction = Picture::filled(picture.width, picture.height, 0);
+    let mut transforms = TransformMap::new(blocks_x, blocks_y);
 
     let mut mismatches = 0usize;
     let mut signalling_bins = 0usize;
@@ -236,7 +292,8 @@ pub fn encode(picture: &Picture, config: &EncoderConfig) -> Result<EncodeResult,
             // transform and signals it; the margin only applies to the
             // inferred mode, where it is the mechanism's trade.
             let predicted = if config.signalling == TransformSignalling::Inferred {
-                let features = predict_features(&reconstruction, bx, by, mode, config.qp);
+                let features =
+                    predict_features(&reconstruction, &transforms, bx, by, mode, config.qp);
                 Some(config.predictor.predict_with_margin(&features).0)
             } else {
                 None
@@ -273,13 +330,15 @@ pub fn encode(picture: &Picture, config: &EncoderConfig) -> Result<EncodeResult,
                 code_coefficients(&mut encoder, &chosen_levels);
             }
 
-            // Commit the reconstruction so later blocks can use it.
+            // Commit the reconstruction and the transform, so later blocks
+            // can use them.
             for y in 0..BLOCK_SIZE {
                 for x in 0..BLOCK_SIZE {
                     let value = chosen_reconstruction[y * BLOCK_SIZE + x].clamp(0, 255) as u8;
                     reconstruction.set_sample(bx * BLOCK_SIZE + x, by * BLOCK_SIZE + y, value);
                 }
             }
+            transforms.set(bx, by, chosen_transform);
             let _ = chosen_cost;
         }
     }
@@ -326,6 +385,7 @@ pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Picture, Codec
 
     let blocks_x = width / BLOCK_SIZE;
     let blocks_y = height / BLOCK_SIZE;
+    let mut transforms = TransformMap::new(blocks_x, blocks_y);
 
     for by in 0..blocks_y {
         for bx in 0..blocks_x {
@@ -336,6 +396,7 @@ pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Picture, Codec
                 config,
                 header.signalling,
                 &picture,
+                &transforms,
                 (bx, by),
                 mode,
                 header.qp as i32,
@@ -360,6 +421,7 @@ pub fn decode(bitstream: &[u8], config: &EncoderConfig) -> Result<Picture, Codec
                     picture.set_sample(bx * BLOCK_SIZE + x, by * BLOCK_SIZE + y, value);
                 }
             }
+            transforms.set(bx, by, transform);
         }
     }
 
@@ -659,6 +721,7 @@ fn decode_transform_signal(
     config: &EncoderConfig,
     signalling: TransformSignalling,
     picture: &Picture,
+    transforms: &TransformMap,
     block: (usize, usize),
     mode: IntraMode,
     qp: i32,
@@ -681,7 +744,7 @@ fn decode_transform_signal(
     }
 
     let override_flag = decoder.decode(CTX_TRANSFORM_OVERRIDE)?;
-    let features = predict_features(picture, block.0, block.1, mode, qp);
+    let features = predict_features(picture, transforms, block.0, block.1, mode, qp);
     let (predicted, _) = config.predictor.predict_with_margin(&features);
     if !override_flag {
         return Ok(predicted);
@@ -811,6 +874,7 @@ fn decode_exp_golomb(decoder: &mut BinDecoder) -> Result<u32, CodecError> {
 /// makes the inference exact rather than approximate.
 pub fn predict_features(
     picture: &Picture,
+    transforms: &TransformMap,
     bx: usize,
     by: usize,
     mode: IntraMode,
@@ -826,6 +890,7 @@ pub fn predict_features(
         CONTEXT_WINDOW,
         mode,
         qp,
+        transforms.neighbours(bx, by),
     )
 }
 
@@ -833,13 +898,20 @@ pub fn predict_features(
 /// training pipeline.
 pub fn block_features(
     picture: &Picture,
+    transforms: &TransformMap,
     bx: usize,
     by: usize,
     mode: IntraMode,
     qp: i32,
 ) -> GeometryFeatures {
     let reference = reference_samples(picture, bx, by);
-    extract_features(&reference.left, &reference.top, mode, qp)
+    extract_features(
+        &reference.left,
+        &reference.top,
+        mode,
+        qp,
+        transforms.neighbours(bx, by),
+    )
 }
 
 /// A training example: a block's geometry features and the transform the
@@ -873,6 +945,7 @@ pub fn collect_training_examples(
     let blocks_x = picture.width / BLOCK_SIZE;
     let blocks_y = picture.height / BLOCK_SIZE;
     let mut reconstruction = Picture::filled(picture.width, picture.height, 0);
+    let mut transforms = TransformMap::new(blocks_x, blocks_y);
     let mut examples = Vec::with_capacity(blocks_x * blocks_y);
 
     for by in 0..blocks_y {
@@ -883,18 +956,19 @@ pub fn collect_training_examples(
                 search_block(&original, &reference, config);
 
             examples.push(TrainingExample {
-                features: predict_features(&reconstruction, bx, by, mode, config.qp),
+                features: predict_features(&reconstruction, &transforms, bx, by, mode, config.qp),
                 transform,
             });
 
-            // Commit the reconstruction, so the next block's features are
-            // the ones the decoder will have.
+            // Commit the reconstruction and the transform, so the next
+            // block's features are the ones the decoder will have.
             for y in 0..BLOCK_SIZE {
                 for x in 0..BLOCK_SIZE {
                     let value = reconstruction_block[y * BLOCK_SIZE + x].clamp(0, 255) as u8;
                     reconstruction.set_sample(bx * BLOCK_SIZE + x, by * BLOCK_SIZE + y, value);
                 }
             }
+            transforms.set(bx, by, transform);
         }
     }
 

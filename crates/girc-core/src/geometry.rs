@@ -106,11 +106,30 @@ pub struct GeometryFeatures {
     /// which transform the encoder will want: the transform has to match
     /// the direction the prediction residual runs in.
     pub intra_mode: [f32; IntraMode::COUNT],
+    /// The transforms the already-coded neighbouring blocks used.
+    ///
+    /// Four neighbours are used: the block to the left, the block above,
+    /// the block above and to the left, and the block above and to the
+    /// right. Each contributes a one-hot encoding of its transform, or
+    /// all zeros when the neighbour does not exist.
+    ///
+    /// This is the strongest signal the predictor has. Transform choice is
+    /// strongly spatially correlated: content that wants a sine transform
+    /// in one block usually wants it in the blocks around it, because the
+    /// underlying structure does not change at a block boundary. The
+    /// decoder already knows every neighbour's transform, because it
+    /// decoded them, so this context is free.
+    ///
+    /// It is also the context the codec literature uses. HEVC and VVC
+    /// both derive the transform type of a transform unit from the
+    /// neighbouring units' types, and the VVC implicit multiple
+    /// transform selection proposals do the same.
+    pub neighbour_transforms: [f32; NEIGHBOUR_TRANSFORM_SLOTS * 3],
 }
 
 impl GeometryFeatures {
     /// The number of features in the vector.
-    pub const LEN: usize = 8 + 4 + 3 + 1 + IntraMode::COUNT;
+    pub const LEN: usize = 8 + 4 + 3 + 1 + IntraMode::COUNT + NEIGHBOUR_TRANSFORM_SLOTS * 3;
 
     /// The feature vector in the order the trained model expects.
     pub fn to_vec(&self) -> Vec<f32> {
@@ -125,12 +144,43 @@ impl GeometryFeatures {
         out.push(self.axis_correlation);
         out.push(self.quantization_parameter);
         out.extend_from_slice(&self.intra_mode);
+        out.extend_from_slice(&self.neighbour_transforms);
         out
     }
 }
 
 /// The number of orientation bins in the histogram.
 const ORIENTATION_BINS: usize = 8;
+
+/// The number of neighbouring blocks whose transform is used as context.
+///
+/// The order is left, above, above-left, above-right.
+pub const NEIGHBOUR_TRANSFORM_SLOTS: usize = 4;
+
+/// The transforms of the neighbouring blocks, as context for the predictor.
+///
+/// The four slots are the block to the left, the block above, the block
+/// above and to the left, and the block above and to the right. A slot
+/// that has not been coded yet -- because the neighbour is outside the
+/// picture, or because the raster order has not reached it -- is empty.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct NeighbourTransforms(pub [Option<TransformKind>; NEIGHBOUR_TRANSFORM_SLOTS]);
+
+impl NeighbourTransforms {
+    /// The one-hot encoding of the neighbour transforms.
+    ///
+    /// Each occupied slot contributes a 1 in the position of its
+    /// transform; an empty slot contributes nothing.
+    pub fn one_hot(&self) -> [f32; NEIGHBOUR_TRANSFORM_SLOTS * 3] {
+        let mut out = [0f32; NEIGHBOUR_TRANSFORM_SLOTS * 3];
+        for (slot, kind) in self.0.iter().enumerate() {
+            if let Some(kind) = kind {
+                out[slot * 3 + kind.as_index() as usize] = 1.0;
+            }
+        }
+        out
+    }
+}
 
 /// Extract the geometry features from a causal neighbourhood.
 ///
@@ -150,6 +200,7 @@ pub fn extract_features(
     top: &[Option<i32>],
     mode: IntraMode,
     qp: i32,
+    neighbours: NeighbourTransforms,
 ) -> GeometryFeatures {
     let mut histogram = [0f32; ORIENTATION_BINS];
     let mut total = 0f32;
@@ -216,6 +267,7 @@ pub fn extract_features(
             axis_correlation: 0.0,
             quantization_parameter: qp as f32 / 51.0,
             intra_mode,
+            neighbour_transforms: neighbours.one_hot(),
         };
     }
 
@@ -256,6 +308,7 @@ pub fn extract_features(
         axis_correlation,
         quantization_parameter: qp as f32 / 51.0,
         intra_mode,
+        neighbour_transforms: neighbours.one_hot(),
     }
 }
 
@@ -279,6 +332,7 @@ pub fn extract_features_from_window(
     window: usize,
     mode: IntraMode,
     qp: i32,
+    neighbours: NeighbourTransforms,
 ) -> GeometryFeatures {
     let mut histogram = [0f32; ORIENTATION_BINS];
     let mut total = 0f32;
@@ -305,6 +359,7 @@ pub fn extract_features_from_window(
                 modes[mode.as_index() as usize] = 1.0;
                 modes
             },
+            neighbour_transforms: neighbours.one_hot(),
         };
     }
 
@@ -340,6 +395,7 @@ pub fn extract_features_from_window(
             axis_correlation: 0.0,
             quantization_parameter: qp as f32 / 51.0,
             intra_mode,
+            neighbour_transforms: neighbours.one_hot(),
         };
     }
 
@@ -375,6 +431,7 @@ pub fn extract_features_from_window(
         axis_correlation,
         quantization_parameter: qp as f32 / 51.0,
         intra_mode,
+        neighbour_transforms: neighbours.one_hot(),
     }
 }
 
@@ -639,13 +696,53 @@ impl TransformSignal {
 
 #[cfg(test)]
 mod tests {
+    /// The neighbour context is a one-hot per slot, in the order left,
+    /// above, above-left, above-right.
+    #[test]
+    fn neighbour_transforms_are_one_hot_per_slot() {
+        let neighbours = NeighbourTransforms([
+            Some(TransformKind::Dst7),
+            Some(TransformKind::Dct2),
+            None,
+            Some(TransformKind::Dct8),
+        ]);
+        let one_hot = neighbours.one_hot();
+        assert_eq!(one_hot.len(), NEIGHBOUR_TRANSFORM_SLOTS * 3);
+        // Left is DST-VII.
+        assert_eq!(
+            one_hot[0 * 3 + TransformKind::Dst7.as_index() as usize],
+            1.0
+        );
+        // Above is DCT-II.
+        assert_eq!(
+            one_hot[1 * 3 + TransformKind::Dct2.as_index() as usize],
+            1.0
+        );
+        // Above-left does not exist, so its slot is empty.
+        assert_eq!(one_hot[2 * 3..3 * 3], [0.0, 0.0, 0.0]);
+        // Above-right is DCT-VIII.
+        assert_eq!(
+            one_hot[3 * 3 + TransformKind::Dct8.as_index() as usize],
+            1.0
+        );
+        // Every slot has exactly one transform set, so the whole vector
+        // sums to the number of occupied slots.
+        assert_eq!(one_hot.iter().sum::<f32>(), 3.0);
+    }
+
     use super::*;
 
     #[test]
     fn features_are_length_and_normalised() {
         let left = vec![Some(0), Some(10), Some(20), Some(30)];
         let top = vec![Some(0), Some(5), Some(10), Some(15)];
-        let features = extract_features(&left, &top, IntraMode::Planar, 27);
+        let features = extract_features(
+            &left,
+            &top,
+            IntraMode::Planar,
+            27,
+            NeighbourTransforms::default(),
+        );
         assert_eq!(features.to_vec().len(), GeometryFeatures::LEN);
         let sum: f32 = features.orientation_histogram.iter().sum();
         assert!((sum - 1.0).abs() < 1e-5, "histogram sums to 1, got {sum}");
@@ -657,7 +754,13 @@ mod tests {
     fn flat_neighbourhood_is_isotropic() {
         let left = vec![Some(5); 8];
         let top = vec![Some(5); 8];
-        let features = extract_features(&left, &top, IntraMode::Planar, 27);
+        let features = extract_features(
+            &left,
+            &top,
+            IntraMode::Planar,
+            27,
+            NeighbourTransforms::default(),
+        );
         assert_eq!(features.gradient_energy, 0.0);
         assert_eq!(features.isotropy, 1.0);
     }
@@ -674,6 +777,7 @@ mod tests {
             &[Some(3), Some(4)],
             IntraMode::Planar,
             27,
+            NeighbourTransforms::default(),
         );
         let a = predictor.predict(&features);
         let b = predictor.predict(&features);

@@ -34,6 +34,101 @@ pub enum TransformKind {
     Dst7,
 }
 
+/// A VVC multiple transform selection mode.
+///
+/// VVC's multiple transform selection is *separable per axis*: the
+/// horizontal pass and the vertical pass each choose between DCT-VIII
+/// and DST-VII, giving four modes in addition to the plain DCT-II.
+/// ITU-T H.266 clause 8.6.3 defines the four modes as DST-VII/DST-VII,
+/// DCT-VIII/DST-VII, DST-VII/DCT-VIII and DCT-VIII/DCT-VIII.
+///
+/// GIRC codes that mode rather than a single transform applied to both
+/// axes, because the mode is what a VVC decoder actually has to be told.
+/// Signalling a single matrix would measure a mechanism that does not
+/// exist in the standard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TransformMode {
+    /// The transform applied in the horizontal pass.
+    pub horizontal: TransformKind,
+    /// The transform applied in the vertical pass.
+    pub vertical: TransformKind,
+}
+
+impl TransformMode {
+    /// The plain DCT-II mode, which is not a multiple transform selection
+    /// mode at all.
+    pub const DCT2: TransformMode = TransformMode {
+        horizontal: TransformKind::Dct2,
+        vertical: TransformKind::Dct2,
+    };
+
+    /// The four multiple transform selection modes, in the order ITU-T
+    /// H.266 numbers them.
+    pub const MTS: [TransformMode; 4] = [
+        TransformMode {
+            horizontal: TransformKind::Dst7,
+            vertical: TransformKind::Dst7,
+        },
+        TransformMode {
+            horizontal: TransformKind::Dct8,
+            vertical: TransformKind::Dst7,
+        },
+        TransformMode {
+            horizontal: TransformKind::Dst7,
+            vertical: TransformKind::Dct8,
+        },
+        TransformMode {
+            horizontal: TransformKind::Dct8,
+            vertical: TransformKind::Dct8,
+        },
+    ];
+
+    /// Every mode, the plain DCT-II first, in canonical order.
+    pub const ALL: [TransformMode; 5] = [
+        TransformMode::DCT2,
+        TransformMode::MTS[0],
+        TransformMode::MTS[1],
+        TransformMode::MTS[2],
+        TransformMode::MTS[3],
+    ];
+
+    /// The index of the mode, as it appears on the wire.
+    ///
+    /// The indices are the ones ITU-T H.266 uses: zero for the plain
+    /// DCT-II, then the four multiple transform selection modes in the
+    /// standard's order.
+    pub fn as_index(self) -> u8 {
+        if self == TransformMode::DCT2 {
+            return 0;
+        }
+        match (self.horizontal, self.vertical) {
+            (TransformKind::Dst7, TransformKind::Dst7) => 1,
+            (TransformKind::Dct8, TransformKind::Dst7) => 2,
+            (TransformKind::Dst7, TransformKind::Dct8) => 3,
+            (TransformKind::Dct8, TransformKind::Dct8) => 4,
+            _ => unreachable!("the mode set is closed"),
+        }
+    }
+
+    /// The inverse of [`TransformMode::as_index`].
+    pub fn from_index(index: u8) -> Option<Self> {
+        Self::ALL.get(index as usize).copied()
+    }
+
+    /// A readable name, in the standard's terms.
+    pub fn name(self) -> String {
+        if self == TransformMode::DCT2 {
+            return "DCT-II".to_string();
+        }
+        format!("{}/{}", self.horizontal.name(), self.vertical.name())
+    }
+
+    /// Whether the mode is one of the multiple transform selection modes.
+    pub fn is_mts(self) -> bool {
+        self != TransformMode::DCT2
+    }
+}
+
 impl TransformKind {
     /// Every transform in the set, in canonical order.
     pub const ALL: [TransformKind; 3] = [
@@ -183,6 +278,135 @@ pub fn forward(kind: TransformKind, size: usize, block: &[i32]) -> Result<Block,
     Ok(out)
 }
 
+/// The 2-D forward transform of a multiple transform selection mode.
+///
+/// The two passes use different matrices, which is what distinguishes a
+/// multiple transform selection mode from a plain transform. The shift
+/// schedule is the one in ITU-T H.266 clause 8.6.4.2, the same one
+/// [`forward`] uses:
+///
+/// ```text
+/// shift_1st = log2(width)  + bitDepth + TRANSFORM_MATRIX_SHIFT - maxLog2TrDynamicRange
+/// shift_2nd = log2(height) + TRANSFORM_MATRIX_SHIFT
+/// ```
+pub fn forward_mode(
+    mode: TransformMode,
+    size: usize,
+    block: &[i32],
+) -> Result<Block, TransformError> {
+    let horizontal = mode
+        .horizontal
+        .matrix(size)
+        .ok_or(TransformError::UnsupportedSize {
+            kind: mode.horizontal,
+            size,
+        })?;
+    let vertical = mode
+        .vertical
+        .matrix(size)
+        .ok_or(TransformError::UnsupportedSize {
+            kind: mode.vertical,
+            size,
+        })?;
+    if block.len() != size * size {
+        return Err(TransformError::LengthMismatch {
+            expected: size * size,
+            got: block.len(),
+        });
+    }
+
+    let shift_1st =
+        size.trailing_zeros() + BIT_DEPTH + TRANSFORM_MATRIX_SHIFT - MAX_LOG2_TR_DYNAMIC_RANGE;
+    let shift_2nd = size.trailing_zeros() + TRANSFORM_MATRIX_SHIFT;
+
+    // Pass 1: horizontal, with the horizontal matrix.
+    let mut tmp = vec![0i32; size * size];
+    for y in 0..size {
+        for x in 0..size {
+            let mut sum = 0i64;
+            for k in 0..size {
+                sum += i64::from(horizontal[x * size + k]) * i64::from(block[y * size + k]);
+            }
+            tmp[y * size + x] = round_shift(sum, shift_1st);
+        }
+    }
+
+    // Pass 2: vertical, with the vertical matrix.
+    let mut out = vec![0i32; size * size];
+    for x in 0..size {
+        for y in 0..size {
+            let mut sum = 0i64;
+            for k in 0..size {
+                sum += i64::from(vertical[y * size + k]) * i64::from(tmp[k * size + x]);
+            }
+            out[y * size + x] = round_shift(sum, shift_2nd);
+        }
+    }
+    Ok(out)
+}
+
+/// The 2-D inverse transform of a multiple transform selection mode.
+///
+/// The inverse runs the vertical pass first, then the horizontal pass,
+/// which is the reverse of [`forward_mode`] and matches the schedule in
+/// ITU-T H.266 clause 8.6.4.2.
+pub fn inverse_mode(
+    mode: TransformMode,
+    size: usize,
+    coeffs: &[i32],
+) -> Result<Block, TransformError> {
+    let horizontal = mode
+        .horizontal
+        .matrix(size)
+        .ok_or(TransformError::UnsupportedSize {
+            kind: mode.horizontal,
+            size,
+        })?;
+    let vertical = mode
+        .vertical
+        .matrix(size)
+        .ok_or(TransformError::UnsupportedSize {
+            kind: mode.vertical,
+            size,
+        })?;
+    if coeffs.len() != size * size {
+        return Err(TransformError::LengthMismatch {
+            expected: size * size,
+            got: coeffs.len(),
+        });
+    }
+
+    let shift_1st = TRANSFORM_MATRIX_SHIFT + 1;
+    let shift_2nd = TRANSFORM_MATRIX_SHIFT + MAX_LOG2_TR_DYNAMIC_RANGE - 1 - BIT_DEPTH;
+
+    // Pass 1: vertical, into `tmp`. The inverse transform transposes the
+    // matrix, which is why the index is `k * size + y` rather than
+    // `y * size + k`.
+    let mut tmp = vec![0i32; size * size];
+    for x in 0..size {
+        for y in 0..size {
+            let mut sum = 0i64;
+            for k in 0..size {
+                sum += i64::from(vertical[k * size + y]) * i64::from(coeffs[k * size + x]);
+            }
+            tmp[y * size + x] = round_shift(sum, shift_1st);
+        }
+    }
+
+    // Pass 2: horizontal.
+    let mut out = vec![0i32; size * size];
+    for y in 0..size {
+        for x in 0..size {
+            let mut sum = 0i64;
+            for k in 0..size {
+                sum += i64::from(horizontal[k * size + x]) * i64::from(tmp[y * size + k]);
+            }
+            out[y * size + x] = round_shift(sum, shift_2nd);
+        }
+    }
+    Ok(out)
+}
+
 /// Inverse 2-D transform of a `size` x `size` coefficient block.
 ///
 /// The result is in the sample domain, before the final clipping the decoder
@@ -243,7 +467,7 @@ pub const TRANSFORM_SIZES: [usize; 4] = [4, 8, 16, 32];
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transform_oracle_vectors::ORACLE_VECTORS;
+    use crate::transform_oracle_vectors::{ORACLE_MODE_VECTORS, ORACLE_VECTORS};
 
     /// The forward and inverse transforms must match the VVC reference
     /// implementation bit-exactly. The reference vectors come from Fraunhofer
@@ -268,6 +492,61 @@ mod tests {
                 inverse, vector.inverse,
                 "{kind:?} {size}x{size}: inverse transform differs from the reference"
             );
+        }
+    }
+
+    /// The per-axis multiple transform selection modes must match the VVC
+    /// reference implementation bit-exactly.
+    ///
+    /// These are the transforms a VVC decoder actually has to be told
+    /// about, and they are the ones the mechanism's signalling replaces.
+    #[test]
+    fn modes_match_vvc_reference_implementation() {
+        assert!(
+            !ORACLE_MODE_VECTORS.is_empty(),
+            "reference mode vectors are present"
+        );
+        for vector in ORACLE_MODE_VECTORS {
+            let mode = TransformMode {
+                horizontal: TransformKind::ALL[vector.horizontal],
+                vertical: TransformKind::ALL[vector.vertical],
+            };
+            let size = vector.size;
+
+            let forward = forward_mode(mode, size, vector.input)
+                .unwrap_or_else(|e| panic!("{} {size}: forward failed: {e}", mode.name()));
+            assert_eq!(
+                forward,
+                vector.forward,
+                "{} {size}x{size}: forward transform differs from the reference",
+                mode.name()
+            );
+
+            let inverse = inverse_mode(mode, size, vector.forward)
+                .unwrap_or_else(|e| panic!("{} {size}: inverse failed: {e}", mode.name()));
+            assert_eq!(
+                inverse,
+                vector.inverse,
+                "{} {size}x{size}: inverse transform differs from the reference",
+                mode.name()
+            );
+        }
+    }
+
+    /// The four multiple transform selection modes are the ones the
+    /// standard defines, and their indices are stable.
+    #[test]
+    fn mode_indices_match_the_standard() {
+        for (index, mode) in TransformMode::ALL.iter().enumerate() {
+            assert_eq!(mode.as_index() as usize, index);
+            assert_eq!(TransformMode::from_index(index as u8), Some(*mode));
+        }
+        // The plain DCT-II is not a multiple transform selection mode.
+        assert!(!TransformMode::DCT2.is_mts());
+        for mode in TransformMode::MTS {
+            assert!(mode.is_mts());
+            assert_ne!(mode.horizontal, TransformKind::Dct2);
+            assert_ne!(mode.vertical, TransformKind::Dct2);
         }
     }
 

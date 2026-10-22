@@ -845,7 +845,6 @@ fn tool_versions() -> BTreeMap<String, String> {
 
     for (name, args) in [
         ("ffmpeg", vec!["-version"]),
-        ("x265", vec!["--version"]),
         ("vvencapp", vec!["--version"]),
     ] {
         let version = Command::new(name)
@@ -862,6 +861,24 @@ fn tool_versions() -> BTreeMap<String, String> {
             .unwrap_or_else(|| "unavailable".to_string());
         versions.insert(name.to_string(), version);
     }
+
+    // x265 is reached through ffmpeg's libx265 encoder, so its version
+    // comes from ffmpeg rather than from an x265 binary.
+    versions.insert(
+        "x265".into(),
+        Command::new("ffmpeg")
+            .args(["-hide_banner", "-h", "encoder=libx265"])
+            .output()
+            .ok()
+            .and_then(|out| {
+                let text = String::from_utf8_lossy(&out.stdout);
+                text.lines()
+                    .find(|line| line.contains("Encoder libx265"))
+                    .map(|line| line.trim().to_string())
+            })
+            .unwrap_or_else(|| "unavailable".to_string()),
+    );
+
     versions
 }
 
