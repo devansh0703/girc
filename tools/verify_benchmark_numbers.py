@@ -30,6 +30,7 @@ from pathlib import Path
 # The documents that quote the benchmark.
 DOCUMENTS = [
     "README.md",
+    "research/RELEASE-NOTES-1.0.0.md",
     "docs/designs/girc-geometry-inference-codec.md",
     "research/patent-package/README.md",
     "research/patent-package/REPRODUCIBILITY.md",

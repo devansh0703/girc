@@ -88,13 +88,12 @@ jobs:
         run: |
           git clone --depth 1 --branch v1.14.0 \
             https://github.com/fraunhoferhhi/vvenc.git data/tools/vvenc-src
+          # One build, with tracing enabled, because the syntax check
+          # needs it and building twice does not fit in the runner's
+          # time. Tracing does not change what the encoder produces.
           cmake -S data/tools/vvenc-src -B data/tools/vvenc-src/build \
-            -DCMAKE_BUILD_TYPE=Release
-          cmake --build data/tools/vvenc-src/build --config Release -j 2
-          # The same build again, with tracing, for the syntax check.
-          cmake -S data/tools/vvenc-src -B data/tools/vvenc-src/build-trace \
             -DCMAKE_BUILD_TYPE=Release -DVVENC_ENABLE_TRACING=1
-          cmake --build data/tools/vvenc-src/build-trace --config Release -j 2
+          cmake --build data/tools/vvenc-src/build --config Release -j 2
 
       - name: Generate the reference vectors
         run: |
