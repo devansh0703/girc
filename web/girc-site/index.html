@@ -45,12 +45,14 @@
         <section>
           <h2>The problem</h2>
           <p>
-            A VVC block is coded with one of three transforms: DCT-II,
-            DCT-VIII or DST-VII. The encoder picks one by rate-distortion
-            search, and the decoder has no way of knowing which one it picked
-            except that the bitstream tells it. The signalling is a few bits
-            per block, but it is pure overhead: it carries no information the
-            decoder could not have derived for itself.
+            A VVC transform block is coded with one of five modes: the plain
+            DCT-II, or one of the four per-axis combinations of DCT-VIII and
+            DST-VII that the standard calls multiple transform selection. The
+            encoder picks one by rate-distortion search, and the decoder has
+            no way of knowing which one it picked except that the bitstream
+            tells it. The signalling is a few bits per block, but it is pure
+            overhead: it carries no information the decoder could not have
+            derived for itself.
           </p>
           <p>
             The reason it cannot be derived is that the choice looks random.
@@ -83,8 +85,8 @@
               <h3>2 · Signal</h3>
               <p>
                 The encoder spends one bin on whether the prediction was
-                right. When it was wrong, one further bin selects between the
-                two transforms the prediction ruled out.
+                right. When it was wrong, two further bins select between
+                the four modes the prediction ruled out.
               </p>
             </div>
             <div class="cell">

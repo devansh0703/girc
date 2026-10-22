@@ -144,7 +144,12 @@ payload       range-coded words</code></pre>
               <tr>
                 <td>intra mode</td>
                 <td>10</td>
-                <td>One-hot; decoded before the transform type</td>
+                <td>One-hot; decoded before the transform mode</td>
+              </tr>
+              <tr>
+                <td>neighbour modes</td>
+                <td>20</td>
+                <td>One-hot per neighbour, over the five modes: left, above, above-left, above-right</td>
               </tr>
             </tbody>
           </table>
@@ -152,8 +157,14 @@ payload       range-coded words</code></pre>
             The gradient is taken with central differences over a genuine
             two-dimensional window. Restricting it to the two reference
             lines — the top row and the left column — throws away the
-            diagonal information that distinguishes the three transforms,
-            and leaves four of the eight orientation bins permanently empty.
+            diagonal information that distinguishes the transforms, and
+            leaves four of the eight orientation bins permanently empty.
+          </p>
+          <p>
+            The neighbour context is free: the decoder already knows every
+            already-coded neighbour's transform mode, because it decoded
+            them. It is also the context the codec literature uses, since
+            the transform choice is strongly spatially correlated.
           </p>
           <p>
             The intra mode is the strongest single signal, and it is
@@ -166,11 +177,27 @@ payload       range-coded words</code></pre>
         <section>
           <h2>The predictor</h2>
           <p>
-            The predictor is a multinomial logistic regression over those
-            features: a weight vector and a bias per transform, and the
-            prediction is the highest logit. It is a pure function of its
-            weights and the feature vector, so the encoder and the decoder
-            always agree.
+            The predictor models the two axes separately. A mode is the
+            pair of its horizontal and vertical transforms, and the
+            measurement in the results says why: the joint five-class mode
+            is barely predictable from the causal neighbourhood, because the
+            rate-distortion choice between the modes is close to a tie,
+            while each axis on its own is markedly more predictable. So
+            there are two multinomial logistic regressions, one per axis,
+            and the mode is their composition.
+          </p>
+          <p>
+            The composition follows the standard's own rule: a mode is
+            either the plain DCT-II on both axes, or a multiple transform
+            selection mode, in which neither axis is the DCT-II. So a
+            predicted DCT-II on either axis forces the plain DCT-II, and
+            otherwise the two axes combine directly.
+          </p>
+          <p>
+            Each regression is a weight vector and a bias per class, and
+            the prediction is the highest logit. It is a pure function of
+            its weights and the feature vector, so the encoder and the
+            decoder always agree.
           </p>
           <p>
             The model is trained on the encoder's own decisions. The

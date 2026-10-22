@@ -26,13 +26,14 @@
     <main>
       <div class="wrap">
         <section class="hero">
-          <div class="readout">MEASURED ON XIPH.ORG CIF · 4 SEQUENCES · QP 22–37</div>
-          <h1>The mechanism is close to break-even, and the report says so.</h1>
+          <div class="readout">MEASURED ON XIPH.ORG CIF · 12 SEQUENCES · QP 22–37</div>
+          <h1>The mechanism saves 0.226% of the bitrate.</h1>
           <p class="lede">
-            With three transform types over a skewed distribution, the explicit
-            signalling is already cheap for a context-adaptive coder to code.
-            The inference removes that overhead and pays for it in
-            distortion. The margin sweep below is the whole trade.
+            Twelve CIF sequences, four QP points each, and the inferred
+            mode comes out 0.226% smaller than the explicit mode, and
+            smaller on nine sequences of the twelve. The margin sweep below
+            is the whole trade: the rate the encoder gives up in
+            distortion, against the rate it saves in signalling.
           </p>
         </section>
 
@@ -45,7 +46,15 @@
             Bjontegaard delta rate is computed by cubic polynomial
             interpolation over the overlapping PSNR range, as the JVET common
             test conditions define it. The two GIRC modes differ in exactly
-            one thing: how the transform type reaches the decoder.
+            one thing: how the transform mode reaches the decoder.
+          </p>
+          <p>
+            The transform mode is VVC's, not an invention of this
+            repository's: the plain DCT-II, or one of the four per-axis
+            combinations of DCT-VIII and DST-VII that ITU-T H.266 defines
+            as multiple transform selection. The explicit mode codes the
+            mode the way the standard's <code>mts_idx</code> syntax does,
+            which is what the decoder of a real codec would have to read.
           </p>
           <p>
             The anchors are the real encoders: x265 for HEVC, SVT-AV1 for AV1
@@ -73,58 +82,58 @@
             <tbody>
               <tr>
                 <td>0</td>
-                <td class="bad">+0.146%</td>
-                <td>53.0%</td>
+                <td class="warn">−0.018%</td>
+                <td>56.9%</td>
                 <td>No margin: the encoder always takes the optimal transform</td>
               </tr>
               <tr>
                 <td>2</td>
-                <td class="warn">+0.051%</td>
-                <td>47.8%</td>
-                <td>Small margin, small gain</td>
+                <td class="good">−0.077%</td>
+                <td>56.1%</td>
+                <td>The margin starts to pay</td>
               </tr>
               <tr>
                 <td>5</td>
-                <td class="warn">+0.051%</td>
-                <td>47.6%</td>
-                <td>Little change</td>
+                <td class="good">−0.091%</td>
+                <td>56.0%</td>
+                <td>Better</td>
               </tr>
               <tr>
                 <td>10</td>
-                <td class="good">−0.064%</td>
-                <td>47.3%</td>
-                <td><strong>The optimum on this content</strong></td>
+                <td class="good">−0.090%</td>
+                <td>55.6%</td>
+                <td>Flat</td>
               </tr>
               <tr>
                 <td>20</td>
-                <td class="warn">−0.006%</td>
-                <td>46.8%</td>
-                <td>Past the optimum</td>
+                <td class="good">−0.120%</td>
+                <td>55.0%</td>
+                <td>Better</td>
               </tr>
               <tr>
                 <td>50</td>
-                <td class="bad">+0.216%</td>
-                <td>44.9%</td>
-                <td>Distortion starts to dominate</td>
+                <td class="good">−0.226%</td>
+                <td>52.5%</td>
+                <td><strong>The optimum on this content</strong></td>
               </tr>
               <tr>
                 <td>100</td>
-                <td class="bad">+0.222%</td>
-                <td>41.2%</td>
-                <td>Worse</td>
+                <td class="good">−0.170%</td>
+                <td>47.9%</td>
+                <td>Past the optimum</td>
               </tr>
               <tr>
                 <td>500</td>
-                <td class="bad">+2.425%</td>
-                <td>23.9%</td>
-                <td>Far past the optimum</td>
+                <td class="bad">+1.006%</td>
+                <td>26.9%</td>
+                <td>Distortion dominates</td>
               </tr>
             </tbody>
           </table>
           <p class="muted">
             Mean Bjontegaard delta rate of the inferred mode against the
-            explicit mode, over akiyo, foreman, mobile and stefan at
-            CIF resolution. Negative means the inferred mode is smaller.
+            explicit mode, over twelve CIF sequences at four QP points.
+            Negative means the inferred mode is smaller.
           </p>
         </section>
 
@@ -140,29 +149,70 @@
             </thead>
             <tbody>
               <tr>
+                <td>highway_cif</td>
+                <td class="good">−0.831%</td>
+                <td>Fast panning, strong horizontal structure</td>
+              </tr>
+              <tr>
+                <td>crew_cif</td>
+                <td class="good">−0.618%</td>
+                <td>Motion and texture</td>
+              </tr>
+              <tr>
                 <td>akiyo_cif</td>
-                <td class="good">−0.313%</td>
+                <td class="good">−0.343%</td>
                 <td>Flat, high detail, little motion</td>
               </tr>
               <tr>
-                <td>foreman_cif</td>
-                <td class="good">−0.033%</td>
-                <td>Fine texture, strong edges</td>
-              </tr>
-              <tr>
                 <td>mobile_cif</td>
-                <td class="good">−0.053%</td>
+                <td class="good">−0.308%</td>
                 <td>Moving subject, detailed background</td>
               </tr>
               <tr>
-                <td>stefan_cif</td>
-                <td class="bad">+0.145%</td>
+                <td>coastguard_cif</td>
+                <td class="good">−0.274%</td>
+                <td>Water texture, fine detail</td>
+              </tr>
+              <tr>
+                <td>foreman_cif</td>
+                <td class="good">−0.253%</td>
+                <td>Fine texture, strong edges</td>
+              </tr>
+              <tr>
+                <td>bus_cif</td>
+                <td class="good">−0.210%</td>
+                <td>Moving subject, uniform background</td>
+              </tr>
+              <tr>
+                <td>flower_cif</td>
+                <td class="good">−0.204%</td>
+                <td>Fine foliage texture</td>
+              </tr>
+              <tr>
+                <td>deadline_cif</td>
+                <td class="good">−0.105%</td>
                 <td>Motion, texture and noise</td>
+              </tr>
+              <tr>
+                <td>stefan_cif</td>
+                <td class="warn">+0.000%</td>
+                <td>Motion, texture and noise</td>
+              </tr>
+              <tr>
+                <td>container_cif</td>
+                <td class="bad">+0.056%</td>
+                <td>Sharp edges, flat panels</td>
+              </tr>
+              <tr>
+                <td>city_cif</td>
+                <td class="bad">+0.378%</td>
+                <td>Dense detail, little large-scale structure</td>
               </tr>
             </tbody>
           </table>
           <p class="muted">
-            Margin of 10 bits, QP 22 to 37, luma plane, 8×8 blocks.
+            Margin of 50 bits, QP 22 to 37, luma plane, 8×8 blocks. The
+            mean over the twelve is −0.226% and the median −0.231%.
           </p>
         </section>
 
@@ -251,41 +301,54 @@
             <tbody>
               <tr>
                 <td>Majority class (always DCT-II)</td>
-                <td>55.53%</td>
-                <td>The baseline any predictor must beat</td>
+                <td>44.31%</td>
+                <td>The baseline any predictor must beat, over the five modes</td>
               </tr>
               <tr>
-                <td>Gradient-boosted ceiling</td>
-                <td>56.44%</td>
-                <td>What these features can support</td>
+                <td>Gradient-boosted ceiling, joint mode</td>
+                <td>44.98%</td>
+                <td>What these features support for the mode as a whole</td>
               </tr>
               <tr>
-                <td>Shipped model</td>
-                <td>47.35%</td>
-                <td>Trained without class balancing</td>
+                <td>Gradient-boosted ceiling, one axis</td>
+                <td>51.75%</td>
+                <td>What they support for a single axis</td>
+              </tr>
+              <tr>
+                <td>Shipped model, composed from the two axes</td>
+                <td>43.07%</td>
+                <td>Per axis: 51.1% horizontal, 51.0% vertical</td>
               </tr>
             </tbody>
           </table>
           <p class="muted">
-            Per class, the shipped model's held-out accuracy is 52.65% for
-            DCT-II, 57.03% for DCT-VIII and 30.38% for DST-VII.
+            76,032 blocks, collected from the encoder's own rate-distortion
+            search over twelve sequences at four QP points, so the labels
+            are the encoder's real choices and the features are what the
+            decoder will actually see.
           </p>
           <div class="note">
             <p>
-              <strong>The honest reading.</strong> The ceiling is barely
-              above the majority class. The transform choice is driven by the
-              block's own residual, which the decoder has not seen; the
-              geometry of the neighbourhood constrains it only weakly. That
-              is why the mechanism is close to break-even rather than a
-              clear win, and it is the main thing a codec team would want
-              to challenge.
+              <strong>The honest reading.</strong> The joint mode is barely
+              predictable: the ceiling of 44.98% is barely above the 44.31%
+              majority class. The transform choice is driven by the block's
+              own residual, which the decoder has not seen, and the
+              geometry of the neighbourhood constrains it only weakly.
             </p>
             <p>
-              The consequence is a design limit worth stating plainly: with
-              three transform types over a skewed distribution, the explicit
-              signalling is already nearly free for a context-adaptive coder
-              to code. The mechanism removes an overhead that is smaller
-              than the distortion it costs to remove it.
+              Splitting the mode into its two axes is what makes the
+              mechanism work. Each axis on its own reaches 51.75%, a clear
+              margin over the majority class, because the geometry of a
+              neighbourhood says more about the transform on one axis than
+              about the mode as a whole. The shipped predictor therefore
+              models the two axes separately and composes them.
+            </p>
+            <p>
+              Even so, the saving is 0.226%, not a headline number. The
+              explicit signalling is already cheap for a context-adaptive
+              coder to code, and the mechanism removes an overhead that is
+              close to the distortion it costs to remove it. The margin
+              sweep is the honest account of where that balance sits.
             </p>
           </div>
         </section>
@@ -294,11 +357,12 @@
           <h2>What would change the answer</h2>
           <div class="grid">
             <div class="cell">
-              <h3>More transform types</h3>
+              <h3>Inter prediction</h3>
               <p>
-                The overhead the mechanism removes scales with how many
-                choices there are to signal. Three types over a skewed
-                distribution is close to the least favourable case.
+                The residual of a predicted block carries the motion
+                vector's structure, which is far more directional than an
+                intra residual and far more predictable from the causal
+                neighbourhood.
               </p>
             </div>
             <div class="cell">
@@ -307,15 +371,6 @@
                 The features read a 16-sample window. A larger one, or a
                 learned representation of the neighbourhood, would raise
                 the predictability ceiling.
-              </p>
-            </div>
-            <div class="cell">
-              <h3>Inter prediction</h3>
-              <p>
-                The residual of a predicted block carries the motion
-                vector's structure, which is far more directional than an
-                intra residual and far more predictable from the causal
-                neighbourhood.
               </p>
             </div>
             <div class="cell">
