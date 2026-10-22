@@ -31,4 +31,11 @@ g++ -O2 -std=c++17 \
   -o "$REPO/build/chroma_qp_oracle"
 
 "$REPO/build/chroma_qp_oracle" > "$OUT"
+
+# The oracle emits eight values to a line; rustfmt reflows the array to
+# the width limit. Format the generated file so the checked-in state is
+# what the generator produces, which is what makes a regeneration come
+# out byte-identical rather than drifting on line breaks.
+rustfmt --edition 2021 "$OUT"
+
 echo "wrote $OUT"
