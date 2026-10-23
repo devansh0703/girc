@@ -68,6 +68,13 @@ jobs:
           pip install -r apps/portal/requirements.txt
           pip install -r python/girc-train/requirements.txt
 
+      # The hosted analysis shells out to the codec, so its tests need the
+      # release binary. The Rust job builds it too, but on another runner;
+      # building it here keeps the service's tests testing the service
+      # against the real measurement rather than a mock of it.
+      - name: Build the codec the service shells out to
+        run: cargo build --release --locked -p girc-cli --bin girc
+
       - name: Test the evaluation portal
         env:
           PYTHONPATH: apps/portal
