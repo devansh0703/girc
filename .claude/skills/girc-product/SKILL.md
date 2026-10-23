@@ -62,21 +62,34 @@ will be red there.
 
 - One free service, because 750 free instance-hours/month is one
   always-on instance. `render.yaml` is the manifest.
-- The container (`deploy/Dockerfile.service`) builds the Rust CLI and
-  the Python service shells out to it — one implementation of the
-  measurement, not two.
+- Native python, not Docker: free services cannot deploy Docker (fails
+  in seconds) and the free build plan cannot compile Rust (OOMs mid
+  cargo). The build command downloads the `codec-linux` release asset —
+  the binary the Rust job in CI publishes from the same commit — so
+  the measurement over HTTP is the same binary as the command line.
 - Create through the API with `tools/create_render_service.py`.
-  Gotchas baked into that script: `repo`/`branch`/`envVars` are
-  top-level; docker paths go under `serviceDetails.envSpecificDetails`;
-  `autoDeploy` is a string enum (use `autoDeployTrigger: "commit"`);
-  the POST bucket is tiny, so respect `ratelimit-reset`.
-- UptimeRobot monitor `804394858` pings `/health` every 300 s so the
-  free instance never sleeps. The weekly canary is
+  Gotchas baked into that script: `repo`/`branch` are top-level,
+  `buildCommand`/`startCommand` go under
+  `serviceDetails.envSpecificDetails`; `autoDeploy` is a string enum
+  (use `autoDeployTrigger: "commit"`, anything else answers
+  `invalid JSON`); the POST bucket is tiny, so respect
+  `ratelimit-reset`; PATCHing runtime on a live service "succeeds"
+  then fails every deploy — create with the shape you mean.
+- The hosted run is capped by a published `sample_limit` (36,000 luma
+  samples) because twenty-one codec runs must fit the 60 s budget on
+  one shared core; larger uploads get a 422 that names the limit and
+  points at the CLI. `/health` must answer HEAD (monitors send it) or
+  every uptime check reads as an outage.
+- UptimeRobot monitor `804397518` pings `/health` every 300 s so the
+  free instance never sleeps. A monitor created before the service
+  exists sticks at status 9 after its first 404 — delete and recreate
+  (`deleteMonitor` wants `id=`, not `monitorID=`). The weekly canary is
   `.github/workflows/service.yml` (GitHub Actions, because Render cron
   is paid).
 - After a push to master, watch the deploy via
   `GET /v1/services` and `GET /v1/services/{id}/deploys`, then verify
-  `/health` publishes the limits and `/analyze` on a real sequence.
+  `/health` publishes the limits, HEAD answers 200, and `/analyze`
+  completes on a small sequence and refuses a large one by name.
 
 ## Pitfalls found the hard way
 

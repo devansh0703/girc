@@ -164,24 +164,32 @@ repository, so what is deployed can be compared with what is committed:
 services:
   - type: web
     name: girc-portal
-    runtime: docker          # the service is the codec, so it builds it
+    runtime: python          # not Docker: free services cannot deploy Docker
     plan: free
-    region: singapore
+    region: oregon
     healthCheckPath: /health
-    dockerfilePath: ./deploy/Dockerfile.service
+    buildCommand: ...        # downloads the codec CI built, installs the service
+    startCommand: PYTHONPATH=apps/portal python3 -m girc_eval.service
 ```
 
-The service is Docker because it is the codec: the container builds the
-Rust CLI and shells out to it, so the numbers over HTTP are the numbers
-the command line produces, from one implementation rather than two.
+The runtime is native python and the codec arrives as a download, and
+both facts are forced by the free tier: a Docker deploy on a free
+service fails within seconds, and the free build plan has too little
+memory to compile the Rust codec (the first attempt died two minutes
+into `cargo`). So the build command fetches the `codec-linux` release
+asset — the binary the Rust job in CI publishes from the same commit
+that deploys — and runs the service against it. One implementation of
+the measurement: the binary over HTTP is the binary on the command line,
+and a push moves both together.
 
 The service can also be created through the API
 (`tools/create_render_service.py` does it), and the request shape is
 not what the error messages suggest:
 
 - `repo`, `branch` and `envVars` belong at the **top level**; only the
-  runtime knobs belong inside `serviceDetails`, with the docker build
-  paths nested one level deeper under `serviceDetails.envSpecificDetails`.
+  runtime knobs belong inside `serviceDetails`, with `buildCommand` and
+  `startCommand` nested one level deeper under
+  `serviceDetails.envSpecificDetails`.
 - `autoDeploy` is a **string enum** (`"yes"`/`"no"`), not a boolean; use
   `autoDeployTrigger: "commit"` instead. Sending a boolean gets the
   useless reply `{"message":"invalid JSON"}`, which is what the API
@@ -190,6 +198,8 @@ not what the error messages suggest:
   bucket — a handful of requests per window, and the window is minutes
   long. The script reads `ratelimit-reset` and waits rather than
   burning attempts.
+- PATCHing a live service from one runtime to another is accepted and
+  then fails every deploy. Create the service with the shape you mean.
 
 A free account must have a payment card on file before the API will
 create any service, even a free one. The dashboard and the API share

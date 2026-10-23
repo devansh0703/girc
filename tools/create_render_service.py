@@ -5,6 +5,11 @@ retried with the server's own reset window respected rather than burned
 through. One service only: a workspace gets 750 free instance hours per
 calendar month and a month is 730-744 hours, so exactly one always-on free
 service fits.
+
+The payload is the shape that deployed (see deploy/README.md for the ones
+that do not): native python, because free services cannot deploy Docker and
+the free build plan cannot compile Rust, with the build command fetching the
+codec binary CI published from the same commit.
 """
 
 import json
@@ -12,7 +17,7 @@ import subprocess
 import time
 from pathlib import Path
 
-ENV = Path("/home/devansh/codec_proj/.env")
+ENV = Path(__file__).resolve().parent.parent / ".env"
 key = [line.split("=", 1)[1].strip().strip('"').strip("'")
        for line in ENV.read_text().splitlines()
        if line.startswith("RENDER_API_KEY")][0]
@@ -27,19 +32,20 @@ payload = {
     # is rejected as "invalid JSON", which says nothing about the actual
     # problem. autoDeployTrigger is the non-deprecated spelling.
     "autoDeployTrigger": "commit",
-    "envVars": [
-        {"key": "PORT", "value": "8000"},
-        {"key": "GIRC_MODEL", "value": "/app/models/girc-predictor.json"},
-        {"key": "GIRC_BUILD_JOBS", "value": "2"},
-    ],
     "serviceDetails": {
-        "runtime": "docker",
+        "runtime": "python",
         "plan": "free",
-        "region": "singapore",
+        "region": "oregon",
         "healthCheckPath": "/health",
         "envSpecificDetails": {
-            "dockerfilePath": "./deploy/Dockerfile.service",
-            "dockerContext": ".",
+            "buildCommand": (
+                "mkdir -p target/release && "
+                "curl -fsSL -o target/release/girc "
+                "https://github.com/devansh0703/girc/releases/download/codec-linux/girc && "
+                "chmod +x target/release/girc && "
+                "pip install -r apps/portal/requirements.service.txt"
+            ),
+            "startCommand": "PYTHONPATH=apps/portal python3 -m girc_eval.service",
         },
     },
 }

@@ -181,34 +181,36 @@
         </section>
 
         <section>
-          <div class="section-label">Run it yourself</div>
           <h2>The service is not the product; the codec is</h2>
           <p>
             The hosted instance exists so you do not need a toolchain to see the output. Everything it
-            does, a checkout does: the container definition and the service's own
-            <code class="mono">render.yaml</code> are in the repository, so you can deploy the
-            identical thing on your own host, or point the site at your own URL.
+            does, a checkout does: the <code class="mono">render.yaml</code> manifest and the service's
+            own build command are in the repository, and the service runs the same binary CI builds
+            from the same commit, so the numbers over HTTP are the numbers the command line produces.
           </p>
           <div class="grid-2">
             <div class="panel">
-              <h3><i class="ph ph-cube"></i>Container</h3>
+              <h3><i class="ph ph-terminal-window"></i>Run it yourself</h3>
               <pre><code>git clone https://github.com/devansh0703/girc
 cd girc
-docker build -f deploy/Dockerfile -t girc-portal .
-docker run -p 8000:8000 girc-portal
+cargo build --release -p girc-cli
+pip install -r apps/portal/requirements.service.txt
+PYTHONPATH=apps/portal python3 -m girc_eval.service
 curl localhost:8000/health</code></pre>
             </div>
             <div class="panel">
               <h3><i class="ph ph-warning-circle"></i>Two honest caveats</h3>
               <p>
-                The free instance has a tenth of a core and half a gigabyte of memory, so a long
-                sequence will time out there and would not on your machine. And only one request is
-                served at a time, so a queue behind a long sequence is the expected behaviour rather
+                The free instance has a tenth of a core and half a gigabyte of memory, so it measures
+                sequences up to its published sample limit and refuses larger ones by name rather than
+                timing out mid-run. And only one request is
+                served at a time, so a queue behind a run is the expected behaviour rather
                 than a bug.
               </p>
               <p>
                 Neither of those is a property of the method. If either matters to you, that is the
-                point at which running it locally is the right answer.
+                point at which running it locally is the right answer — the local service has the same
+                endpoints and none of the host's limits.
               </p>
             </div>
           </div>

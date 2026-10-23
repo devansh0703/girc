@@ -9,29 +9,32 @@
 # exactly one always-on free service fits. Everything the hosted product does
 # lives on this one instance rather than being split across several.
 #
-# The service builds the Rust codec itself, because the hosted analysis is the
-# codec and not a second implementation of it: the numbers over HTTP have to be
-# the numbers the command line produces.
+# The runtime is native python rather than Docker, and the difference matters:
+# free web services cannot run Docker deploys at all (they fail in seconds),
+# and the free build plan has too little memory to compile the Rust codec
+# anyway. So the build command downloads the binary CI published from the same
+# commit -- the `codec-linux` release asset, uploaded by the Rust job in
+# .github/workflows/ci.yml -- and the service runs it. The measurement over
+# HTTP is the measurement the command line produces, because it is the same
+# binary, and the deployed code and the deployed codec come from one push.
+#
+# No env vars are set here: Render provides PORT itself, and the service's own
+# defaults point at target/release/girc and models/girc-predictor.json, both
+# of which the build command places. GIRC_CLI and GIRC_MODEL exist for a
+# deployment that puts them elsewhere.
 services:
   - type: web
     name: girc-portal
-    runtime: docker
+    runtime: python
     plan: free
-    region: singapore
-    dockerfilePath: ./deploy/Dockerfile.service
-    dockerContext: .
-    branch: master
+    region: oregon
     healthCheckPath: /health
+    branch: master
     autoDeploy: true
-    envVars:
-      # Render also injects PORT; stating it here keeps the two in step.
-      - key: PORT
-        value: "8000"
-      # Where the codec binary and the shipped model are built from, so the
-      # service is a deployment of the repository and not a fork of it.
-      - key: GIRC_MODEL
-        value: /app/models/girc-predictor.json
-      # A free instance has a tenth of a core, so the build is serialised
-      # rather than parallelised: -j 2 is what fits.
-      - key: GIRC_BUILD_JOBS
-        value: "2"
+    buildCommand: >
+      mkdir -p target/release &&
+      curl -fsSL -o target/release/girc
+      https://github.com/devansh0703/girc/releases/download/codec-linux/girc
+      && chmod +x target/release/girc
+      && pip install -r apps/portal/requirements.service.txt
+    startCommand: PYTHONPATH=apps/portal python3 -m girc_eval.service
