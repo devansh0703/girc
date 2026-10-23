@@ -201,9 +201,11 @@ not what the error messages suggest:
 - PATCHing a live service from one runtime to another is accepted and
   then fails every deploy. Create the service with the shape you mean.
 
-A free account must have a payment card on file before the API will
-create any service, even a free one. The dashboard and the API share
-this rule.
+A free account does **not** need a payment card on file to create a free
+service — but omit `plan: "free"` and the service is created on a paid
+plan (the default is `0.5c-512mb`), at which point the API answers `402
+Payment information is required`. Set the plan at creation; it is one
+line and it is the difference between a deploy and a bill.
 
 A free instance sleeps after fifteen minutes without a request, so an
 UptimeRobot monitor pings `/health` every five minutes. The monitor is
