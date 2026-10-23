@@ -14,6 +14,8 @@ jobs:
   rust:
     name: Rust
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -44,6 +46,23 @@ jobs:
 
       - name: Test
         run: cargo test --workspace
+
+      # The hosted service's build plan has too little memory to compile
+      # the codec, so the service downloads the binary this job built from
+      # the same commit that deploys. One release, rewritten on every
+      # master push; nothing else consumes it.
+      - name: Publish the codec the hosted service downloads
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view codec-linux >/dev/null 2>&1; then
+            gh release upload codec-linux --clobber target/release/girc
+          else
+            gh release create codec-linux target/release/girc \
+              --title "the codec the hosted service runs" \
+              --notes "Built by CI from the commit that deploys. The Render service downloads this asset in its build command."
+          fi
 
   python:
     name: Python
