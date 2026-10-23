@@ -1,0 +1,32 @@
+{
+  "intra": {
+    "records": 316808,
+    "horizontal": {
+      "accuracy": 0.480824468924592,
+      "majority_baseline": 0.4057788944723618,
+      "gain_over_baseline": 0.0750455744522302
+    },
+    "vertical": {
+      "accuracy": 0.4797670528076765,
+      "majority_baseline": 0.4057788944723618,
+      "gain_over_baseline": 0.07398815833531469
+    }
+  },
+  "inter": {
+    "records": 272440,
+    "horizontal": {
+      "accuracy": 0.6238988401115843,
+      "majority_baseline": 0.6049882542945235,
+      "gain_over_baseline": 0.018910585817060732
+    },
+    "vertical": {
+      "accuracy": 0.6255138746145941,
+      "majority_baseline": 0.6049882542945235,
+      "gain_over_baseline": 0.020525620320070548
+    }
+  },
+  "inter_minus_intra_gain": {
+    "horizontal": -0.05613498863516947,
+    "vertical": -0.05346253801524414
+  }
+}

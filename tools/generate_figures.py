@@ -18,8 +18,13 @@ The data sources, and where each is read from:
 
     research/benchmark/report-v9-joint.json   the benchmark run
     models/girc-predictor.json                the shipped trained model
-    bench-out/train-pred/mixed-v8.jsonl       the encoder's own block records
-    bench-out/transform_spread.json           the transform-search spread
+    research/benchmark/transform-spread.json  the transform-search spread
+    research/benchmark/inter-predictability.json  the intra/inter study
+
+    Every input is committed, so a build from a fresh clone produces the
+    same figures. The heavier intermediates (the encoder's block records,
+    334 MB of jsonl) stay in the gitignored bench-out/; only their small
+    measured summaries are committed, next to the report they describe.
 """
 
 from __future__ import annotations
@@ -34,8 +39,7 @@ DEFAULT_OUTPUT = ROOT / "web" / "girc-site" / "assets" / "figures"
 
 REPORT = ROOT / "research" / "benchmark" / "report-v9-joint.json"
 MODEL = ROOT / "models" / "girc-predictor.json"
-RECORDS = ROOT / "bench-out" / "train-pred" / "mixed-v8.jsonl"
-SPREAD = ROOT / "bench-out" / "transform_spread.json"
+SPREAD = ROOT / "research" / "benchmark" / "transform-spread.json"
 
 #: The five transform modes, in the codec's canonical order.
 MODES = [
@@ -710,7 +714,7 @@ def fig_transform_tie(figures: list[tuple[str, str, str, int, int, str]], out: P
     f = Figure(
         "fig-transform-tie",
         "Why the mechanism is small: the rate-distortion choice between modes is close to a tie",
-        "bench-out/transform_spread.json",
+        "research/benchmark/transform-spread.json",
         900,
         260,
         "The gap between the search's best transform and the runner-up, as a percentage of the "
@@ -990,13 +994,13 @@ def fig_mismatch(figures: list[tuple[str, str, str, int, int, str]], out: Path) 
 
 def fig_inter_intra(figures: list[tuple[str, str, str, int, int, str]], out: Path) -> None:
     """Intra against inter: the hypothesis holds, and the gain is smaller for inter."""
-    spread = ROOT / "bench-out" / "inter_predictability.json"
+    spread = ROOT / "research" / "benchmark" / "inter-predictability.json"
     data = json.loads(spread.read_text(encoding="utf-8"))
 
     f = Figure(
         "fig-inter-intra",
         "Intra against inter: the hypothesis holds, and the gain is smaller for inter",
-        "bench-out/inter_predictability.json",
+        "research/benchmark/inter-predictability.json",
         900,
         280,
         "Per-axis prediction accuracy over the majority baseline: a gain of 7.5 percentage points "

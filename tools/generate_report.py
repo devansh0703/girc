@@ -22,8 +22,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REPORT = ROOT / "research" / "benchmark" / "report-v9-joint.json"
 MODEL = ROOT / "models" / "girc-predictor.json"
-SPREAD = ROOT / "bench-out" / "transform_spread.json"
-INTER = ROOT / "bench-out" / "inter_predictability.json"
+SPREAD = ROOT / "research" / "benchmark" / "transform-spread.json"
+INTER = ROOT / "research" / "benchmark" / "inter-predictability.json"
 FIGURES = ROOT / "web" / "girc-site" / "assets" / "figures"
 DEFAULT_OUTPUT = ROOT / "research" / "REPORT.md"
 

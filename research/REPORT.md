@@ -301,7 +301,7 @@ Inter prediction is implemented and measured. The inter blocks' mismatch rate is
 <figure class="chart">
   <figcaption>
     <span>Intra against inter: the hypothesis holds, and the gain is smaller for inter</span>
-    <span class="src">bench-out/inter_predictability.json</span>
+    <span class="src">research/benchmark/inter-predictability.json</span>
   </figcaption>
   <div class="plot">
     <svg viewBox="0 0 900 280" role="img" aria-label="Per-axis prediction accuracy over the majority baseline: a gain of 7.5 percentage points for the intra blocks and 1.9 for the inter blocks">
@@ -372,7 +372,7 @@ The transform choice is driven by the block's own residual, which the decoder ha
 <figure class="chart">
   <figcaption>
     <span>Why the mechanism is small: the rate-distortion choice between modes is close to a tie</span>
-    <span class="src">bench-out/transform_spread.json</span>
+    <span class="src">research/benchmark/transform-spread.json</span>
   </figcaption>
   <div class="plot">
     <svg viewBox="0 0 900 260" role="img" aria-label="The gap between the search's best transform and the runner-up, as a percentage of the best: a median of 0.67 percent and a 90th percentile of 2.64 percent">

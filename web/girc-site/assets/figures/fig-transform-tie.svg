@@ -1,7 +1,7 @@
 <figure class="chart">
   <figcaption>
     <span>Why the mechanism is small: the rate-distortion choice between modes is close to a tie</span>
-    <span class="src">bench-out/transform_spread.json</span>
+    <span class="src">research/benchmark/transform-spread.json</span>
   </figcaption>
   <div class="plot">
     <svg viewBox="0 0 900 260" role="img" aria-label="The gap between the search's best transform and the runner-up, as a percentage of the best: a median of 0.67 percent and a 90th percentile of 2.64 percent">

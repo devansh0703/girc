@@ -1,7 +1,7 @@
 <figure class="chart">
   <figcaption>
     <span>Intra against inter: the hypothesis holds, and the gain is smaller for inter</span>
-    <span class="src">bench-out/inter_predictability.json</span>
+    <span class="src">research/benchmark/inter-predictability.json</span>
   </figcaption>
   <div class="plot">
     <svg viewBox="0 0 900 280" role="img" aria-label="Per-axis prediction accuracy over the majority baseline: a gain of 7.5 percentage points for the intra blocks and 1.9 for the inter blocks">

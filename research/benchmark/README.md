@@ -11,6 +11,27 @@ which runs in CI.
 | File | What it is |
 |---|---|
 | `report-v9-joint.json` | The full benchmark over the twelve sequences: the explicit mode, the inferred mode with the shipped model, the constant predictor, the three anchor encoders, and the margin sweep. |
+| `transform-spread.json` | How close the transform choice is to a tie: the rate-distortion gap between the best mode and the runner-up, per block, on akiyo_cif at QP 27. The figure's own premise-check. |
+| `inter-predictability.json` | The intra/inter study: one model fit per axis on the intra blocks and one on the inter blocks, each against its own majority baseline. |
+
+The two summaries are committed next to the report they feed, because
+the figures read them at build time and a fresh clone must be able to
+produce every figure. Their heavy inputs — the encoder's block records,
+hundreds of megabytes of jsonl — stay in the gitignored `bench-out/`.
+
+## Reproducing the two summaries
+
+```sh
+# the transform-search spread; the tool hardcodes QP 27, the benchmark's mid QP
+cargo build --release -p girc-bench --bin transform-spread
+./target/release/transform-spread data/seq/akiyo_cif.y4m \
+    research/benchmark/transform-spread.json
+
+# the intra/inter study; needs the collected training records and scikit-learn
+PYTHONPATH=python/girc-train python3 tools/inter_predictability.py \
+    bench-out/training-mixed.jsonl \
+    research/benchmark/inter-predictability.json
+```
 
 ## What the configuration was
 
