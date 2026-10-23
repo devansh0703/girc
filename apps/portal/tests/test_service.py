@@ -24,7 +24,21 @@ from fastapi.testclient import TestClient
 from girc_eval import service
 
 ROOT = Path(__file__).resolve().parents[3]
-SEQUENCE = ROOT / "data" / "test" / "akiyo-192x192.y4m"
+
+
+def _y4m(width: int, height: int, frames: int) -> bytes:
+    """A synthetic 4:2:0 sequence, small enough for the hosted limits.
+
+    The content is a moving gradient rather than a flat field: the codec's
+    two modes must both have something to code, or the report shape check
+    would pass against a sequence that measures nothing.
+    """
+    out = [f"YUV4MPEG2 W{width} H{height} F30000:1001 Ip A1:1 C420jpeg\n".encode()]
+    for index in range(frames):
+        plane = bytes((x * 3 + y + index * 17) % 256 for y in range(height) for x in range(width))
+        chroma = bytes([128 + index] * ((width // 2) * (height // 2)))
+        out += [b"FRAME\n", plane, chroma, chroma]
+    return b"".join(out)
 
 
 @pytest.fixture(scope="module")
@@ -34,9 +48,7 @@ def client() -> TestClient:
 
 @pytest.fixture(scope="module")
 def sequence() -> bytes:
-    if not SEQUENCE.exists():
-        pytest.skip(f"no test sequence at {SEQUENCE}")
-    return SEQUENCE.read_bytes()
+    return _y4m(64, 64, 2)
 
 
 def test_the_limits_are_the_published_limits(client: TestClient) -> None:
@@ -88,6 +100,24 @@ def test_an_oversized_body_is_refused_by_the_published_limit(client: TestClient)
     assert "limit" in response.json()["detail"]
 
 
+def test_a_sequence_beyond_the_sample_limit_is_refused_by_name(client: TestClient) -> None:
+    """The compute limit is published, enforced, and the refusal names it.
+
+    A sequence that would need longer than the instance's budget is turned
+    away before the first codec run, and the message says which limit it
+    hit and that the command line has none.
+    """
+    response = client.post(
+        "/analyze",
+        files={"sequence": ("s.y4m", _y4m(352, 288, 2))},  # 202k samples, CIF-sized
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "sample" in detail
+    assert str(service.LIMITS["sample_limit"]) in detail
+    assert "command line" in detail
+
+
 def test_the_report_is_the_shape_the_benchmark_writes(
     client: TestClient, sequence: bytes
 ) -> None:
@@ -98,8 +128,9 @@ def test_the_report_is_the_shape_the_benchmark_writes(
     assert response.status_code == 200
     report = response.json()
 
-    assert report["width"] == 192
-    assert report["height"] == 192
+    assert report["width"] == 64
+    assert report["height"] == 64
+    assert report["frames"] == 2
     assert report["qps"] == list(service.QPS)
     assert len(report["points"]) == len(service.QPS)
 

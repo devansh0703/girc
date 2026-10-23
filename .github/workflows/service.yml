@@ -55,6 +55,7 @@ jobs:
           expected = {
               "body_limit_bytes": 8 * 1024 * 1024,
               "frame_limit": 64,
+              "sample_limit": 36000,
               "budget_s": 60,
               "concurrent_requests": 1,
               "retention": "none",
@@ -66,15 +67,29 @@ jobs:
           print(f"the service reports every published limit (uptime {health['uptime_s']} s)")
           PY
 
-      - name: Analyse a small recorded sequence against the deployed service
+      - name: Analyse a small sequence against the deployed service
         run: |
+          # A synthetic 64x64 two-frame gradient: small enough for the
+          # hosted instance's published sample limit, and moving enough
+          # that both signalling modes have something to code. The canary
+          # proves the service measures, not that the codec is fast.
+          python3 - <<'PY'
+          width = height = 64
+          with open("/tmp/canary.y4m", "wb") as f:
+              f.write(b"YUV4MPEG2 W64 H64 F30000:1001 Ip A1:1 C420jpeg\n")
+              for index in range(2):
+                  plane = bytes((x * 3 + y + index * 17) % 256
+                                for y in range(height) for x in range(width))
+                  chroma = bytes([128 + index] * ((width // 2) * (height // 2)))
+                  f.write(b"FRAME\n" + plane + chroma + chroma)
+          PY
           curl -fsS -o /tmp/verify.json \
-               -F "sequence=@data/test/akiyo-192x192.y4m" \
+               -F "sequence=@/tmp/canary.y4m" \
                "$SERVICE/analyze?verify=1"
           cat /tmp/verify.json
           echo
           curl -fsS -o /tmp/report.json \
-               -F "sequence=@data/test/akiyo-192x192.y4m" \
+               -F "sequence=@/tmp/canary.y4m" \
                "$SERVICE/analyze"
           head -c 400 /tmp/report.json
           echo

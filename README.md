@@ -122,9 +122,11 @@ curl -sS -o report.json \
 
 The hosted analysis runs the same codec the repository ships, on one free
 Render instance, and stores nothing: the sequence lives in the request and is
-dropped with it. Its limits — an 8 MiB body, 64 frames, a 60 s budget, one
-request at a time — are published on its own `/health` rather than discovered
-by being rejected.
+dropped with it. Its limits — an 8 MiB body, 64 frames, 36,000 luma samples,
+a 60 s budget, one request at a time — are published on its own `/health`
+rather than discovered by being rejected. The sample limit is the instance's,
+not the method's: the full report is twenty-one codec runs, and that is what
+fits one shared core inside the budget. The command line has no such limit.
 
 ## Building
 

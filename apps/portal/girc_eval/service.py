@@ -64,6 +64,13 @@ MODEL = Path(os.environ.get("GIRC_MODEL", str(ROOT / "models" / "girc-predictor.
 LIMITS = {
     "body_limit_bytes": 8 * 1024 * 1024,
     "frame_limit": 64,
+    # Luma samples (width x height x frames) the hosted run measures. The
+    # whole report is twenty-one codec runs, and the free instance finishes
+    # about four thousand samples' worth in five seconds; thirty-six
+    # thousand keeps the worst case inside the sixty-second budget with
+    # room to spare. The command line has no such limit, and the rejection
+    # says so.
+    "sample_limit": 36_000,
     "budget_s": 60,
     "concurrent_requests": 1,
     "retention": "none",
@@ -95,16 +102,23 @@ def _run(args: list[str], cwd: Path, budget: float) -> subprocess.CompletedProce
     A codec that overruns is killed rather than allowed to hold the one
     request slot for the rest of its life, because the free instance has a
     tenth of a core and a queue behind a runaway encode is worse than a
-    clean 504.
+    clean refusal. The refusal names the budget rather than reporting a
+    crash: the caller asked for more than the instance can measure.
     """
-    return subprocess.run(
-        [str(CLI), *args],
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        timeout=budget,
-        check=False,
-    )
+    try:
+        return subprocess.run(
+            [str(CLI), *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=budget,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as expired:
+        raise ValueError(
+            f"one codec run needed more than {budget:.0f} s; the hosted instance "
+            f"budgets {LIMITS['budget_s']} s for a whole analysis"
+        ) from expired
 
 
 def _y4m_dimensions(sequence: bytes) -> tuple[int, int] | None:
@@ -252,6 +266,32 @@ def analyse(sequence: bytes, budget: float = float(LIMITS["budget_s"])) -> dict:
     if frames == 0:
         raise ValueError("the Y4M holds no frames")
 
+    samples = width * height * frames
+    if samples > LIMITS["sample_limit"]:
+        raise ValueError(
+            f"the sequence is {samples} luma samples ({width}x{height}x{frames} frames); "
+            f"the hosted instance measures up to {LIMITS['sample_limit']}, because the "
+            f"whole report is twenty-one codec runs and they must fit inside its "
+            f"{LIMITS['budget_s']} s budget on one shared core. The command line has "
+            f"no such limit: see the install page."
+        )
+
+    # One deadline for the whole analysis, not one budget per codec run: a
+    # caller who brings a sequence that fits the sample limit still gets a
+    # clean refusal rather than twenty-one slow runs and a proxy error.
+    deadline = time.monotonic() + budget
+    runs = {"done": 0}
+
+    def left() -> float:
+        remaining = deadline - time.monotonic()
+        if remaining < 3.0:
+            raise ValueError(
+                f"the analysis needed more than the {LIMITS['budget_s']} s the hosted "
+                f"instance budgets for one request; {runs['done']} of the twenty-one "
+                f"codec runs had finished"
+            )
+        return remaining
+
     # The temporary directory is request-scoped: the codec reads from a path,
     # and the directory is removed when the request ends, so a sequence has
     # nowhere to outlive the request that carried it.
@@ -272,10 +312,11 @@ def analyse(sequence: bytes, budget: float = float(LIMITS["budget_s"])) -> dict:
         # Both signalling modes at every quantization parameter, so the two
         # rate axes the mechanism changes are measured and not assumed.
         for qp in QPS:
-            explicit = _encode(root, source, f"explicit-{qp}.girc", qp, "explicit", frames, None, budget)
-            inferred = _encode(root, source, f"inferred-{qp}.girc", qp, "inferred", frames, 50, budget)
-            explicit_y4m = _decode(root, explicit, "explicit", budget)
-            inferred_y4m = _decode(root, inferred, "inferred", budget)
+            explicit = _encode(root, source, f"explicit-{qp}.girc", qp, "explicit", frames, None, left())
+            inferred = _encode(root, source, f"inferred-{qp}.girc", qp, "inferred", frames, 50, left())
+            explicit_y4m = _decode(root, explicit, "explicit", left())
+            inferred_y4m = _decode(root, inferred, "inferred", left())
+            runs["done"] += 4
 
             report["points"].append(
                 {
@@ -300,8 +341,9 @@ def analyse(sequence: bytes, budget: float = float(LIMITS["budget_s"])) -> dict:
             total = 0
             for qp in QPS:
                 bitstream = _encode(
-                    root, source, f"sweep-{margin}-{qp}.girc", qp, "inferred", frames, margin, budget
+                    root, source, f"sweep-{margin}-{qp}.girc", qp, "inferred", frames, margin, left()
                 )
+                runs["done"] += 1
                 total += bitstream.stat().st_size
             report["margin_sweep"].append({"margin": margin, "total_bytes": total})
 
@@ -366,9 +408,9 @@ def form() -> str:
           </p>
           <p class="lede">
             The limits are {LIMITS['body_limit_bytes'] // 1024 // 1024} MiB of body,
-            {LIMITS['frame_limit']} frames, a {LIMITS['budget_s']} s budget and
-            one request at a time. Every figure is reproducible from the
-            repository.
+            {LIMITS['frame_limit']} frames, {LIMITS['sample_limit']:,} luma samples,
+            a {LIMITS['budget_s']} s budget and one request at a time. Every figure
+            is reproducible from the repository.
           </p>
           <form method="post" action="/analyze" enctype="multipart/form-data">
             <p><input type="file" name="sequence" accept=".y4m,video/x-raw" /></p>
