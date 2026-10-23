@@ -63,6 +63,11 @@ def test_the_uptime_is_a_number(client: TestClient) -> None:
     assert isinstance(client.get("/health").json()["uptime_s"], int)
 
 
+def test_health_answers_head(client: TestClient) -> None:
+    """Uptime monitors send HEAD, and a 405 reads as an outage to every one."""
+    assert client.head("/health").status_code == 200
+
+
 def test_the_index_is_a_form(client: TestClient) -> None:
     """A person can try the service without reading an API."""
     page = client.get("/")

@@ -448,7 +448,10 @@ def build_app():
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
         return response
 
-    @application.get("/health")
+    # HEAD is registered explicitly rather than assumed: uptime monitors
+    # send HEAD by default, and a 405 reads as an outage to every one of
+    # them even though GET answers fine.
+    @application.api_route("/health", methods=["GET", "HEAD"])
     def health():
         """Liveness, and the limits the caller is about to be held to."""
         return limits()
