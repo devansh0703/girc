@@ -1,0 +1,42 @@
+<figure class="chart">
+  <figcaption>
+    <span>The margin sweep: the rate the encoder saves against the distortion it pays</span>
+    <span class="src">research/benchmark/report-v9-joint.json · margin_sweep</span>
+  </figcaption>
+  <div class="plot">
+    <svg viewBox="0 0 900 360" role="img" aria-label="Mean Bjontegaard delta rate against the explicit mode, by margin, over twelve sequences: the best point is a margin of 50 at minus 0.236 percent">
+    <line x1="70.0" y1="280.0" x2="860.0" y2="280.0" stroke="var(--grid)" stroke-width="1.0" />
+    <text x="60.0" y="284.0" font-size="11" fill="var(--ink-faint)" text-anchor="end" font-weight="400">-0.3</text>
+    <line x1="70.0" y1="220.0" x2="860.0" y2="220.0" stroke="var(--grid)" stroke-width="1.0" />
+    <text x="60.0" y="224.0" font-size="11" fill="var(--ink-faint)" text-anchor="end" font-weight="400">-0.1</text>
+    <line x1="70.0" y1="160.0" x2="860.0" y2="160.0" stroke="var(--grid)" stroke-width="1.0" />
+    <text x="60.0" y="164.0" font-size="11" fill="var(--ink-faint)" text-anchor="end" font-weight="400">0.1</text>
+    <line x1="70.0" y1="100.0" x2="860.0" y2="100.0" stroke="var(--grid)" stroke-width="1.0" />
+    <text x="60.0" y="104.0" font-size="11" fill="var(--ink-faint)" text-anchor="end" font-weight="400">0.4</text>
+    <line x1="70.0" y1="40.0" x2="860.0" y2="40.0" stroke="var(--grid)" stroke-width="1.0" />
+    <text x="60.0" y="44.0" font-size="11" fill="var(--ink-faint)" text-anchor="end" font-weight="400">0.6</text>
+    <line x1="70.0" y1="196.0" x2="860.0" y2="196.0" stroke="var(--line-strong)" stroke-width="1.4" />
+    <text x="860.0" y="188.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="end" font-weight="400">the explicit baseline</text>
+    <polyline points="70.0,210.5 267.5,226.7 465.0,256.8 662.5,195.4 860.0,63.2" fill="none" stroke="var(--accent)" stroke-width="2.2" />
+    <circle cx="70.0" cy="210.5" r="4.5" fill="var(--accent)" />
+    <text x="70.0" y="198.5" font-size="11.5" fill="var(--ink)" text-anchor="middle" font-weight="500">-0.056</text>
+    <text x="70.0" y="300.0" font-size="11" fill="var(--ink-faint)" text-anchor="middle" font-weight="400">0</text>
+    <circle cx="267.5" cy="226.7" r="4.5" fill="var(--accent)" />
+    <text x="267.5" y="214.7" font-size="11.5" fill="var(--ink)" text-anchor="middle" font-weight="500">-0.119</text>
+    <text x="267.5" y="300.0" font-size="11" fill="var(--ink-faint)" text-anchor="middle" font-weight="400">25</text>
+    <circle cx="465.0" cy="256.8" r="4.5" fill="var(--accent)" />
+    <text x="465.0" y="244.8" font-size="11.5" fill="var(--ink)" text-anchor="middle" font-weight="500">-0.236</text>
+    <text x="465.0" y="300.0" font-size="11" fill="var(--ink-faint)" text-anchor="middle" font-weight="400">50</text>
+    <circle cx="662.5" cy="195.4" r="4.5" fill="var(--accent)" />
+    <text x="662.5" y="183.4" font-size="11.5" fill="var(--ink)" text-anchor="middle" font-weight="500">+0.002</text>
+    <text x="662.5" y="300.0" font-size="11" fill="var(--ink-faint)" text-anchor="middle" font-weight="400">100</text>
+    <circle cx="860.0" cy="63.2" r="4.5" fill="var(--accent)" />
+    <text x="860.0" y="51.2" font-size="11.5" fill="var(--ink)" text-anchor="middle" font-weight="500">+0.515</text>
+    <text x="860.0" y="300.0" font-size="11" fill="var(--ink-faint)" text-anchor="middle" font-weight="400">200</text>
+    <text x="465.0" y="290.8" font-size="11.5" fill="var(--sev-ok)" text-anchor="middle" font-weight="400">the optimum on this content</text>
+    <text x="14.0" y="24.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">BD-rate, %</text>
+    <text x="465.0" y="324.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="middle" font-weight="400">margin, in rate-distortion cost units</text>
+    <text x="70.0" y="24.0" font-size="12" fill="var(--ink-faint)" text-anchor="start" font-weight="400">negative is smaller than the explicit mode</text>
+    </svg>
+  </div>
+</figure>

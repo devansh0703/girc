@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Install — GIRC</title>
+    <meta
+      name="description"
+      content="Build the GIRC codec, the training pipeline and the benchmark from source in a few commands, and run the benchmark on your own content."
+    />
+    <link rel="stylesheet" href="assets/site.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23f3f1ea'/><path d='M5 22 L12 10 L19 22 L26 10' stroke='%239c5c14' stroke-width='2.5' fill='none'/></svg>"
+    />
+    <script is:inline>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('girc-theme');
+        } catch (e) {
+          stored = null;
+        }
+        // Light is the default. Dark happens only when a reader chose it
+        // here and it was remembered: the site has one default and the
+        // operating system does not get to move it.
+        var theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="index.html"><i class="ph ph-waveform"></i>GIRC<span>.</span>dev</a>
+        <nav class="site">
+          <a href="index.html">Overview</a>
+          <a href="method.html">Method</a>
+          <a href="install.html" aria-current="page">Install</a>
+          <a href="results.html">Results</a>
+          <a href="docs.html">Docs</a>
+          <a href="research.html">Research</a>
+          <a href="service.html">Service</a>
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
+            <i class="ph ph-moon"></i>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="wrap narrow">
+        <section class="hero">
+          <div class="section-label">Install · build it yourself</div>
+          <h1>Three commands, and the codec is on your machine.</h1>
+          <p class="lede">
+            Everything is in one repository and every command below is the one the documentation
+            and the CI both use. There is no package to install and no hosted-only feature: the
+            code the service runs is the code here.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="https://github.com/devansh0703/girc">Clone the repository</a>
+            <a class="btn" href="#benchmark">Run the benchmark</a>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-label">The codec</div>
+          <h2>Build and test</h2>
+          <pre><code>git clone https://github.com/devansh0703/girc
+cd girc
+cargo build --release --workspace
+cargo test --workspace</code></pre>
+          <p>
+            The test suite checks the integer transforms against Fraunhofer HHI's VVenC bit for bit,
+            across all twelve transform and size combinations, and checks the chroma quantization
+            parameter mapping against the same reference implementation for every quantization
+            parameter. It needs the reference implementation:
+          </p>
+          <pre><code>git clone --depth 1 --branch v1.14.0 \
+    https://github.com/fraunhoferhhi/vvenc.git data/tools/vvenc-src
+cmake -S data/tools/vvenc-src -B data/tools/vvenc-src/build \
+    -DCMAKE_BUILD_TYPE=Release
+cmake --build data/tools/vvenc-src/build --config Release -j "$(nproc)"
+./tools/generate_transform_oracle.sh
+./tools/generate_chroma_qp_oracle.sh
+cargo test -p girc-core transform
+cargo test -p girc-core chroma_qp</code></pre>
+          <p>
+            The reference encoders' oracles are generated from VVenC's own kernels rather than from
+            the standard's text, so the check is against the implementation a codec team would
+            actually build against.
+          </p>
+        </section>
+
+        <section>
+          <div class="section-label">Encode and decode</div>
+          <h2>The command line</h2>
+          <pre><code>./target/release/girc-cli encode input.y4m --output out.girc --qp 27
+./target/release/girc-cli decode out.girc --output out.y4m
+./target/release/girc-cli inspect out.girc</code></pre>
+          <p>
+            The <code>--inferred</code> flag selects the signalling mode. Without it the encoder
+            writes the explicit mode, which is the clean rate-distortion optimum the inferred mode is
+            measured against.
+          </p>
+          {{FIGURE:fig-syntax}}
+          {{FIGURE:fig-causal-window}}
+        </section>
+
+        <section id="benchmark">
+          <div class="section-label">The benchmark</div>
+          <h2>Measure it on your own content</h2>
+          <pre><code>source tools/benchmark_env.sh
+
+./target/release/girc-bench \
+    --sequence data/seq/foreman_cif.y4m \
+    --qps 22,27,32,37 \
+    --model models/girc-predictor.json \
+    --margin 50 \
+    --anchors x265,svt-av1,vvenc \
+    --margin-sweep 0,2,5,10,20,50,100,500 \
+    --report bench-out/report.json</code></pre>
+          <p>
+            The report records the tool versions it ran against, so a number can be traced to the
+            state that produced it. Point <code>--sequence</code> at your own material and the
+            comparison runs on your content rather than only on the twelve CIF sequences the
+            published figures come from.
+          </p>
+          {{FIGURE:fig-benchmark-apparatus}}
+        </section>
+
+        <section>
+          <div class="section-label">The training pipeline</div>
+          <h2>Fit your own predictor</h2>
+          <pre><code>pip install -r python/girc-train/requirements.txt
+export PYTHONPATH=python/girc-train
+
+python3 -m girc_train collect --sequences data/seq/*.y4m \
+    --output bench-out/training.jsonl
+python3 -m girc_train fit --input bench-out/training.jsonl \
+    --output models/girc-predictor.json</code></pre>
+          <p>
+            The collection pass runs the encoder itself, so the training set is the encoder's actual
+            behaviour and not a proxy for it, and the features are taken from the reconstructed
+            neighbourhood exactly as the decoder will see them. The fit runs on the GPU when one is
+            present and on the CPU when it is not, and the two agree on the result: the same data
+            gives 50.17% test accuracy on the GPU and 50.18% on the CPU.
+          </p>
+          <pre><code>uv pip install --python .venv/bin/python \
+    -r python/girc-train/requirements-gpu.txt</code></pre>
+          <p>
+            The model records which backend produced it, in
+            <code>training.estimator_backend</code>, so a fit is attributable. The predictability
+            ceiling is a gradient-boosted tree, which stays on the CPU because cuML has no histogram
+            gradient boosting.
+          </p>
+          {{FIGURE:fig-architecture}}
+        </section>
+
+        <section>
+          <div class="section-label">Run your own figures</div>
+          <h2>Regenerate the site's figures</h2>
+          <p>
+            Every figure on this site is generated from a committed artifact by one script, so you
+            can check that a figure you are looking at is the one your run produces:
+          </p>
+          <pre><code>.venv/bin/python tools/generate_figures.py
+.venv/bin/python tools/assemble_site.py
+.venv/bin/python tools/verify_benchmark_numbers.py \
+    research/benchmark/report-v9-joint.json</code></pre>
+          <p>
+            The third command is the one that matters most: it reads the benchmark report and checks
+            that every figure the documents quote is the one the report holds. It has caught a number
+            changed in one place and not in the others, which is exactly the drift a project whose
+            value is checkable claims cannot afford.
+          </p>
+          {{FIGURE:fig-mode-distribution}}
+          <div class="cta">
+            <a class="btn primary" href="https://github.com/devansh0703/girc/archive/refs/heads/master.tar.gz">
+              <i class="ph ph-download-simple"></i>Download the source
+            </a>
+            <a class="btn" href="docs.html">The reproducibility manifest</a>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>GIRC is Apache-2.0. The patent materials are published, not licensed.</div>
+        <div>
+          <a href="index.html">Overview</a>
+          <a href="method.html">Method</a>
+          <a href="results.html">Results</a>
+          <a href="mailto:devanshraulo@gmail.com">devanshraulo@gmail.com</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const button = document.getElementById('theme-toggle');
+      const icon = button?.querySelector('i');
+      function paint() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (icon) icon.className = dark ? 'ph ph-sun' : 'ph ph-moon';
+        button?.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+      }
+      button?.addEventListener('click', () => {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+        try {
+          localStorage.setItem('girc-theme', dark ? 'light' : 'dark');
+        } catch (e) {}
+        paint();
+      });
+      paint();
+    </script>
+  </body>
+</html>

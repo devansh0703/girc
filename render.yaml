@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The service's own manifest. Render reads this file directly, so the deployed
+# configuration is in the repository rather than only in a dashboard: what is
+# running can be compared with what is committed.
+#
+# One service, on purpose. A Render workspace gets 750 free instance hours per
+# calendar month across every free service, and a month is 730-744 hours, so
+# exactly one always-on free service fits. Everything the hosted product does
+# lives on this one instance rather than being split across several.
+#
+# The service builds the Rust codec itself, because the hosted analysis is the
+# codec and not a second implementation of it: the numbers over HTTP have to be
+# the numbers the command line produces.
+services:
+  - type: web
+    name: girc-portal
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./deploy/Dockerfile.service
+    dockerContext: .
+    branch: master
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Render also injects PORT; stating it here keeps the two in step.
+      - key: PORT
+        value: "8000"
+      # Where the codec binary and the shipped model are built from, so the
+      # service is a deployment of the repository and not a fork of it.
+      - key: GIRC_MODEL
+        value: /app/models/girc-predictor.json
+      # A free instance has a tenth of a core, so the build is serialised
+      # rather than parallelised: -j 2 is what fits.
+      - key: GIRC_BUILD_JOBS
+        value: "2"

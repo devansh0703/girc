@@ -1,0 +1,28 @@
+<figure class="chart">
+  <figcaption>
+    <span>What the signalling costs per block, against the explicit syntax it replaces</span>
+    <span class="src">research/benchmark/report-v9-joint.json · results, models/girc-predictor.json</span>
+  </figcaption>
+  <div class="plot">
+    <svg viewBox="0 0 900 300" role="img" aria-label="Signalling bins per block: the explicit syntax costs 2.12 bins, the constant predictor 1.99, the learned model 1.97, and the oracle one bin">
+    <rect x="330.0" y="52.0" width="520.0" height="30.0" fill="var(--ink-dim)" stroke="var(--line-strong)" stroke-width="0.5" opacity="0.9" />
+    <text x="860.0" y="72.0" font-size="12" fill="var(--ink)" text-anchor="start" font-weight="500">2.09 bins</text>
+    <text x="330.0" y="44.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">the explicit mode, the standard's own mts_idx syntax</text>
+    <text x="330.0" y="96.0" font-size="10.5" fill="var(--ink-faint)" text-anchor="start" font-weight="400">the baseline</text>
+    <rect x="330.0" y="108.0" width="498.3" height="30.0" fill="var(--sev-info)" stroke="var(--line-strong)" stroke-width="0.5" opacity="0.9" />
+    <text x="838.3" y="128.0" font-size="12" fill="var(--ink)" text-anchor="start" font-weight="500">2.00 bins</text>
+    <text x="330.0" y="100.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">the constant predictor, always the plain DCT-II</text>
+    <text x="330.0" y="152.0" font-size="10.5" fill="var(--ink-faint)" text-anchor="start" font-weight="400">no training, no model</text>
+    <rect x="330.0" y="164.0" width="460.8" height="30.0" fill="var(--accent)" stroke="var(--line-strong)" stroke-width="0.5" opacity="0.9" />
+    <text x="800.8" y="184.0" font-size="12" fill="var(--ink)" text-anchor="start" font-weight="500">1.85 bins</text>
+    <text x="330.0" y="156.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">the shipped learned model</text>
+    <text x="330.0" y="208.0" font-size="10.5" fill="var(--ink-faint)" text-anchor="start" font-weight="400">the mechanism as shipped</text>
+    <rect x="330.0" y="220.0" width="248.9" height="30.0" fill="var(--sev-critical)" stroke="var(--line-strong)" stroke-width="0.5" opacity="0.9" />
+    <text x="588.9" y="240.0" font-size="12" fill="var(--ink)" text-anchor="start" font-weight="500">1.00 bins</text>
+    <text x="330.0" y="212.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">the oracle, which cannot be built</text>
+    <text x="330.0" y="264.0" font-size="10.5" fill="var(--ink-faint)" text-anchor="start" font-weight="400">the ceiling</text>
+    <text x="18.0" y="24.0" font-size="12" fill="var(--ink-dim)" text-anchor="start" font-weight="400">the correction is coded relative to the prediction, so a wrong answer costs three bins rather than two</text>
+    <text x="880.0" y="24.0" font-size="11" fill="var(--ink-faint)" text-anchor="end" font-weight="400">760,320 blocks, the benchmark's own count</text>
+    </svg>
+  </div>
+</figure>

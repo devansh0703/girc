@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Research — GIRC</title>
+    <meta
+      name="description"
+      content="The method behind GIRC, the evidence for it, and the prior art: what the ten references disclose and what the rate-distortion margin adds that none of them reach."
+    />
+    <link rel="stylesheet" href="assets/site.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23f3f1ea'/><path d='M5 22 L12 10 L19 22 L26 10' stroke='%239c5c14' stroke-width='2.5' fill='none'/></svg>"
+    />
+    <script is:inline>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('girc-theme');
+        } catch (e) {
+          stored = null;
+        }
+        // Light is the default. Dark happens only when a reader chose it
+        // here and it was remembered: the site has one default and the
+        // operating system does not get to move it.
+        var theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="index.html"><i class="ph ph-waveform"></i>GIRC<span>.</span>dev</a>
+        <nav class="site">
+          <a href="index.html">Overview</a>
+          <a href="method.html">Method</a>
+          <a href="install.html">Install</a>
+          <a href="results.html">Results</a>
+          <a href="docs.html">Docs</a>
+          <a href="research.html" aria-current="page">Research</a>
+          <a href="service.html">Service</a>
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
+            <i class="ph ph-moon"></i>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="wrap">
+        <section class="hero">
+          <div class="section-label">Research · the other half of this site</div>
+          <h1>The evidence, published next to the product rather than behind it.</h1>
+          <p class="lede">
+            This is not a company describing a product it wants you to trust. It is one maintainer
+            publishing a measurement, the checks on it, and the prior art it has to be read against.
+            The product pages sell the thing; these pages are the reason to believe it, and they are
+            the reason to disbelieve parts of it.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="https://github.com/devansh0703/girc/tree/master/research/patent-package">
+              <i class="ph ph-scales"></i>The patent package
+            </a>
+            <a class="btn" href="results.html"><i class="ph ph-chart-line"></i>The measurements</a>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-label">The method</div>
+          <h2>The mechanism, and the one thing it does that the standard does not</h2>
+          <p>
+            VVC already has implicit multiple transform selection: it derives the transform type from
+            already-coded information, the block size and the neighbour availability, and spends zero
+            bits on it. GIRC generalises that. Instead of deriving the transform from a fixed table
+            indexed by syntax, it predicts it from the geometry the decoder has reconstructed, and
+            when the prediction is wrong it codes a correction relative to the prediction rather than
+            the type itself.
+          </p>
+          <p>
+            That second part is the mechanism, and it is what makes the design worth having. The naive
+            form spends a bin on the correction and then the full type again, which is three bins
+            against the explicit mode's two. Coding the correction relative to the prediction brings
+            it back to two, so an override never costs more than the signalling it replaces.
+          </p>
+          {{FIGURE:fig-causal-window}}
+          {{FIGURE:fig-syntax}}
+        </section>
+
+        <section>
+          <div class="section-label">The result</div>
+          <h2>What was measured, and what it does not show</h2>
+          <p>
+            The published result is −0.236% on the luma plane at the margin of 50, over twelve CIF
+            sequences at four quantization parameters. It is a small win, and the reason is
+            measurable: the transform mode is a near-tie in rate-distortion terms, so the predictability
+            ceiling of the feature set is 50.65% against a 50.10% majority class. There is little for a
+            predictor to predict.
+          </p>
+          <p>
+            The mechanism is therefore a signalling-removal technique whose value grows with the number
+            of transform choices and with how evenly they are distributed. A codec with a richer
+            residual coder, where the modes separate more, is where it should pay. That is an open
+            question, and it is stated as one.
+          </p>
+          {{FIGURE:fig-margin-sweep}}
+          {{FIGURE:fig-predictability}}
+        </section>
+
+        <section>
+          <div class="section-label">The prior art</div>
+          <h2>What the ten references disclose, and what none of them reach</h2>
+          <p>
+            The claim text of ten references was extracted from the publications themselves and read.
+            Every quotation in the claim chart is checked against the extracted text by the test suite,
+            so the chart cannot quote a document it did not read.
+          </p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Element</th>
+                  <th>Found in</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>E1 · implicit derivation of the transform</td>
+                  <td>10 of 10 references</td>
+                </tr>
+                <tr>
+                  <td>E2 · reconstructed-neighbourhood geometry</td>
+                  <td>3 of 10 references</td>
+                </tr>
+                <tr>
+                  <td>E3 · per-axis selection</td>
+                  <td>6 of 10 references</td>
+                </tr>
+                <tr>
+                  <td>E4 · the rate-distortion margin</td>
+                  <td class="good">0 of 10 references</td>
+                </tr>
+                <tr>
+                  <td>E5 · trained prediction</td>
+                  <td>2 of 10 references</td>
+                </tr>
+                <tr>
+                  <td>E6 · prediction-relative correction</td>
+                  <td>2 of 10 references</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            No claim in any of them reads a threshold, a margin, a sub-optimal choice, or a trade of
+            distortion against signalling. The closest prior art reports the same kind of result:
+            InterDigital's EP3977732B1 reports +0.34% overall for its implicit transform design,
+            against an MTS-disabled anchor.
+          </p>
+          {{FIGURE:fig-transform-tie}}
+          <div class="callout">
+            <div class="callout-title">What this is not</div>
+            <p>
+              A claim-level prior-art search is not a freedom-to-operate opinion. The national phase
+              filings of the families in the set were not searched, and a counsel-led search is still
+              required before anything is filed or licensed.
+            </p>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-label">Reproducibility</div>
+          <h2>Every figure traces to a state</h2>
+          <p>
+            The reproducibility manifest records the repository commit, the toolchain versions, the
+            reference codec versions, the checksums of the twelve test sequences and the checksums of
+            every artifact. A figure can therefore be traced to the state that produced it.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="https://github.com/devansh0703/girc/blob/master/research/patent-package/REPRODUCIBILITY.md">
+              The reproducibility manifest
+            </a>
+            <a class="btn" href="https://github.com/devansh0703/girc/blob/master/research/patent-package/PRIOR_ART.md">
+              The prior-art report
+            </a>
+          </div>
+          {{FIGURE:fig-benchmark-apparatus}}
+        </section>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>GIRC — Geometry-Inference Codec.</div>
+        <div>
+          <a href="index.html">Overview</a>
+          <a href="method.html">Method</a>
+          <a href="results.html">Results</a>
+          <a href="mailto:devanshraulo@gmail.com">devanshraulo@gmail.com</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const button = document.getElementById('theme-toggle');
+      const icon = button?.querySelector('i');
+      function paint() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (icon) icon.className = dark ? 'ph ph-sun' : 'ph ph-moon';
+        button?.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+      }
+      button?.addEventListener('click', () => {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+        try {
+          localStorage.setItem('girc-theme', dark ? 'light' : 'dark');
+        } catch (e) {}
+        paint();
+      });
+      paint();
+    </script>
+  </body>
+</html>

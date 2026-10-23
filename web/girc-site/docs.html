@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Docs — GIRC</title>
+    <meta
+      name="description"
+      content="Every document in the GIRC repository, what it covers, and the command that produces it."
+    />
+    <link rel="stylesheet" href="assets/site.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23f3f1ea'/><path d='M5 22 L12 10 L19 22 L26 10' stroke='%239c5c14' stroke-width='2.5' fill='none'/></svg>"
+    />
+    <script is:inline>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('girc-theme');
+        } catch (e) {
+          stored = null;
+        }
+        // Light is the default. Dark happens only when a reader chose it
+        // here and it was remembered: the site has one default and the
+        // operating system does not get to move it.
+        var theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="index.html"><i class="ph ph-waveform"></i>GIRC<span>.</span>dev</a>
+        <nav class="site">
+          <a href="index.html">Overview</a>
+          <a href="method.html">Method</a>
+          <a href="install.html">Install</a>
+          <a href="results.html">Results</a>
+          <a href="docs.html" aria-current="page">Docs</a>
+          <a href="research.html">Research</a>
+          <a href="service.html">Service</a>
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
+            <i class="ph ph-moon"></i>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="wrap">
+        <section class="hero">
+          <div class="section-label">Docs · every document, and what it is for</div>
+          <h1>Nothing here is a document you have to take on trust.</h1>
+          <p class="lede">
+            Every page in this repository names the artifact it came from, and every artifact can be
+            regenerated from the repository. The list below is the map: what each document is, and
+            the command that produces the numbers in it.
+          </p>
+        </section>
+
+        <section>
+          <div class="section-label">Start here</div>
+          <h2>The front door</h2>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Document</th>
+                  <th>What it is</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><a href="https://github.com/devansh0703/girc#readme">README.md</a></td>
+                  <td>The product's front door: what it is, the result stated honestly, the build, the benchmark, and what it is not.</td>
+                </tr>
+                <tr>
+                  <td><a href="https://github.com/devansh0703/girc/blob/master/TODOS.md">TODOS.md</a></td>
+                  <td>The work record, with the open items stated rather than cut.</td>
+                </tr>
+                <tr>
+                  <td><a href="https://github.com/devansh0703/girc/blob/master/NOTICE">NOTICE</a></td>
+                  <td>The third-party notices, and what each dependency is used for.</td>
+                </tr>
+                <tr>
+                  <td><a href="https://github.com/devansh0703/girc/blob/master/LICENSE">LICENSE</a></td>
+                  <td>Apache-2.0, the whole of the code.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {{FIGURE:fig-architecture}}
+        </section>
+
+        <section>
+          <div class="section-label">The evidence</div>
+          <h2>The artifacts the documents quote</h2>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Artifact</th>
+                  <th>What it holds</th>
+                  <th>Produced by</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>research/benchmark/report-v9-joint.json</code></td>
+                  <td>The full benchmark over the twelve sequences: both modes, the constant predictor, the three anchors, and the margin sweep.</td>
+                  <td><code>girc-bench</code></td>
+                </tr>
+                <tr>
+                  <td><code>models/girc-predictor.json</code></td>
+                  <td>The shipped model: the weights, the class names, the training record, the data checksum and the backend that produced it.</td>
+                  <td><code>girc_train fit</code></td>
+                </tr>
+                <tr>
+                  <td><code>bench-out/train-pred/mixed-v8.jsonl</code></td>
+                  <td>570,240 real block records: the features and the transform the encoder's own search chose.</td>
+                  <td><code>girc_train collect</code></td>
+                </tr>
+                <tr>
+                  <td><code>bench-out/transform_spread.json</code></td>
+                  <td>The gap between the search's best transform and the runner-up, which is why the mechanism is small.</td>
+                  <td><code>tools/composition_probe.py</code></td>
+                </tr>
+                <tr>
+                  <td><code>bench-out/inter_predictability.json</code></td>
+                  <td>Per-axis prediction accuracy for the intra and inter blocks separately.</td>
+                  <td><code>tools/inter_predictability.py</code></td>
+                </tr>
+                <tr>
+                  <td><code>web/girc-site/assets/figures/*.svg</code></td>
+                  <td>Every figure on this site, generated rather than drawn.</td>
+                  <td><code>tools/generate_figures.py</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {{FIGURE:fig-margin-sweep}}
+        </section>
+
+        <section>
+          <div class="section-label">The checks</div>
+          <h2>What the CI proves, and what each check is for</h2>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Check</th>
+                  <th>What it catches</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>cargo test --workspace</code></td>
+                  <td>78 tests: the transforms against VVenC, the chroma QP mapping against VVenC, the bitstream round trip, and the shipped model's own behaviour.</td>
+                </tr>
+                <tr>
+                  <td><code>tools/check_mts_syntax.py</code></td>
+                  <td>The transform signalling against the reference encoder's own output over 187,834 transform units.</td>
+                </tr>
+                <tr>
+                  <td><code>tools/verify_benchmark_numbers.py</code></td>
+                  <td>A figure quoted in a document that is not the figure in the report.</td>
+                </tr>
+                <tr>
+                  <td><code>tools/verify_claim_charts.py</code></td>
+                  <td>A quotation in the claim chart that is not in the extracted claim text.</td>
+                </tr>
+                <tr>
+                  <td><code>tools/check_site_links.py</code></td>
+                  <td>A link in the assembled site that does not resolve.</td>
+                </tr>
+                <tr>
+                  <td><code>tools/assemble_site.py</code></td>
+                  <td>A figure carried by no page, a page with fewer than two figures, a placeholder address, or a dark default theme.</td>
+                </tr>
+                <tr>
+                  <td><code>tools/check_design_contract.py</code></td>
+                  <td>A rule of the design system that has drifted.</td>
+                </tr>
+                <tr>
+                  <td><code>pytest apps/portal/tests</code></td>
+                  <td>24 tests of the portal: the agreement gate, the download token, the audit log, the rate limit.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {{FIGURE:fig-signalling-bins}}
+        </section>
+
+        <section>
+          <div class="section-label">The patent materials</div>
+          <h2>Published rather than gated</h2>
+          <p>
+            The disclosure, the claim set and the prior-art analysis are in the repository under
+            <code>research/patent-package/</code>, and the claim text of the ten references was
+            extracted from the publications themselves rather than summarised. Every quotation in the
+            chart is checked against the extracted text by the test suite.
+          </p>
+          <p>
+            They are published because the value of this project is that its claims can be checked.
+            A claim behind an agreement is a claim nobody has checked.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="research.html">The research pages</a>
+            <a class="btn" href="https://github.com/devansh0703/girc/tree/master/research/patent-package">The patent package</a>
+          </div>
+          {{FIGURE:fig-evaluation-lifecycle}}
+        </section>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>GIRC — Geometry-Inference Codec.</div>
+        <div>
+          <a href="index.html">Overview</a>
+          <a href="method.html">Method</a>
+          <a href="results.html">Results</a>
+          <a href="mailto:devanshraulo@gmail.com">devanshraulo@gmail.com</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const button = document.getElementById('theme-toggle');
+      const icon = button?.querySelector('i');
+      function paint() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (icon) icon.className = dark ? 'ph ph-sun' : 'ph ph-moon';
+        button?.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+      }
+      button?.addEventListener('click', () => {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+        try {
+          localStorage.setItem('girc-theme', dark ? 'light' : 'dark');
+        } catch (e) {}
+        paint();
+      });
+      paint();
+    </script>
+  </body>
+</html>

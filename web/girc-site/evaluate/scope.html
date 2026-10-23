@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scope — GIRC Evaluate</title>
+    <meta
+      name="description"
+      content="What a GIRC evaluation covers and what it does not: the mechanism, the predictor, the margin, the benchmark harness, and the honest boundary of the claim."
+    />
+    <link rel="stylesheet" href="../assets/site.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23f3f1ea'/><path d='M5 22 L12 10 L19 22 L26 10' stroke='%239c5c14' stroke-width='2.5' fill='none'/></svg>"
+    />
+    <script is:inline>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('girc-theme');
+        } catch (e) {
+          stored = null;
+        }
+        // Light is the default. Dark happens only when a reader chose it
+        // here and it was remembered: the site has one default and the
+        // operating system does not get to move it.
+        var theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="../index.html"><i class="ph ph-waveform"></i>GIRC<span>.</span>dev</a>
+        <nav class="site">
+          <a href="index.html">Evaluate</a>
+          <a href="process.html">Process</a>
+          <a href="scope.html" aria-current="page">Scope</a>
+          <a href="https://girc-portal.onrender.com/">The portal</a>
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
+            <i class="ph ph-moon"></i>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="wrap narrow">
+        <section class="hero">
+          <div class="section-label">Scope</div>
+          <h1>What the evaluation covers, and what it does not.</h1>
+          <p class="lede">
+            Stating the boundary precisely is what makes the result usable. A patent attorney and a
+            codec engineer both need to know exactly what was and was not tested.
+          </p>
+        </section>
+
+        <section>
+          <div class="section-label">Covered</div>
+          <h2>What is in scope</h2>
+          <div class="grid">
+            <div class="cell">
+              <h3>The mechanism</h3>
+              <p>
+                The geometry-inference transform signalling, in the explicit and inferred forms, in
+                the reference implementation. Both syntaxes, and the rate the explicit mode costs
+                per block against the standard's own.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>The predictor</h3>
+              <p>
+                The training method, the training set, the resulting model, the predictability
+                ceiling over the same features, and the reproducibility manifest.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>The margin</h3>
+              <p>
+                The encoder's trade between signalling the transform and distorting the
+                reconstruction, swept rather than fixed, and reported as the whole trade.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>The benchmark harness</h3>
+              <p>
+                So the evaluation can be reproduced on your own content and against your own
+                encoders, with the anchor codecs and the Bjontegaard implementation included.
+              </p>
+            </div>
+          </div>
+          {{FIGURE:fig-margin-sweep}}
+        </section>
+
+        <section>
+          <div class="section-label">Not covered</div>
+          <h2>What is out of scope</h2>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Out of scope</th>
+                  <th>Why</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>A VVC-conformant bitstream</td>
+                  <td>GIRC's format is its own. The evaluation is about the mechanism rather than about interoperability, and a conformant stream would mean a conformant H.266 encoder, which is a different and much larger piece of work.</td>
+                </tr>
+                <tr>
+                  <td>A performance claim</td>
+                  <td>GIRC is a research codec with a small mode set and integer-sample motion. The anchor comparison is context, and the scale of the gap is published rather than hidden.</td>
+                </tr>
+                <tr>
+                  <td>Any grant of rights</td>
+                  <td>The evaluation grants no licence and no assignment. A licence is a separate conversation that follows the evaluation.</td>
+                </tr>
+                <tr>
+                  <td>A freedom-to-operate opinion</td>
+                  <td>A claim-level public-record search is not an FTO opinion, and the national phase filings of the families in the set were not searched. That needs a patent attorney.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {{FIGURE:fig-anchor-gap}}
+        </section>
+
+        <section>
+          <div class="section-label">The open question</div>
+          <h2>What we would most like to learn</h2>
+          <p>
+            The mechanism's published result is a 0.236% saving over twelve sequences, and the reason
+            it is not larger is measurable: the joint transform mode is barely predictable from the
+            causal neighbourhood, because the rate-distortion choice between the modes is close to a
+            tie. The explicit signalling is already nearly free for a context-adaptive coder to code,
+            so the distortion the inference costs comes close to the rate it saves.
+          </p>
+          <p>
+            That is the number the evaluation is meant to move, and the three things most likely to
+            move it are outside what GIRC can test.
+          </p>
+          <div class="grid-2">
+            <div class="panel">
+              <h3><i class="ph ph-arrows-out"></i>A larger transform set</h3>
+              <p>
+                The overhead the mechanism removes grows with the number of choices to signal and
+                with how evenly they are distributed, so a codec with more transform types has more to
+                save.
+              </p>
+            </div>
+            <div class="panel">
+              <h3><i class="ph ph-film-strip"></i>Inter prediction</h3>
+              <p>
+                A motion-compensated residual carries the motion vector's structure, which is more
+                directional and more predictable from the causal neighbourhood than an intra residual.
+              </p>
+            </div>
+            <div class="panel">
+              <h3><i class="ph ph-grid-four"></i>A richer residual coder</h3>
+              <p>
+                The modes separate more when the residual coder is richer, so the rate-distortion
+                choice stops being a tie and the predictor has something to find.
+              </p>
+            </div>
+            <div class="panel">
+              <h3><i class="ph ph-square-half"></i>Signalling at a coarser grain</h3>
+              <p>
+                One transform per region rather than per block makes the prediction easier and the
+                overhead larger.
+              </p>
+            </div>
+          </div>
+          {{FIGURE:fig-predictability}}
+          <div class="cta">
+            <a class="btn primary" href="https://girc-portal.onrender.com/">Open the portal</a>
+            <a class="btn" href="process.html">How the evaluation runs</a>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>GIRC — Geometry-Inference Codec.</div>
+        <div>
+          <a href="index.html">Evaluate</a>
+          <a href="process.html">Process</a>
+          <a href="../index.html">The codec</a>
+          <a href="mailto:devanshraulo@gmail.com">devanshraulo@gmail.com</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const button = document.getElementById('theme-toggle');
+      const icon = button?.querySelector('i');
+      function paint() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (icon) icon.className = dark ? 'ph ph-sun' : 'ph ph-moon';
+        button?.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+      }
+      button?.addEventListener('click', () => {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+        try {
+          localStorage.setItem('girc-theme', dark ? 'light' : 'dark');
+        } catch (e) {}
+        paint();
+      });
+      paint();
+    </script>
+  </body>
+</html>

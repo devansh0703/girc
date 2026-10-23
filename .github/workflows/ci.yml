@@ -147,9 +147,57 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install --upgrade pip
+
       - name: Check that every page links to a page that exists
         run: |
           python3 tools/check_site_links.py
+
+      - name: Generate every figure from the committed artifacts
+        run: |
+          # The figures are generated rather than drawn, so a build without
+          # the artifacts that produce them fails here rather than shipping a
+          # page with a blank where a measurement belongs.
+          python3 tools/generate_figures.py
+          python3 tools/generate_report.py
+
+      - name: Check the site against the design contract
+        run: |
+          python3 tools/check_design_contract.py
+
+      - name: Assemble the site and check the figures resolve
+        run: |
+          python3 tools/assemble_site.py
+
+      - name: Check that no built page carries an invented address
+        run: |
+          # A demo address on a product site is a message nobody receives.
+          if grep -rniE 'example\.com|example\.org|@example\.|\.invalid|lorem ipsum|coming soon' \
+               build/site --include='*.html'; then
+            echo "::error::a built page carries a placeholder"
+            exit 1
+          fi
+          # The real address is the only contact detail on the site.
+          if ! grep -rq 'devanshraulo@gmail.com' build/site --include='*.html'; then
+            echo "::error::the site does not name the real contact address"
+            exit 1
+          fi
+          echo "the real address is the only contact detail on the site"
+
+      - name: Check that the report was regenerated and not hand-edited
+        run: |
+          # The report is generated, so a committed report that differs from
+          # the generated one is a report somebody edited by hand.
+          if ! git diff --quiet -- research/REPORT.md; then
+            git diff --stat -- research/REPORT.md
+            echo "::error::research/REPORT.md is generated; commit the regenerated version"
+            exit 1
+          fi
+          echo "the report is the generated one"
 
   deployment:
     name: Deployment

@@ -1,0 +1,13 @@
+# The hosted analysis service's dependencies.
+#
+# The portal's own requirements (apps/portal/requirements.txt) carry the
+# database driver and the rate limiter's client, which the analysis does not
+# use: it holds no state and keeps no database. This file is the smaller set
+# the service actually needs, so the deployed image is the smaller image.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+jinja2>=3.1
+python-multipart>=0.0.9
+pydantic>=2.7
+httpx>=0.27
+pytest>=8.0

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Process — GIRC Evaluate</title>
+    <meta
+      name="description"
+      content="How a GIRC evaluation runs: register, sign the agreement, request, download the gated artifacts, submit results, with an append-only audit log throughout."
+    />
+    <link rel="stylesheet" href="../assets/site.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23f3f1ea'/><path d='M5 22 L12 10 L19 22 L26 10' stroke='%239c5c14' stroke-width='2.5' fill='none'/></svg>"
+    />
+    <script is:inline>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('girc-theme');
+        } catch (e) {
+          stored = null;
+        }
+        // Light is the default. Dark happens only when a reader chose it
+        // here and it was remembered: the site has one default and the
+        // operating system does not get to move it.
+        var theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="../index.html"><i class="ph ph-waveform"></i>GIRC<span>.</span>dev</a>
+        <nav class="site">
+          <a href="index.html">Evaluate</a>
+          <a href="process.html" aria-current="page">Process</a>
+          <a href="scope.html">Scope</a>
+          <a href="https://girc-portal.onrender.com/">The portal</a>
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
+            <i class="ph ph-moon"></i>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="wrap narrow">
+        <section class="hero">
+          <div class="section-label">Process</div>
+          <h1>Five steps, and an audit log throughout.</h1>
+          <p class="lede">
+            The portal implements the evaluation lifecycle end to end. Every state change is recorded
+            with the actor, the time and the address it came from.
+          </p>
+        </section>
+
+        <section>
+          <div class="section-label">The lifecycle</div>
+          <h2>Register, agree, request, download, submit</h2>
+          {{FIGURE:fig-evaluation-lifecycle}}
+          <div class="flow">
+            <div class="flow-row">
+              <div class="flow-icon">01</div>
+              <div>
+                <h3>Register</h3>
+                <p>
+                  An organisation creates an account. The first user becomes the organisation's
+                  administrator. Passwords are hashed with Argon2id; the plaintext is never stored.
+                </p>
+              </div>
+            </div>
+            <div class="flow-row">
+              <div class="flow-icon">02</div>
+              <div>
+                <h3>Sign the agreement</h3>
+                <p>
+                  The agreement is presented in full and accepted explicitly. The version and the
+                  SHA-256 digest of the accepted text are recorded, so a later change to the document
+                  cannot retroactively alter what was agreed to.
+                </p>
+              </div>
+            </div>
+            <div class="flow-row">
+              <div class="flow-icon">03</div>
+              <div>
+                <h3>Request an evaluation</h3>
+                <p>
+                  The organisation names the codec it wants to test against, the content it plans to
+                  use, its sampling plan, and what it expects the mechanism to do.
+                </p>
+              </div>
+            </div>
+            <div class="flow-row">
+              <div class="flow-icon">04</div>
+              <div>
+                <h3>Download the package</h3>
+                <p>
+                  Once approved, the gated artifacts become available. The link is signed,
+                  time-limited, bound to the artifact's digest and bound to the requesting user.
+                </p>
+              </div>
+            </div>
+            <div class="flow-row">
+              <div class="flow-icon">05</div>
+              <div>
+                <h3>Submit results</h3>
+                <p>
+                  The organisation uploads its results and its own account of what it measured,
+                  including any BD-rate it computed. A reviewer accepts or rejects the submission.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-label">The agreement</div>
+          <h2>What it covers, and what it does not</h2>
+          <p>
+            The agreement covers what the package may be used for, that the results may be published
+            freely by the evaluator, that the package itself may not be disclosed, and that the
+            recipient must return or destroy the package at the end of the evaluation.
+          </p>
+          <p>
+            It is a research evaluation, not a licence. A licence or an assignment is a separate
+            conversation, and it follows the evaluation rather than preceding it.
+          </p>
+          <div class="callout">
+            <div class="callout-title">The audit log is append-only</div>
+            <p>
+              The application never updates or deletes a row in it. It is the record of who was given
+              what and when, which is what a confidentiality dispute turns on.
+            </p>
+          </div>
+          {{FIGURE:fig-hosted-service}}
+        </section>
+
+        <section>
+          <div class="section-label">The hosted analysis</div>
+          <h2>The shorter path, when you do not need the package</h2>
+          <p>
+            If the question is whether the measurement says anything about your content, the hosted
+            analysis answers it without the lifecycle at all: post a sequence, get the figures, and
+            nothing is retained. It is the same code the portal runs.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="https://girc-portal.onrender.com/analyze">The analysis endpoint</a>
+            <a class="btn" href="../service.html">How to call it</a>
+          </div>
+          {{FIGURE:fig-architecture}}
+        </section>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>GIRC — Geometry-Inference Codec.</div>
+        <div>
+          <a href="index.html">Evaluate</a>
+          <a href="scope.html">Scope</a>
+          <a href="../index.html">The codec</a>
+          <a href="mailto:devanshraulo@gmail.com">devanshraulo@gmail.com</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const button = document.getElementById('theme-toggle');
+      const icon = button?.querySelector('i');
+      function paint() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (icon) icon.className = dark ? 'ph ph-sun' : 'ph ph-moon';
+        button?.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+      }
+      button?.addEventListener('click', () => {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+        try {
+          localStorage.setItem('girc-theme', dark ? 'light' : 'dark');
+        } catch (e) {}
+        paint();
+      });
+      paint();
+    </script>
+  </body>
+</html>

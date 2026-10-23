@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Service — GIRC</title>
+    <meta
+      name="description"
+      content="The hosted GIRC analysis service: post a sequence or a stream and get the rate-distortion and prediction figures back, running the same code that is in the repository."
+    />
+    <link rel="stylesheet" href="assets/site.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23f3f1ea'/><path d='M5 22 L12 10 L19 22 L26 10' stroke='%239c5c14' stroke-width='2.5' fill='none'/></svg>"
+    />
+    <script is:inline>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('girc-theme');
+        } catch (e) {
+          stored = null;
+        }
+        // Light is the default. Dark happens only when a reader chose it
+        // here and it was remembered: the site has one default and the
+        // operating system does not get to move it.
+        var theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="index.html"><i class="ph ph-waveform"></i>GIRC<span>.</span>dev</a>
+        <nav class="site">
+          <a href="index.html">Overview</a>
+          <a href="method.html">Method</a>
+          <a href="install.html">Install</a>
+          <a href="results.html">Results</a>
+          <a href="docs.html">Docs</a>
+          <a href="research.html">Research</a>
+          <a href="service.html" aria-current="page">Service</a>
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
+            <i class="ph ph-moon"></i>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="wrap">
+        <section class="hero">
+          <div class="section-label">The hosted service · free, and the code is the same code</div>
+          <h1>Post a stream, get the figures back.</h1>
+          <p class="lede">
+            The analysis is a Rust tool that reads a sequence and writes a report. To run it you would
+            need a toolchain, a clone and a build. This is that same tool behind an HTTP endpoint, so
+            you can find out what GIRC says about your content before you decide to embed anything.
+          </p>
+          <p class="lede">
+            It is not a different product and not a hosted-only feature: it is
+            <code class="mono">girc-bench</code> with the report returned over the wire, running from
+            the same source you can read and deploy yourself.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="#call"><i class="ph ph-arrow-down"></i>How to call it</a>
+            <a class="btn" href="https://github.com/devansh0703/girc"><i class="ph ph-github-logo"></i>Read the source it runs</a>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-label">Live status</div>
+          <h2>Is it awake?</h2>
+          <p>
+            This is a free instance on a shared host, which means two things you should know before
+            you rely on it: it sleeps after fifteen minutes without a request, and the first request
+            after that takes about a minute to answer. An uptime monitor pings it every five minutes
+            to keep that from happening, and the state below is read from the service itself rather
+            than from this page's build.
+          </p>
+          <div class="panel">
+            <h3><i class="ph ph-gauge"></i><span class="mono" id="service-address">checking…</span></h3>
+            <div class="table-scroll">
+              <table>
+                <tbody>
+                  <tr>
+                    <td>state</td>
+                    <td id="st-state">checking…</td>
+                  </tr>
+                  <tr>
+                    <td>codec</td>
+                    <td id="st-version">—</td>
+                  </tr>
+                  <tr>
+                    <td>uptime</td>
+                    <td id="st-uptime">—</td>
+                  </tr>
+                  <tr>
+                    <td>sequence limit</td>
+                    <td id="st-limit">—</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p class="muted" style="margin-top: 1rem">
+            If it says unreachable, the instance is probably spinning up: wait a minute and reload.
+            If it stays unreachable,
+            <a href="https://github.com/devansh0703/girc/issues">tell me</a> rather than assuming GIRC
+            does not work. The failure would be mine, not the method's.
+          </p>
+          {{FIGURE:fig-hosted-service}}
+        </section>
+
+        <section id="call">
+          <div class="section-label">How to call it</div>
+          <h2>One POST, one report</h2>
+          <div class="grid-2">
+            <div class="panel">
+              <h3><i class="ph ph-terminal-window"></i>From a sequence</h3>
+              <pre><code>curl -sS -o report.json \
+  -F "sequence=@foreman_cif.y4m" \
+  "https://girc-portal.onrender.com/analyze?format=json"</code></pre>
+              <p>The body is a Y4M sequence. The response is the same figures the benchmark writes.</p>
+            </div>
+            <div class="panel">
+              <h3><i class="ph ph-brackets-curly"></i>For a script</h3>
+              <pre><code>curl -sS -o /dev/null -w '%{http_code}\n' \
+  -F "sequence=@akiyo_cif.y4m" \
+  "https://girc-portal.onrender.com/analyze?verify=1"</code></pre>
+              <p>
+                <code class="mono">200</code> when the round trip is bit-exact and the report holds,
+                <code class="mono">422</code> when it does not.
+              </p>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="panel">
+              <h3><i class="ph ph-signpost"></i>Endpoints</h3>
+              <div class="table-scroll">
+                <table>
+                  <tbody>
+                    <tr><td><code>GET</code></td><td><code>/health</code></td><td>liveness, the version, the limits</td></tr>
+                    <tr><td><code>GET</code></td><td><code>/</code></td><td>a form, so a person can try it</td></tr>
+                    <tr><td><code>POST</code></td><td><code>/analyze</code></td><td>a sequence in, a report out</td></tr>
+                    <tr><td><code>GET</code></td><td><code>/register</code></td><td>the evaluation portal</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="panel">
+              <h3><i class="ph ph-warning-circle"></i>Limits</h3>
+              <div class="table-scroll">
+                <table>
+                  <tbody>
+                    <tr><td>Request body</td><td>8 MiB</td></tr>
+                    <tr><td>Frames per request</td><td>64</td></tr>
+                    <tr><td>Wall-clock budget</td><td>60 s</td></tr>
+                    <tr><td>Concurrent requests</td><td>1 — the free instance has a tenth of a core</td></tr>
+                    <tr><td>Retention</td><td>none: the sequence is held in memory for the request</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="callout">
+            <div class="callout-title">What happens to your sequence</div>
+            <p>
+              It is read into memory for the duration of one request, the report is written to the
+              response, and the buffer goes. Nothing is stored: the analysis runs in a request-scoped
+              temporary directory that is removed when the request ends, and the reports are not
+              written to disk. If your content is confidential, run the benchmark yourself; the
+              <a href="install.html">install page</a> takes three commands.
+            </p>
+          </div>
+          {{FIGURE:fig-architecture}}
+        </section>
+
+        <section>
+          <div class="section-label">Run it yourself</div>
+          <h2>The service is not the product; the codec is</h2>
+          <p>
+            The hosted instance exists so you do not need a toolchain to see the output. Everything it
+            does, a checkout does: the container definition and the service's own
+            <code class="mono">render.yaml</code> are in the repository, so you can deploy the
+            identical thing on your own host, or point the site at your own URL.
+          </p>
+          <div class="grid-2">
+            <div class="panel">
+              <h3><i class="ph ph-cube"></i>Container</h3>
+              <pre><code>git clone https://github.com/devansh0703/girc
+cd girc
+docker build -f deploy/Dockerfile -t girc-portal .
+docker run -p 8000:8000 girc-portal
+curl localhost:8000/health</code></pre>
+            </div>
+            <div class="panel">
+              <h3><i class="ph ph-warning-circle"></i>Two honest caveats</h3>
+              <p>
+                The free instance has a tenth of a core and half a gigabyte of memory, so a long
+                sequence will time out there and would not on your machine. And only one request is
+                served at a time, so a queue behind a long sequence is the expected behaviour rather
+                than a bug.
+              </p>
+              <p>
+                Neither of those is a property of the method. If either matters to you, that is the
+                point at which running it locally is the right answer.
+              </p>
+            </div>
+          </div>
+          <div class="cta">
+            <a class="btn primary" href="https://github.com/devansh0703/girc">The repository</a>
+            <a class="btn" href="docs.html">The reproducibility manifest</a>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>GIRC — Geometry-Inference Codec.</div>
+        <div>
+          <a href="index.html">Overview</a>
+          <a href="method.html">Method</a>
+          <a href="results.html">Results</a>
+          <a href="mailto:devanshraulo@gmail.com">devanshraulo@gmail.com</a>
+        </div>
+      </div>
+    </footer>
+
+    <script is:inline define:vars={{ serviceUrl: 'https://girc-portal.onrender.com' }}>
+      // The service is on another origin, so this is a real CORS fetch. The
+      // service sends Access-Control-Allow-Origin for GET /health, and the page
+      // reports honestly when it cannot reach it.
+      const set = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+      };
+      const address = document.getElementById('service-address');
+      if (address) address.textContent = serviceUrl + '/health';
+      (async () => {
+        const started = performance.now();
+        try {
+          const response = await fetch(`${serviceUrl}/health`, { cache: 'no-store' });
+          const ms = Math.round(performance.now() - started);
+          if (!response.ok) {
+            set('st-state', `answered ${response.status} in ${ms} ms`);
+            return;
+          }
+          const body = await response.json();
+          set('st-state', `awake — answered in ${ms} ms`);
+          set('st-version', body.codec ?? '—');
+          set('st-limit', body.frame_limit ? String(body.frame_limit) : '—');
+          const up = body.uptime_s;
+          set(
+            'st-uptime',
+            typeof up === 'number'
+              ? `${Math.floor(up / 60)} min ${Math.round(up % 60)} s (this instance)`
+              : '—'
+          );
+        } catch (error) {
+          set('st-state', 'unreachable from your browser');
+          set('st-version', '—');
+        }
+      })();
+    </script>
+    <script>
+      const button = document.getElementById('theme-toggle');
+      const icon = button?.querySelector('i');
+      function paint() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (icon) icon.className = dark ? 'ph ph-sun' : 'ph ph-moon';
+        button?.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+      }
+      button?.addEventListener('click', () => {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+        try {
+          localStorage.setItem('girc-theme', dark ? 'light' : 'dark');
+        } catch (e) {}
+        paint();
+      });
+      paint();
+    </script>
+  </body>
+</html>

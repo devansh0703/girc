@@ -1,0 +1,118 @@
+name: Service
+
+# The hosted analysis, canaried.
+#
+# A free Render service spins down after fifteen minutes without a request and
+# takes about a minute to wake, so the first call is retried rather than
+# reported as an outage. A service that is genuinely down stays down through
+# all of these and the job fails, which is what it is for.
+#
+# This job is also what keeps the instance awake in between real traffic: an
+# UptimeRobot monitor pings /health every five minutes, and this proves once a
+# week that the deployed service returns the figures it is supposed to rather
+# than only that it answers.
+#
+# It uses a small recorded sequence rather than a CIF file, so the canary does
+# not download a hundred megabytes to make one request.
+
+on:
+  schedule:
+    # Monday 06:00 UTC. Weekly: the service is not load-bearing, and a weekly
+    # proof that it works is what a free instance warrants.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: service-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: The hosted analysis answers, and returns the figures
+    runs-on: ubuntu-latest
+
+    env:
+      SERVICE: https://girc-portal.onrender.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for the service to answer
+        run: |
+          echo "waiting for $SERVICE to come up (this is a free instance; it takes about a minute)..."
+          curl -fsS --retry 12 --retry-delay 10 --retry-connrefused \
+               --retry-all-errors --max-time 60 "$SERVICE/health" | tee /tmp/health.json
+          echo
+
+      - name: Check the service reports the limits it publishes
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          health = json.load(open("/tmp/health.json"))
+          expected = {
+              "body_limit_bytes": 8 * 1024 * 1024,
+              "frame_limit": 64,
+              "budget_s": 60,
+              "concurrent_requests": 1,
+              "retention": "none",
+          }
+          missing = {k: v for k, v in expected.items() if health.get(k) != v}
+          if missing:
+              print("the service does not report the limits it publishes:", missing)
+              sys.exit(1)
+          print(f"the service reports every published limit (uptime {health['uptime_s']} s)")
+          PY
+
+      - name: Analyse a small recorded sequence against the deployed service
+        run: |
+          curl -fsS -o /tmp/verify.json \
+               -F "sequence=@data/test/akiyo-192x192.y4m" \
+               "$SERVICE/analyze?verify=1"
+          cat /tmp/verify.json
+          echo
+          curl -fsS -o /tmp/report.json \
+               -F "sequence=@data/test/akiyo-192x192.y4m" \
+               "$SERVICE/analyze"
+          head -c 400 /tmp/report.json
+          echo
+
+      - name: Assert the deployed service returns the shape the repository produces
+        run: |
+          python3 - <<'PY'
+          import json, sys
+
+          verify = json.load(open("/tmp/verify.json"))
+          if verify.get("measured") != "complete":
+              print("the deployed service did not complete the run:", verify)
+              sys.exit(1)
+
+          # The report is checked against the shape the repository's own
+          # service produces, so a change to either shows up here.
+          report = json.load(open("/tmp/report.json"))
+          expected_qps = [22, 27, 32, 37]
+          expected_margins = [0, 25, 50, 100, 200]
+          if report["qps"] != expected_qps:
+              print("the deployed service measured different quantization parameters")
+              sys.exit(1)
+          if [row["margin"] for row in report["margin_sweep"]] != expected_margins:
+              print("the deployed service swept different margins")
+              sys.exit(1)
+          for point in report["points"]:
+              for mode in ("explicit", "inferred"):
+                  if point[mode]["bytes"] <= 0 or point[mode]["psnr_db"] <= 0:
+                      print(f"the deployed service returned an empty {mode} point:", point)
+                      sys.exit(1)
+          print(
+              f"the deployed service agrees: {len(report['points'])} points, "
+              f"{len(report['margin_sweep'])} margins, every figure measured"
+          )
+          PY
+
+      - name: Report the outcome
+        if: always()
+        run: |
+          echo "service: $SERVICE"
+          echo "health: $(cat /tmp/health.json 2>/dev/null || echo unavailable)"

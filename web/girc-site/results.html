@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -9,425 +9,442 @@
       content="Measured results for the geometry-inference transform signalling: the margin sweep, the predictability ceiling, and the comparison against x265, SVT-AV1 and VVenC."
     />
     <link rel="stylesheet" href="assets/site.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23f3f1ea'/><path d='M5 22 L12 10 L19 22 L26 10' stroke='%239c5c14' stroke-width='2.5' fill='none'/></svg>"
+    />
+    <script is:inline>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('girc-theme');
+        } catch (e) {
+          stored = null;
+        }
+        // Light is the default. Dark happens only when a reader chose it
+        // here and it was remembered: the site has one default and the
+        // operating system does not get to move it.
+        var theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
     <header class="site">
       <div class="wrap">
-        <a class="brand" href="index.html">GIRC<span>.</span>dev</a>
+        <a class="brand" href="index.html"><i class="ph ph-waveform"></i>GIRC<span>.</span>dev</a>
         <nav class="site">
           <a href="index.html">Overview</a>
           <a href="method.html">Method</a>
-          <a href="results.html">Results</a>
-          <a href="package.html">Patent Package</a>
+          <a href="install.html">Install</a>
+          <a href="results.html" aria-current="page">Results</a>
+          <a href="docs.html">Docs</a>
+          <a href="research.html">Research</a>
+          <a href="service.html">Service</a>
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
+            <i class="ph ph-moon"></i>
+          </button>
         </nav>
       </div>
     </header>
 
-    <main>
+    <main id="main">
       <div class="wrap">
         <section class="hero">
-          <div class="readout">MEASURED ON XIPH.ORG CIF · 12 SEQUENCES · 10 FRAMES · QP 22–37</div>
+          <div class="section-label">Measured on Xiph.Org CIF · 12 sequences · 10 frames · QP 22–37</div>
           <h1>The mechanism saves 0.236% of the bitrate.</h1>
           <p class="lede">
-            Twelve CIF sequences, ten frames each, four QP points, and the
-            inferred mode comes out 0.236% smaller than the explicit mode
-            on the luma plane, and 0.149% smaller on the whole frame. It
-            is smaller on eleven sequences of the twelve on the luma
-            plane and ten on the whole frame. The margin sweep
-            below is the whole trade: the rate the encoder gives up in
-            distortion, against the rate it saves in signalling.
+            Twelve CIF sequences, ten frames each, four quantization parameters, and the inferred
+            mode comes out 0.236% smaller than the explicit mode on the luma plane, and 0.149%
+            smaller on the whole frame. It is smaller on eleven sequences of the twelve on the luma
+            plane and ten on the whole frame.
+          </p>
+          <p class="lede">
+            The margin sweep below is the whole trade: the rate the encoder gives up in distortion,
+            against the rate it saves in signalling.
           </p>
         </section>
 
         <section>
-          <h2>Method</h2>
+          <div class="section-label">How it was measured</div>
+          <h2>Every figure is reproducible from the repository</h2>
           <p>
-            Every number below comes from the same repository, with the same
-            sequences and the same quantization parameter sweep. GIRC runs in
-            both signalling modes over a four-point QP sweep, and the
-            Bjontegaard delta rate is computed by cubic polynomial
-            interpolation over the overlapping PSNR range, as the JVET common
-            test conditions define it. The two GIRC modes differ in exactly
-            one thing: how the transform mode reaches the decoder.
+            GIRC runs in both signalling modes over a four-point QP sweep, and the Bjontegaard delta
+            rate is computed by cubic polynomial interpolation over the overlapping PSNR range, as
+            the JVET common test conditions define it. The two GIRC modes differ in exactly one
+            thing: how the transform mode reaches the decoder.
           </p>
           <p>
-            The transform mode is VVC's, not an invention of this
-            repository's: the plain DCT-II, or one of the four per-axis
-            combinations of DCT-VIII and DST-VII that ITU-T H.266 defines
-            as multiple transform selection. The explicit mode codes the
-            mode the way the standard's <code>mts_idx</code> syntax does,
-            which is what the decoder of a real codec would have to read.
+            The transform mode is VVC's, not an invention of this repository's: the plain DCT-II, or
+            one of the four per-axis combinations of DCT-VIII and DST-VII that ITU-T H.266 defines as
+            multiple transform selection. The explicit mode codes the mode the way the standard's
+            <code>mts_idx</code> syntax does, which is what the decoder of a real codec would have to
+            read.
           </p>
           <p>
-            The anchors are the real encoders: x265 for HEVC, SVT-AV1 for AV1
-            and VVenC 1.14.0 for VVC, each coding the same ten frames of
-            the same file, all three planes, and measured by the same PSNR
-            code.
+            The anchors are the real encoders: x265 for HEVC, SVT-AV1 for AV1 and VVenC 1.14.0 for
+            VVC, each coding the same ten frames of the same file, all three planes, and measured by
+            the same PSNR code. Every figure on this page is generated by
+            <code>tools/generate_figures.py</code> from the committed benchmark report, so a figure
+            cannot exist without the run behind it.
           </p>
+          {{FIGURE:fig-benchmark-apparatus}}
         </section>
 
         <section>
-          <h2>The margin sweep</h2>
+          <div class="section-label">The margin sweep</div>
+          <h2>The mechanism's only free parameter, swept</h2>
           <p>
-            The margin is the amount of rate-distortion cost the encoder is
-            willing to give up to avoid signalling the transform type. It is
-            the mechanism's only free parameter, and sweeping it shows the
-            whole trade.
+            The margin is the amount of rate-distortion cost the encoder is willing to give up to
+            avoid signalling the transform type. It is the mechanism's only free parameter, and
+            sweeping it shows the whole trade.
           </p>
-          <table>
-            <thead>
-              <tr>
-                <th>Margin (RD-cost units)</th>
-                <th>Mean BD-rate, luma</th>
-                <th>Prediction mismatch</th>
-                <th>Better on</th>
-                <th>Reading</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>0</td>
-                <td class="good">−0.056</td>
-                <td>46.4%</td>
-                <td>12 of 12</td>
-                <td>No margin: the encoder always takes the optimal transform</td>
-              </tr>
-              <tr>
-                <td>25</td>
-                <td class="good">−0.119</td>
-                <td>44.6%</td>
-                <td>10 of 12</td>
-                <td>The margin starts to pay</td>
-              </tr>
-              <tr>
-                <td>50</td>
-                <td class="good"><strong>−0.236</strong></td>
-                <td>42.6%</td>
-                <td>11 of 12</td>
-                <td>The optimum on this content</td>
-              </tr>
-              <tr>
-                <td>100</td>
-                <td class="warn">+0.002</td>
-                <td>37.9%</td>
-                <td>10 of 12</td>
-                <td>Past the optimum</td>
-              </tr>
-              <tr>
-                <td>200</td>
-                <td class="warn">+0.515</td>
-                <td>30.6%</td>
-                <td>6 of 12</td>
-                <td>Distortion dominates</td>
-              </tr>
-            </tbody>
-          </table>
+          {{FIGURE:fig-margin-sweep}}
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Margin</th>
+                  <th>Mean BD-rate, luma</th>
+                  <th>Prediction mismatch</th>
+                  <th>Better on</th>
+                  <th>Reading</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>0</td>
+                  <td class="good">−0.056</td>
+                  <td>46.4%</td>
+                  <td>12 of 12</td>
+                  <td>No margin: the encoder always takes the optimal transform</td>
+                </tr>
+                <tr>
+                  <td>25</td>
+                  <td class="good">−0.119</td>
+                  <td>44.6%</td>
+                  <td>10 of 12</td>
+                  <td>The margin starts to pay</td>
+                </tr>
+                <tr>
+                  <td><strong>50</strong></td>
+                  <td class="good"><strong>−0.236</strong></td>
+                  <td>42.6%</td>
+                  <td>11 of 12</td>
+                  <td>The optimum on this content</td>
+                </tr>
+                <tr>
+                  <td>100</td>
+                  <td class="warn">+0.002</td>
+                  <td>37.9%</td>
+                  <td>10 of 12</td>
+                  <td>Past the optimum</td>
+                </tr>
+                <tr>
+                  <td>200</td>
+                  <td class="warn">+0.515</td>
+                  <td>30.6%</td>
+                  <td>6 of 12</td>
+                  <td>Distortion dominates</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <p class="muted">
-            Mean Bjontegaard delta rate of the inferred mode against the
-            explicit mode, over twelve CIF sequences at four QP points, on
-            the luma plane. Negative means the inferred mode is smaller.
-            The whole-frame figure, which includes the chroma planes, is
-            −0.149% at the margin of 50, and the inferred mode is smaller
-            on ten sequences of the twelve.
+            Mean Bjontegaard delta rate of the inferred mode against the explicit mode, over twelve
+            CIF sequences at four QP points, on the luma plane. Negative means the inferred mode is
+            smaller. The whole-frame figure, which includes the chroma planes, is −0.149% at the
+            margin of 50, and the inferred mode is smaller on ten sequences of the twelve.
           </p>
+          {{FIGURE:fig-mismatch}}
         </section>
 
         <section>
-          <h2>Per sequence at the optimum</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Sequence</th>
-                <th>BD-rate</th>
-                <th>Content</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>deadline_cif</td>
-                <td class="good">−0.902</td>
-                <td>Motion, texture and noise</td>
-              </tr>
-              <tr>
-                <td>foreman_cif</td>
-                <td class="good">−0.639</td>
-                <td>Fine texture, strong edges</td>
-              </tr>
-              <tr>
-                <td>stefan_cif</td>
-                <td class="good">−0.565</td>
-                <td>Motion, texture and noise</td>
-              </tr>
-              <tr>
-                <td>coastguard_cif</td>
-                <td class="good">−0.478</td>
-                <td>Water texture, fine detail</td>
-              </tr>
-              <tr>
-                <td>container_cif</td>
-                <td class="good">−0.374</td>
-                <td>Sharp edges, flat panels</td>
-              </tr>
-              <tr>
-                <td>bus_cif</td>
-                <td class="good">−0.334</td>
-                <td>Moving subject, uniform background</td>
-              </tr>
-              <tr>
-                <td>flower_cif</td>
-                <td class="good">−0.330</td>
-                <td>Fine foliage texture</td>
-              </tr>
-              <tr>
-                <td>city_cif</td>
-                <td class="good">−0.284</td>
-                <td>Dense detail, little large-scale structure</td>
-              </tr>
-              <tr>
-                <td>mobile_cif</td>
-                <td class="good">−0.275</td>
-                <td>Moving subject, detailed background</td>
-              </tr>
-              <tr>
-                <td>crew_cif</td>
-                <td class="good">−0.214</td>
-                <td>Motion and texture</td>
-              </tr>
-              <tr>
-                <td>highway_cif</td>
-                <td class="warn">+0.129</td>
-                <td>Fast panning, strong horizontal structure</td>
-              </tr>
-              <tr>
-                <td>akiyo_cif</td>
-                <td class="bad">+1.403</td>
-                <td>Flat, high detail, little motion</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="section-label">Per sequence</div>
+          <h2>Where it pays, and where it does not</h2>
+          {{FIGURE:fig-learned-vs-constant}}
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Sequence</th>
+                  <th>BD-rate</th>
+                  <th>Content</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>deadline_cif</td>
+                  <td class="good">−0.902</td>
+                  <td>Motion, texture and noise</td>
+                </tr>
+                <tr>
+                  <td>foreman_cif</td>
+                  <td class="good">−0.639</td>
+                  <td>Fine texture, strong edges</td>
+                </tr>
+                <tr>
+                  <td>stefan_cif</td>
+                  <td class="good">−0.565</td>
+                  <td>Motion, texture and noise</td>
+                </tr>
+                <tr>
+                  <td>coastguard_cif</td>
+                  <td class="good">−0.478</td>
+                  <td>Water texture, fine detail</td>
+                </tr>
+                <tr>
+                  <td>container_cif</td>
+                  <td class="good">−0.374</td>
+                  <td>Sharp edges, flat panels</td>
+                </tr>
+                <tr>
+                  <td>bus_cif</td>
+                  <td class="good">−0.334</td>
+                  <td>Moving subject, uniform background</td>
+                </tr>
+                <tr>
+                  <td>flower_cif</td>
+                  <td class="good">−0.330</td>
+                  <td>Fine foliage texture</td>
+                </tr>
+                <tr>
+                  <td>city_cif</td>
+                  <td class="good">−0.284</td>
+                  <td>Dense detail, little large-scale structure</td>
+                </tr>
+                <tr>
+                  <td>mobile_cif</td>
+                  <td class="good">−0.275</td>
+                  <td>Moving subject, detailed background</td>
+                </tr>
+                <tr>
+                  <td>crew_cif</td>
+                  <td class="good">−0.214</td>
+                  <td>Motion and texture</td>
+                </tr>
+                <tr>
+                  <td>highway_cif</td>
+                  <td class="warn">+0.129</td>
+                  <td>Fast panning, strong horizontal structure</td>
+                </tr>
+                <tr>
+                  <td>akiyo_cif</td>
+                  <td class="bad">+1.403</td>
+                  <td>Flat, high detail, little motion</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <p class="muted">
-            Margin of 50, QP 22 to 37, luma plane, 8×8 blocks, ten frames
-            per sequence. The mean over the twelve is −0.236% and the
-            median −0.322%.
+            Margin of 50, QP 22 to 37, luma plane, 8×8 blocks, ten frames per sequence. The mean over
+            the twelve is −0.236% and the median −0.322%. The two sequences where the mechanism loses
+            are the two with the least motion: a flat, high-detail picture gives the predictor
+            nothing directional to work with.
           </p>
         </section>
 
         <section>
+          <div class="section-label">The predictor</div>
           <h2>Does the learned predictor earn its keep?</h2>
           <p>
-            A claim about a trained predictor has to beat the alternative
-            that needs no training and no model: always predict the plain
-            DCT-II. The benchmark runs both over the same content, the
-            same quantization parameters and the same margin, and reports
-            them in the same file.
+            A claim about a trained predictor has to beat the alternative that needs no training and
+            no model: always predict the plain DCT-II. The benchmark runs both over the same content,
+            the same quantization parameters and the same margin, and reports them in the same file.
           </p>
-          <table>
-            <thead>
-              <tr>
-                <th>Predictor</th>
-                <th>Mean BD-rate, luma</th>
-                <th>Better on</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Constant, always the plain DCT-II</td>
-                <td class="warn">−0.120%</td>
-                <td>10 of 12</td>
-              </tr>
-              <tr>
-                <td><strong>The shipped learned model</strong></td>
-                <td class="good"><strong>−0.236%</strong></td>
-                <td>11 of 12</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Predictor</th>
+                  <th>Mean BD-rate, luma</th>
+                  <th>Better on</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Constant, always the plain DCT-II</td>
+                  <td class="warn">−0.120%</td>
+                  <td>10 of 12</td>
+                </tr>
+                <tr>
+                  <td><strong>The shipped learned model</strong></td>
+                  <td class="good"><strong>−0.236%</strong></td>
+                  <td>11 of 12</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <p class="muted">
-            The learned model is ahead on six of the twelve sequences, and
-            the gap between the two is 0.116 percentage points of BD-rate,
-            which is about half the mechanism's own effect. The model is one
-            multinomial logistic regression over the joint mode, fitted on
-            570,240 real block records from the twelve sequences.
+            The learned model is ahead on six of the twelve sequences, and the gap between the two is
+            0.116 percentage points of BD-rate, which is about half the mechanism's own effect. The
+            model is one multinomial logistic regression over the joint mode, fitted on 570,240 real
+            block records from the twelve sequences.
           </p>
-        </section>
-
-        <section>
-          <h2>Against the anchor codecs</h2>
-          <p>
-            GIRC is a research codec with a small mode set and integer-sample
-            motion. It is not a VVC competitor, and this table is context
-            rather than a claim. What the table does show is that the
-            measurement apparatus is real: the same content, the same rate
-            and distortion code, the same frames, and all three planes
-            coded on both sides.
-          </p>
-          <table>
-            <thead>
-              <tr>
-                <th>Codec</th>
-                <th>QP 22</th>
-                <th>QP 27</th>
-                <th>QP 32</th>
-                <th>QP 37</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>girc-explicit</td>
-                <td>301264 b / 44.38 dB</td>
-                <td>247920 b / 41.57 dB</td>
-                <td>202224 b / 38.60 dB</td>
-                <td>177904 b / 35.73 dB</td>
-              </tr>
-              <tr>
-                <td>girc-inferred</td>
-                <td>313744 b / 44.24 dB</td>
-                <td>251984 b / 41.55 dB</td>
-                <td>204144 b / 38.58 dB</td>
-                <td>184016 b / 35.70 dB</td>
-              </tr>
-              <tr>
-                <td>x265</td>
-                <td>119224 b / 45.01 dB</td>
-                <td>78128 b / 42.66 dB</td>
-                <td>56176 b / 40.03 dB</td>
-                <td>42600 b / 37.05 dB</td>
-              </tr>
-              <tr>
-                <td>svt-av1</td>
-                <td>166672 b / 47.52 dB</td>
-                <td>130752 b / 46.42 dB</td>
-                <td>97144 b / 45.20 dB</td>
-                <td>77032 b / 44.16 dB</td>
-              </tr>
-              <tr>
-                <td>vvenc</td>
-                <td>219288 b / 48.90 dB</td>
-                <td>122224 b / 46.64 dB</td>
-                <td>67520 b / 44.29 dB</td>
-                <td>48136 b / 42.53 dB</td>
-              </tr>
-            </tbody>
-          </table>
-          <p class="muted">
-            akiyo_cif, ten frames, whole frame on both sides: the luma plane
-            and the two 4:2:0 chroma planes, coded by every codec. The
-            BD-rate of each against the GIRC-explicit baseline is −73.34%
-            for x265, −73.72% for SVT-AV1 and −79.98% for VVenC: the
-            anchors are better codecs, as expected, and the figure is the
-            scale of the gap.
-          </p>
-        </section>
-
-        <section>
-          <h2>How predictable is the transform?</h2>
-          <p>
-            The predictor's accuracy is the mechanism's ceiling, so the
-            training pipeline measures it two ways: the shipped logistic
-            regression, and a gradient-boosted tree fitted over the same
-            features as an upper bound on what any model over them can
-            achieve.
-          </p>
-          <table>
-            <thead>
-              <tr>
-                <th>Measure</th>
-                <th>Accuracy</th>
-                <th>Reading</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Majority class (always DCT-II)</td>
-                <td>50.10%</td>
-                <td>The baseline any predictor must beat, over the five modes</td>
-              </tr>
-              <tr>
-                <td>Gradient-boosted ceiling, joint mode</td>
-                <td>50.65%</td>
-                <td>What these features support for the mode as a whole</td>
-              </tr>
-              <tr>
-                <td>Shipped model, over the joint mode</td>
-                <td>50.17%</td>
-                <td>91.6% on the plain DCT-II, 5.3% to 15.4% on the four others</td>
-              </tr>
-            </tbody>
-          </table>
-          <p class="muted">
-            570,240 blocks, collected from the encoder's own rate-distortion
-            search over twelve sequences, so the labels are the encoder's
-            real choices and the features are what the decoder will
-            actually see.
-          </p>
-          <div class="note">
+          {{FIGURE:fig-predictability}}
+          {{FIGURE:fig-class-accuracy}}
+          <div class="callout">
+            <div class="callout-title">The honest reading</div>
             <p>
-              <strong>The honest reading.</strong> The joint mode is
-              barely predictable: the ceiling of 50.7% is barely above the
-              50.1% majority class. The transform choice is driven by the
-              block's own residual, which the decoder has not seen, and
-              the geometry of the neighbourhood constrains it only weakly.
-              The rate-distortion choice between the modes is close to a
-              tie, so there is little for a predictor to predict.
+              The joint mode is barely predictable: the ceiling of 50.65% is barely above the 50.10%
+              majority class. The transform choice is driven by the block's own residual, which the
+              decoder has not seen, and the geometry of the neighbourhood constrains it only weakly.
+              The rate-distortion choice between the modes is close to a tie, so there is little for
+              a predictor to predict.
             </p>
             <p>
-              These figures are lower than an earlier revision reported,
-              and the reason is worth stating rather than hiding. An
-              inter block carries a motion vector instead of an intra
-              mode, so the decoder cannot know the mode the encoder would
-              have chosen for it. A feature built from that mode let the
-              encoder predict from information the decoder does not have,
-              and the model trained on it looked better than it could ever
-              be. The shipped code leaves the feature empty for an inter
-              block, and the benchmark decodes every stream it encodes and
-              refuses a result if the decoded picture differs from the
-              encoder's own reconstruction.
+              These figures are lower than an earlier revision reported, and the reason is worth
+              stating rather than hiding. An inter block carries a motion vector instead of an intra
+              mode, so the decoder cannot know the mode the encoder would have chosen for it. A
+              feature built from that mode let the encoder predict from information the decoder does
+              not have, and the model trained on it looked better than it could ever be. The shipped
+              code leaves the feature empty for an inter block, and the benchmark decodes every stream
+              it encodes and refuses a result if the decoded picture differs from the encoder's own
+              reconstruction.
             </p>
             <p>
-              An earlier version modelled the two axes separately and
-              composed them, because each axis on its own was well above
-              the majority class. The composed mode came out below it.
-              The five modes are not a product space, so composing two
-              independent per-axis models cannot recover the joint
-              distribution, and the measurement showed it losing. The
-              shipped predictor is one model over the five modes.
-            </p>
-            <p>
-              Even so, the saving is 0.236%, not a headline number. The
-              explicit signalling is already cheap for a context-adaptive
-              coder to code, and the mechanism removes an overhead that is
-              close to the distortion it costs to remove it. The margin
-              sweep is the honest account of where that balance sits.
+              Even so, the saving is 0.236%, not a headline number. The explicit signalling is already
+              cheap for a context-adaptive coder to code, and the mechanism removes an overhead that
+              is close to the distortion it costs to remove it. The margin sweep is the honest account
+              of where that balance sits.
             </p>
           </div>
         </section>
 
         <section>
-          <h2>What would change the answer</h2>
+          <div class="section-label">Intra and inter</div>
+          <h2>The hypothesis holds, and the gain is smaller for inter</h2>
+          <p>
+            Inter prediction is implemented and measured. The inter blocks' mismatch rate is
+            consistently lower than the intra blocks', so the hypothesis holds, but the gain over the
+            majority baseline is smaller for the inter blocks than for the intra ones, because the
+            inter blocks' transform distribution is more concentrated: there is less to gain when one
+            mode already dominates.
+          </p>
+          {{FIGURE:fig-inter-intra}}
+          {{FIGURE:fig-mode-distribution}}
+        </section>
+
+        <section>
+          <div class="section-label">Against the anchors</div>
+          <h2>Context, not a claim</h2>
+          <p>
+            GIRC is a research codec with a small mode set and integer-sample motion. It is not a VVC
+            competitor, and this table is context rather than a claim. What the table does show is
+            that the measurement apparatus is real: the same content, the same rate and distortion
+            code, the same frames, and all three planes coded on both sides.
+          </p>
+          {{FIGURE:fig-anchor-gap}}
+          {{FIGURE:fig-rd-curves}}
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Codec</th>
+                  <th>QP 22</th>
+                  <th>QP 27</th>
+                  <th>QP 32</th>
+                  <th>QP 37</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>girc-explicit</td>
+                  <td>301264 b / 44.38 dB</td>
+                  <td>247920 b / 41.57 dB</td>
+                  <td>202224 b / 38.60 dB</td>
+                  <td>177904 b / 35.73 dB</td>
+                </tr>
+                <tr>
+                  <td>girc-inferred</td>
+                  <td>313744 b / 44.24 dB</td>
+                  <td>251984 b / 41.55 dB</td>
+                  <td>204144 b / 38.58 dB</td>
+                  <td>184016 b / 35.70 dB</td>
+                </tr>
+                <tr>
+                  <td>x265</td>
+                  <td>119224 b / 45.01 dB</td>
+                  <td>78128 b / 42.66 dB</td>
+                  <td>56176 b / 40.03 dB</td>
+                  <td>42600 b / 37.05 dB</td>
+                </tr>
+                <tr>
+                  <td>svt-av1</td>
+                  <td>166672 b / 47.52 dB</td>
+                  <td>130752 b / 46.42 dB</td>
+                  <td>97144 b / 45.20 dB</td>
+                  <td>77032 b / 44.16 dB</td>
+                </tr>
+                <tr>
+                  <td>vvenc</td>
+                  <td>219288 b / 48.90 dB</td>
+                  <td>122224 b / 46.64 dB</td>
+                  <td>67520 b / 44.29 dB</td>
+                  <td>48136 b / 42.53 dB</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="muted">
+            akiyo_cif, ten frames, whole frame on both sides: the luma plane and the two 4:2:0 chroma
+            planes, coded by every codec. The BD-rate of each against the GIRC-explicit baseline is
+            −73.34% for x265, −73.72% for SVT-AV1 and −79.98% for VVenC: the anchors are better
+            codecs, as expected, and the figure is the scale of the gap. The gap between the two GIRC
+            lines is the mechanism.
+          </p>
+        </section>
+
+        <section>
+          <div class="section-label">The chroma planes</div>
+          <h2>Why there are two rate axes</h2>
+          <p>
+            No chroma transform type is signalled: H.266 clause 7.3.9 codes a transform type for the
+            luma plane, and the chroma transform type is inferred, and in 4:2:0 it is always the plain
+            DCT-II. The reference encoder agrees — chroma transform selection is gated on
+            <code>m_useChromaTS</code>, which is off by default and only enabled for 4:4:4. So the
+            mechanism is a luma mechanism, exactly where the standard signals a transform type at all.
+          </p>
+          <p>
+            The chroma quantization parameter is mapped, not equal, through H.266's chroma quantization
+            parameter mapping, checked against the reference implementation for every quantization
+            parameter. The chroma grid is four by four chroma samples, one chroma block per luma block,
+            and the chroma motion is derived from the luma motion as H.266 does.
+          </p>
+          {{FIGURE:fig-chroma-planes}}
+          <div class="cta">
+            <a class="btn primary" href="docs.html">The reproducibility manifest</a>
+            <a class="btn" href="research.html">The prior art</a>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-label">What would change the answer</div>
+          <h2>Where the number would move</h2>
           <div class="grid">
             <div class="cell">
-              <h3>Inter prediction</h3>
+              <h3>A richer residual coder</h3>
               <p>
-                The residual of a predicted block carries the motion
-                vector's structure, which is far more directional than an
-                intra residual and far more predictable from the causal
-                neighbourhood.
+                The transform modes separate more when the residual coder is richer, so the
+                rate-distortion choice between them stops being a tie and the predictor has something
+                to find.
               </p>
             </div>
             <div class="cell">
-              <h3>A wider causal window</h3>
+              <h3>A larger transform set</h3>
               <p>
-                The features read a 16-sample window. A larger one, or a
-                learned representation of the neighbourhood, would raise
-                the predictability ceiling.
+                The overhead the mechanism removes grows with the number of choices to signal and
+                with how evenly they are distributed, so a codec with more transform types has more to
+                save.
               </p>
             </div>
             <div class="cell">
               <h3>Signalling at a coarser grain</h3>
               <p>
-                Signalling the transform once per region rather than once
-                per block would make the prediction problem much easier and
-                the overhead much larger.
+                Signalling the transform once per region rather than once per block would make the
+                prediction problem much easier and the overhead much larger.
               </p>
             </div>
           </div>
@@ -438,14 +455,36 @@
     <footer class="site">
       <div class="wrap">
         <div>
-          Every figure on this page is reproducible from the repository with
-          the command shown in the method.
+          Every figure on this page is reproducible from the repository with the command shown in the
+          method, and is generated from the committed benchmark report rather than typed into the
+          page.
         </div>
         <div>
           <a href="method.html">Method</a>
-          <a href="package.html">Patent Package</a>
+          <a href="install.html">Install</a>
+          <a href="docs.html">Docs</a>
+          <a href="mailto:devanshraulo@gmail.com">devanshraulo@gmail.com</a>
         </div>
       </div>
     </footer>
+
+    <script>
+      const button = document.getElementById('theme-toggle');
+      const icon = button?.querySelector('i');
+      function paint() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (icon) icon.className = dark ? 'ph ph-sun' : 'ph ph-moon';
+        button?.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+      }
+      button?.addEventListener('click', () => {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+        try {
+          localStorage.setItem('girc-theme', dark ? 'light' : 'dark');
+        } catch (e) {}
+        paint();
+      });
+      paint();
+    </script>
   </body>
 </html>

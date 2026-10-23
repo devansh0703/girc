@@ -499,7 +499,9 @@ evidence.
 | Training pipeline | `python/girc-train` | Collects the encoder's own decisions, fits the predictor, reports the predictability ceiling |
 | Evaluation portal | `apps/portal` | Organisation accounts, versioned agreement, gated delivery, results, audit log |
 | Product site | `web/girc-site` | The public description of the mechanism and the results |
-| Evaluation site | `web/eval-site` | The public description of the evaluation |
+| Evaluation pages | `web/girc-site/evaluate/` | The public description of the evaluation, deployed under `/evaluate/` |
+| Hosted analysis | `apps/portal/girc_eval/service.py` | The same codec over HTTP, on one free instance |
+| Report | `research/REPORT.md` | Every figure, generated from the committed artifacts |
 | Reproducibility manifest | `research/patent-package/REPRODUCIBILITY.md` | How to reproduce every number in this document |
 
 ---

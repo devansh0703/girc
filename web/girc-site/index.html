@@ -1,156 +1,239 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>GIRC — Geometry-Inference Codec</title>
+    <title>GIRC — the codec that infers its transform type instead of signalling it</title>
     <meta
       name="description"
-      content="GIRC is a reference codec that replaces explicit transform-type signalling with a geometry inference the decoder performs from its own reconstruction."
+      content="GIRC replaces explicit transform-type signalling with a geometry inference the decoder performs from its own reconstruction, and the encoder spends a single bin only when the inference was wrong."
     />
     <link rel="stylesheet" href="assets/site.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23f3f1ea'/><path d='M5 22 L12 10 L19 22 L26 10' stroke='%239c5c14' stroke-width='2.5' fill='none'/></svg>"
+    />
+    <script is:inline>
+      // The stored choice wins; light is the default when nothing is stored.
+      // Inline, so a reader who chose dark does not get a flash of light on
+      // every navigation.
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('girc-theme');
+        } catch (e) {
+          stored = null;
+        }
+        // Light is the default. Dark happens only when a reader chose it
+        // here and it was remembered: the site has one default and the
+        // operating system does not get to move it.
+        var theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "GIRC",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Linux",
+        "license": "https://github.com/devansh0703/girc",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@type": "Person", "name": "Devansh Raulo" },
+        "url": "https://devansh0703.github.io/girc/"
+      }
+    </script>
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
     <header class="site">
       <div class="wrap">
-        <a class="brand" href="index.html">GIRC<span>.</span>dev</a>
+        <a class="brand" href="index.html"><i class="ph ph-waveform"></i>GIRC<span>.</span>dev</a>
         <nav class="site">
-          <a href="index.html">Overview</a>
+          <a href="index.html" aria-current="page">Overview</a>
           <a href="method.html">Method</a>
+          <a href="install.html">Install</a>
           <a href="results.html">Results</a>
-          <a href="package.html">Patent Package</a>
-          <a href="evaluate/index.html">Evaluation</a>
+          <a href="docs.html">Docs</a>
+          <a href="research.html">Research</a>
+          <a href="service.html">Service</a>
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
+            <i class="ph ph-moon"></i>
+          </button>
         </nav>
       </div>
     </header>
 
-    <main>
+    <main id="main">
       <div class="wrap">
         <section class="hero">
-          <div class="readout">REFERENCE CODEC · INFERRED TRANSFORM SIGNALLING</div>
+          <div class="section-label">Open source · Apache-2.0 · free to use</div>
           <h1>The decoder already knows which transform you meant.</h1>
           <p class="lede">
-            Every video codec signals the transform type for every block, even
-            though the choice is almost always the same one. GIRC replaces that
-            signalling with an inference: the decoder predicts the transform
-            from the geometry it has already reconstructed, and the encoder
-            spends a single bit only when the prediction was wrong.
+            Every video codec signals the transform type for every block, even though the choice is
+            almost always the same one. GIRC replaces that signalling with an inference: the decoder
+            predicts the transform from the geometry it has already reconstructed, and the encoder
+            spends a single bin only when the prediction was wrong.
+          </p>
+          <p class="lede">
+            It is one product: a reference codec you can build in one command, a training pipeline
+            that fits the predictor on the encoder's own decisions, a benchmark that measures both,
+            and a hosted service that runs the analysis so you do not have to.
           </p>
           <div class="cta">
-            <a class="btn primary" href="method.html">Read the method</a>
-            <a class="btn" href="results.html">See the measurements</a>
-            <a class="btn" href="package.html">Request the evaluation package</a>
+            <a class="btn primary" href="install.html"><i class="ph ph-download-simple"></i>Build it</a>
+            <a class="btn" href="results.html"><i class="ph ph-chart-line"></i>See the measurements</a>
+            <a class="btn" href="service.html"><i class="ph ph-activity"></i>Try the service</a>
           </div>
         </section>
 
         <section>
-          <h2>The problem</h2>
+          <div class="section-label">The problem</div>
+          <h2>Signalling a choice the decoder could make itself</h2>
           <p>
-            A VVC transform block is coded with one of five modes: the plain
-            DCT-II, or one of the four per-axis combinations of DCT-VIII and
-            DST-VII that the standard calls multiple transform selection. The
-            encoder picks one by rate-distortion search, and the decoder has
-            no way of knowing which one it picked except that the bitstream
-            tells it. The signalling is a few bits per block, but it is pure
-            overhead: it carries no information the decoder could not have
-            derived for itself.
+            A VVC transform block is coded with one of five modes: the plain DCT-II, or one of the
+            four per-axis combinations of DCT-VIII and DST-VII that the standard calls multiple
+            transform selection. The encoder picks one by rate-distortion search, and the decoder
+            has no way of knowing which one it picked except that the bitstream tells it.
           </p>
           <p>
-            The reason it cannot be derived is that the choice looks random.
-            It depends on the block's own residual, which the decoder has not
-            yet seen. The encoder looks at the residual, the decoder cannot.
+            The signalling is a few bins per block and it is pure overhead: it carries no information
+            the decoder could not have derived for itself. The reason it looks like it cannot be
+            derived is that the choice is close to a tie, which is the whole story of this project
+            and is measured on the results page rather than asserted here.
           </p>
+          {{FIGURE:fig-transform-tie}}
         </section>
 
         <section>
-          <h2>The idea</h2>
+          <div class="section-label">The mechanism</div>
+          <h2>Infer, signal once, trade the rest</h2>
           <p>
-            The decoder can see something the residual does not determine: the
-            shape of the content it has already reconstructed. A block that
-            sits in a directional neighbourhood tends to want a directional
-            transform, and a block in a flat one tends to want the default.
-            That signal is available on both sides at the same moment, so it
-            can carry the choice.
+            The decoder can see something the residual does not determine: the shape of the content
+            it has already reconstructed. A block that sits in a directional neighbourhood tends to
+            want a directional transform, and a block in a flat one tends to want the default. That
+            signal is available on both sides at the same moment, so it can carry the choice.
           </p>
-          <div class="grid">
-            <div class="cell">
-              <h3>1 · Infer</h3>
+          {{FIGURE:fig-causal-window}}
+          <div class="grid-2">
+            <div class="panel">
+              <h3><i class="ph ph-eye"></i>Infer</h3>
               <p>
-                The decoder reads a two-dimensional causal window of its own
-                reconstruction and predicts the transform from its geometry:
-                the gradient orientation field, the per-axis energies, the
-                intra prediction mode and the quantization parameter.
+                The decoder reads a 16-sample square window of its own reconstruction and predicts
+                the transform from its geometry: the gradient orientation field, the per-axis
+                energies, the intra prediction mode, the quantization parameter and the modes the
+                already-coded neighbours used.
               </p>
             </div>
-            <div class="cell">
-              <h3>2 · Signal</h3>
+            <div class="panel">
+              <h3><i class="ph ph-arrow-bend-down-right"></i>Signal</h3>
               <p>
-                The encoder spends one bin on whether the prediction was
-                right. When it was wrong, two further bins select between
-                the four modes the prediction ruled out.
+                The encoder spends one bin on whether the prediction was right. When it was wrong,
+                two further bins select between the four modes the prediction ruled out, which is
+                what makes an override cost no more than the signalling it replaces.
               </p>
             </div>
-            <div class="cell">
-              <h3>3 · Trade</h3>
+            <div class="panel">
+              <h3><i class="ph ph-scales"></i>Trade</h3>
               <p>
-                The encoder may take a slightly worse transform than its
-                search found, when doing so costs less than the override
-                would. That margin is the mechanism's rate-distortion knob,
-                and the benchmark sweeps it.
+                The encoder may take a slightly worse transform than its search found, when doing so
+                costs less than the override would. That margin is the mechanism's one free
+                parameter, and the benchmark sweeps it.
+              </p>
+            </div>
+            <div class="panel">
+              <h3><i class="ph ph-check-circle"></i>Verify</h3>
+              <p>
+                The benchmark decodes every stream it encodes and refuses a result if the decoded
+                picture differs from the encoder's own reconstruction. An encoder and a decoder
+                that disagree is a bug, not a measurement.
               </p>
             </div>
           </div>
         </section>
 
         <section>
-          <h2>What is in the repository</h2>
+          <div class="section-label">What is in the repository</div>
+          <h2>One product, four parts, all of it runnable</h2>
+          {{FIGURE:fig-architecture}}
           <div class="grid">
             <div class="cell">
               <h3>Reference codec</h3>
               <p>
-                A Rust implementation of the full path: VVC-exact integer
-                transforms, intra prediction, quantization, a context-adaptive
-                entropy coder, and both signalling modes behind one
-                command-line interface.
+                A Rust implementation of the full path: VVC-exact integer transforms, intra and inter
+                prediction, the 4:2:0 chroma planes, quantization, a context-adaptive entropy coder,
+                and both signalling modes behind one command-line interface.
               </p>
             </div>
             <div class="cell">
               <h3>Training pipeline</h3>
               <p>
-                The predictor is trained on the encoder's own decisions, not
-                on a proxy. The pipeline reports the predictability ceiling
-                alongside the shipped model's accuracy.
+                The predictor is trained on the encoder's own decisions, not on a proxy. The pipeline
+                reports the predictability ceiling alongside the shipped model's accuracy, so a
+                reader can see what the features support and not only what the model achieves.
               </p>
             </div>
             <div class="cell">
               <h3>Benchmark harness</h3>
               <p>
-                GIRC in both modes against x265, SVT-AV1 and VVenC on the
-                same content, with the Bjontegaard delta rate computed the
-                way the JVET common test conditions define it.
+                GIRC in both modes against x265, SVT-AV1 and VVenC on the same content, with the
+                Bjontegaard delta rate computed the way the JVET common test conditions define it.
               </p>
             </div>
             <div class="cell">
               <h3>Evaluation portal</h3>
               <p>
-                A confidential evaluation environment: organisation accounts,
-                versioned agreement acceptance, gated artifact delivery,
-                result submission and an append-only audit log.
+                The confidential evaluation environment, and the hosted analysis service: organisation
+                accounts, versioned agreement acceptance, gated artifact delivery, result submission
+                and an append-only audit log.
               </p>
             </div>
           </div>
         </section>
 
-        <div class="note">
+        <section>
+          <div class="section-label">The result, stated honestly</div>
+          <h2>0.236% on the luma plane, and the reason it is not larger</h2>
           <p>
-            <strong>On honesty of measurement.</strong> The bitstream is
-            GIRC's own research format, not VVC-conformant, and the report
-            says so. The transforms are bit-exact against Fraunhofer HHI's
-            VVenC, so the transform arithmetic is a real one, but GIRC is an
-            research codec with integer-sample motion and is not a VVC
-            competitor. The
-            numbers it reports are about the signalling mechanism, measured
-            under a controlled comparison.
+            Over twelve Xiph.Org CIF sequences, ten frames each, at four quantization parameters,
+            with the margin at 50: the inferred mode is
+            <strong>−0.236% on the luma plane</strong> and
+            <strong>−0.149% on the whole frame</strong>, and it is smaller on eleven sequences of
+            the twelve on the luma plane and ten on the whole frame. The whole sweep is on the
+            results page.
+          </p>
+          <p>
+            It is a small win, and the reason it is not a larger one is measurable rather than
+            mysterious: the transform mode is a near-tie in rate-distortion terms, so there is little
+            for a predictor to predict. That measurement is the mechanism's most useful result.
+          </p>
+          {{FIGURE:fig-margin-sweep}}
+          <div class="cta">
+            <a class="btn primary" href="results.html">The whole margin sweep</a>
+            <a class="btn" href="method.html">How the mechanism works</a>
+          </div>
+        </section>
+
+        <div class="callout">
+          <div class="callout-title">What this is, and what it is not</div>
+          <p>
+            <strong>It is open source.</strong> The codec, the training pipeline and the portal are
+            Apache-2.0, and there is nothing on this site gated behind a price or a request form.
+            The hosted analysis service is free to use, and the code it runs is the code in the
+            repository.
+          </p>
+          <p>
+            <strong>It is not a VVC decoder.</strong> GIRC's bitstream is its own research format. It
+            exists to measure one mechanism with everything else held constant. The transform
+            arithmetic is the real thing, bit-exact against Fraunhofer HHI's VVenC, but GIRC is a
+            research codec with integer-sample motion and is not a VVC competitor.
+          </p>
+          <p>
+            <strong>The patent materials are published.</strong> The disclosure, the claim set and the
+            prior-art analysis are in the repository rather than behind an evaluation agreement,
+            because a claim is only worth as much as somebody else's ability to check it.
           </p>
         </div>
       </div>
@@ -159,15 +242,40 @@
     <footer class="site">
       <div class="wrap">
         <div>
-          GIRC — Geometry-Inference Codec. Reference implementation and
-          evaluation package.
+          GIRC — Geometry-Inference Codec. Reference implementation, training method, benchmark
+          harness, hosted analysis and published patent materials.
         </div>
         <div>
           <a href="method.html">Method</a>
           <a href="results.html">Results</a>
-          <a href="package.html">Patent Package</a>
+          <a href="install.html">Install</a>
+          <a href="docs.html">Docs</a>
+          <a href="research.html">Research</a>
+          <a href="about.html">About</a>
+          <a href="mailto:devanshraulo@gmail.com">devanshraulo@gmail.com</a>
         </div>
       </div>
     </footer>
+
+    <script>
+      const button = document.getElementById('theme-toggle');
+      const icon = button?.querySelector('i');
+      function paint() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (icon) icon.className = dark ? 'ph ph-sun' : 'ph ph-moon';
+        button?.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+      }
+      button?.addEventListener('click', () => {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+        try {
+          localStorage.setItem('girc-theme', dark ? 'light' : 'dark');
+        } catch (e) {
+          /* a reader with storage disabled keeps the session's theme */
+        }
+        paint();
+      });
+      paint();
+    </script>
   </body>
 </html>

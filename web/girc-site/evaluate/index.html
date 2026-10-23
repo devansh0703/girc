@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Evaluate — GIRC</title>
+    <meta
+      name="description"
+      content="The evaluation portal for GIRC: the hosted analysis service, the published patent materials, and the hosted benchmark so you can run the measurement on your own content."
+    />
+    <link rel="stylesheet" href="../assets/site.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23f3f1ea'/><path d='M5 22 L12 10 L19 22 L26 10' stroke='%239c5c14' stroke-width='2.5' fill='none'/></svg>"
+    />
+    <script is:inline>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('girc-theme');
+        } catch (e) {
+          stored = null;
+        }
+        // Light is the default. Dark happens only when a reader chose it
+        // here and it was remembered: the site has one default and the
+        // operating system does not get to move it.
+        var theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="../index.html"><i class="ph ph-waveform"></i>GIRC<span>.</span>dev</a>
+        <nav class="site">
+          <a href="index.html" aria-current="page">Evaluate</a>
+          <a href="process.html">Process</a>
+          <a href="scope.html">Scope</a>
+          <a href="https://girc-portal.onrender.com/">The portal</a>
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
+            <i class="ph ph-moon"></i>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="wrap">
+        <section class="hero">
+          <div class="section-label">Evaluation · the portal and the hosted analysis</div>
+          <h1>Bring your own codec, and measure the mechanism in it.</h1>
+          <p class="lede">
+            The portal is the confidential evaluation environment: organisation accounts, a versioned
+            agreement, gated artifact delivery and an append-only audit log. The hosted analysis is
+            the other half: post a sequence and get the same figures the benchmark writes, without
+            building a toolchain first.
+          </p>
+          <p class="lede">
+            Nothing here is a request for a demo and nothing is priced. The portal is the way in if
+            your organisation needs the package under an agreement; the analysis is the way in if you
+            want to see the numbers first.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="https://girc-portal.onrender.com/">Open the portal</a>
+            <a class="btn" href="process.html">How the evaluation runs</a>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-label">The two doors</div>
+          <h2>The portal, and the analysis</h2>
+          <div class="grid-2">
+            <div class="panel">
+              <h3><i class="ph ph-file-lock"></i>The portal</h3>
+              <p>
+                For an organisation that needs the reference implementation, the trained predictor,
+                the benchmark harness and the patent materials under a confidential evaluation
+                agreement. An organisation registers, a user signs the agreement, a request names the
+                codec to test against, and the gated artifacts become downloadable.
+              </p>
+              <p>
+                Every step writes to an append-only audit log, and a download link is signed,
+                time-limited and bound to the artifact's digest, so it cannot be edited to fetch
+                something else or replayed after it expires.
+              </p>
+            </div>
+            <div class="panel">
+              <h3><i class="ph ph-activity"></i>The hosted analysis</h3>
+              <p>
+                For seeing what the measurement says before committing to anything. Post a Y4M
+                sequence and the service encodes it in both signalling modes, sweeps the margin, and
+                returns the figures: the rate, the distortion, the prediction mismatch and the
+                predictability ceiling.
+              </p>
+              <p>
+                It is the same code the repository ships, running on one free instance, and it stores
+                nothing: the sequence lives in the request and is dropped with it.
+              </p>
+            </div>
+          </div>
+          {{FIGURE:fig-evaluation-lifecycle}}
+        </section>
+
+        <section>
+          <div class="section-label">Why an evaluation rather than a paper</div>
+          <h2>The published numbers are a starting point, not a conclusion</h2>
+          <p>
+            The published numbers come from GIRC, a research codec with a small mode set and
+            integer-sample motion, and they put the mechanism at a 0.236% saving on the luma plane and
+            0.149% on the whole frame, on ten sequences of twelve. That result is a starting point for
+            an argument, not the end of one.
+          </p>
+          <p>
+            A codec team with a real VVC or AV1 encoder can test the mechanism where the transform set
+            is larger, where the residual coding is richer, and where inter prediction is in play.
+            Those are exactly the three things most likely to change the answer, and none of them can
+            be tested with GIRC's mode set.
+          </p>
+          {{FIGURE:fig-margin-sweep}}
+          {{FIGURE:fig-benchmark-apparatus}}
+        </section>
+
+        <section>
+          <div class="section-label">What you receive</div>
+          <h2>The whole thing, published</h2>
+          <div class="grid">
+            <div class="cell">
+              <h3>Reference codec</h3>
+              <p>
+                The full Rust implementation with both signalling modes behind one interface, its test
+                suite, and the oracle that checks the transform arithmetic against VVenC bit for bit.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Trained predictor</h3>
+              <p>
+                The model, the training set, its checksum and the pipeline that produced it, including
+                the predictability ceiling over the same features.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Benchmark harness</h3>
+              <p>
+                The tool behind the published figures, with the anchor codecs and the Bjontegaard
+                implementation, so the evaluation is reproducible on your own material.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Patent materials</h3>
+              <p>
+                The disclosure, the claim set, the drawings and the prior-art analysis, with the claim
+                text of the ten references it was read against.
+              </p>
+            </div>
+          </div>
+          <div class="callout">
+            <div class="callout-title">It is published, not gated</div>
+            <p>
+              The patent materials are in the repository rather than behind an agreement, because a
+              claim is only worth as much as somebody else's ability to check it. The agreement exists
+              for the evaluation of your own results, not for access to the claims.
+            </p>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-label">What we ask of you</div>
+          <h2>Report honestly, including when it does not help</h2>
+          <div class="grid">
+            <div class="cell">
+              <h3>Run it against your encoder</h3>
+              <p>
+                The benchmark takes your content and your encoder, and the comparison runs on both
+                rather than only on ours.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Report the negative results</h3>
+              <p>
+                Including when the mechanism does not help. A negative result is worth more to the
+                filing than a flattering one, because it establishes the mechanism's real envelope.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Say what you changed</h3>
+              <p>
+                The features, the margin and the grain of the signalling are all parameters. A result
+                that moved one of them is a different result and has to be reported as one.
+              </p>
+            </div>
+            <div class="cell">
+              <h3>Talk to us</h3>
+              <p>
+                Especially about the case where the mechanism fails. That is where the claim set has
+                to be drawn carefully, and your evidence is what draws it.
+              </p>
+            </div>
+          </div>
+          <div class="cta">
+            <a class="btn primary" href="https://girc-portal.onrender.com/">Open the portal</a>
+            <a class="btn" href="scope.html">What is covered, and what is not</a>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>GIRC — Geometry-Inference Codec. The evaluation portal and the hosted analysis.</div>
+        <div>
+          <a href="process.html">Process</a>
+          <a href="scope.html">Scope</a>
+          <a href="../index.html">The codec</a>
+          <a href="mailto:devanshraulo@gmail.com">devanshraulo@gmail.com</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const button = document.getElementById('theme-toggle');
+      const icon = button?.querySelector('i');
+      function paint() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (icon) icon.className = dark ? 'ph ph-sun' : 'ph ph-moon';
+        button?.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+      }
+      button?.addEventListener('click', () => {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+        try {
+          localStorage.setItem('girc-theme', dark ? 'light' : 'dark');
+        } catch (e) {}
+        paint();
+      });
+      paint();
+    </script>
+  </body>
+</html>

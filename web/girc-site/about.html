@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>About — GIRC</title>
+    <meta
+      name="description"
+      content="One maintainer, one open repository, and a free instance of the analysis running on a free host. What that means for you, including what it does not."
+    />
+    <link rel="stylesheet" href="assets/site.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23f3f1ea'/><path d='M5 22 L12 10 L19 22 L26 10' stroke='%239c5c14' stroke-width='2.5' fill='none'/></svg>"
+    />
+    <script is:inline>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('girc-theme');
+        } catch (e) {
+          stored = null;
+        }
+        // Light is the default. Dark happens only when a reader chose it
+        // here and it was remembered: the site has one default and the
+        // operating system does not get to move it.
+        var theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href="index.html"><i class="ph ph-waveform"></i>GIRC<span>.</span>dev</a>
+        <nav class="site">
+          <a href="index.html">Overview</a>
+          <a href="method.html">Method</a>
+          <a href="install.html">Install</a>
+          <a href="results.html">Results</a>
+          <a href="docs.html">Docs</a>
+          <a href="research.html">Research</a>
+          <a href="service.html">Service</a>
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
+            <i class="ph ph-moon"></i>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="wrap">
+        <section class="hero">
+          <div class="section-label">About</div>
+          <h1>One maintainer, one repository, and a service that costs nothing to use.</h1>
+          <p class="lede">
+            GIRC is built by <strong>Devansh Raulo</strong>. It is not a company, there is no
+            commercial licence to buy, and there is nothing on this site gated behind a price or a
+            request form. The codec, the training pipeline, the benchmark and the portal are all
+            here, and the fastest way to get an answer about any of them is to email me directly.
+          </p>
+          <p class="lede">
+            The reason it is built this way is simple: a measurement is only worth as much as somebody
+            else's ability to check it. A library you cannot read the source of, and a number you
+            cannot re-run, is a claim. Everything about how this project is published follows from
+            trying not to make claims.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="mailto:devanshraulo@gmail.com">
+              <i class="ph ph-envelope-simple"></i>devanshraulo@gmail.com
+            </a>
+            <a class="btn" href="https://github.com/devansh0703/girc">
+              <i class="ph ph-github-logo"></i>The repository
+            </a>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-label">What the project is for</div>
+          <h2>A wrong optimisation is expensive; knowing which one not to make is cheap</h2>
+          <p>
+            The whole reason this exists is the figure below. A codec team spends its time on the
+            entropy coder, the motion search and the residual coding, and the transform type is one
+            line of syntax that costs a few bins per block. Nobody optimises it because nobody can see
+            what it costs.
+          </p>
+          <p>
+            GIRC makes that cost visible and then removes the part of it that is removable. The
+            measurement is small because the overhead is small, and saying so plainly is more useful
+            than a larger number that does not survive being checked.
+          </p>
+          {{FIGURE:fig-transform-tie}}
+          {{FIGURE:fig-signalling-bins}}
+        </section>
+
+        <section>
+          <div class="section-label">How it is published</div>
+          <h2>Open source, free to use, and verifiable</h2>
+          <div class="grid-2">
+            <div class="panel">
+              <h3><i class="ph ph-file-lock"></i>The licence</h3>
+              <p>
+                Apache-2.0, the whole of the code: the codec, the training pipeline, the benchmark,
+                the portal and the site. There is no separate commercial licence and no source-available
+                tier, because a project whose value is that its claims can be checked cannot afford
+                one part of itself that cannot be checked.
+              </p>
+            </div>
+            <div class="panel">
+              <h3><i class="ph ph-scales"></i>The patent materials</h3>
+              <p>
+                The disclosure, the claim set and the prior-art analysis are published in the
+                repository rather than released under an evaluation agreement. A claim is only worth as
+                much as somebody else's ability to check it, and the claim text of the ten references
+                is in the repository too.
+              </p>
+            </div>
+            <div class="panel">
+              <h3><i class="ph ph-eye"></i>The hosted service</h3>
+              <p>
+                The analysis runs on one free instance, kept awake by an uptime monitor, because a
+                free workspace gets 750 hours a month and a month is 730 to 744 hours. The code it
+                runs is the code in the repository, and every limit it has is published on the service
+                page rather than discovered by being rejected.
+              </p>
+            </div>
+            <div class="panel">
+              <h3><i class="ph ph-git-branch"></i>The release discipline</h3>
+              <p>
+                One commit per change, with a subject that says what changed and a body that says why.
+                The numbers in the release notes are the numbers the report holds, and the script that
+                checks them runs in CI.
+              </p>
+            </div>
+          </div>
+          {{FIGURE:fig-architecture}}
+        </section>
+
+        <section>
+          <div class="section-label">Where it is not finished</div>
+          <h2>Stated here rather than hidden</h2>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Open item</th>
+                  <th>Why it is open</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>A VVC-conformant bitstream</td>
+                  <td>GIRC measures the mechanism with its own format, which isolates the signalling and nothing else. What is conformant is the signalling the mechanism removes, checked against the reference encoder over 187,834 transform units.</td>
+                </tr>
+                <tr>
+                  <td>A counsel-led freedom-to-operate search</td>
+                  <td>A public-record claim-level search is not an FTO opinion, and the national phase filings of the families in the set were not searched. That needs a patent attorney.</td>
+                </tr>
+                <tr>
+                  <td>A richer residual coder</td>
+                  <td>The modes separate more when the residual coder is richer, which is where the mechanism should pay. It is the direction the work points and it is not done.</td>
+                </tr>
+                <tr>
+                  <td>A larger causal window</td>
+                  <td>The features read a 16-sample window. A larger one, or a learned representation of the neighbourhood, would raise the predictability ceiling.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="cta">
+            <a class="btn primary" href="https://github.com/devansh0703/girc/issues">Issues and discussion</a>
+            <a class="btn" href="research.html">The research pages</a>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <div>GIRC — Geometry-Inference Codec.</div>
+        <div>
+          <a href="index.html">Overview</a>
+          <a href="method.html">Method</a>
+          <a href="results.html">Results</a>
+          <a href="mailto:devanshraulo@gmail.com">devanshraulo@gmail.com</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const button = document.getElementById('theme-toggle');
+      const icon = button?.querySelector('i');
+      function paint() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (icon) icon.className = dark ? 'ph ph-sun' : 'ph ph-moon';
+        button?.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+      }
+      button?.addEventListener('click', () => {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+        try {
+          localStorage.setItem('girc-theme', dark ? 'light' : 'dark');
+        } catch (e) {}
+        paint();
+      });
+      paint();
+    </script>
+  </body>
+</html>

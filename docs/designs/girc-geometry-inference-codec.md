@@ -118,25 +118,31 @@ publishing.
    company.** The brief says this outright; the "upside remains narrow
    without more codec inventions". AGREED — which means the toolkit has to be
    reusable for the *next* method, or the business dies after one patent.
-5. **Two products, not one.** The brief describes a single patent package.
-   The user requires two separate products, each with its own website. The
-   defensible split: the *research toolkit* (open, drives adoption and proves
-   the mechanism) and the *evaluation + licensing service* (the commercial
-   vehicle that sells confidential evaluation and rights). The brief's own
-   "vehicle: LICENSE OR SELL" and "wins through evaluations and licenses, not
-   a standalone product" support exactly this split.
+5. **One product, not two.** An earlier revision of this document recorded
+   the opposite — "two products, not one", a research toolkit and a
+   commercial evaluation service, each with a site of its own. That was a
+   misreading of the brief, and it is corrected here rather than quietly
+   edited away. There is one codec, one training method, one benchmark and one
+   hosted service, and they are the parts of a single thing: the codec
+   measures, the pipeline fits the predictor, the harness measures both, and
+   the portal and the service make it runnable by somebody who did not build
+   it. The product is open source under Apache-2.0, the hosted analysis is
+   free to use, and the patent materials are published in the repository
+   rather than released under an agreement, because a claim is only worth as
+   much as somebody else's ability to check it.
 
 ## Approaches Considered
 
-### Approach A: Single monorepo, two products, one shared core
+### Approach A: Single monorepo, one product, one shared core
 One Rust codec crate implementing the geometry-inference mechanism, a
-benchmark harness, a training pipeline, an evaluation portal, and two
-marketing sites. The research core is shared; the two products are separate
-deliverables with separate websites.
+benchmark harness, a training pipeline, an evaluation portal, and one site.
+The research core is shared; the parts are one deliverable with one website.
+This is the approach that was taken, and the two-site variant recorded here
+earlier was the misreading premise 5 corrects.
 
 - Summary: build GIRC (the codec + toolkit) as the technical core, then
-  build GIRC Evaluate (the portal) on top of it, plus two Astro product
-  sites.
+  build the portal and the hosted analysis on top of it, plus one product
+  site with an `/evaluate/` section.
 - Effort: L
 - Risk: Medium
 - Pros:
@@ -147,7 +153,9 @@ deliverables with separate websites.
   - The toolkit generalises to the next method, so premise 4 is served.
 - Cons:
   - Scope is large for one founder; sequencing discipline required.
-  - Two products share a codebase, so a bug in core hits both.
+  - The parts share a codebase, so a bug in core hits all of them.
+  - A single site has to carry both the product's case and the research's
+    honest boundary, which is two registers in one design system.
 - Reuses: VVenC (Fraunhofer, Clear BSD) as the reference VVC codec and
   transform-matrix source; constriction (MIT/Apache-2.0) for entropy coding;
   FAU-LMS Bjontegaard reference implementation for BD-rate; FFmpeg (LGPL) for

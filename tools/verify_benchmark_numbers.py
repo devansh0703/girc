@@ -35,8 +35,12 @@ DOCUMENTS = [
     "research/patent-package/README.md",
     "research/patent-package/REPRODUCIBILITY.md",
     "web/girc-site/results.html",
-    "web/eval-site/index.html",
-    "web/eval-site/scope.html",
+    "web/girc-site/index.html",
+    "web/girc-site/method.html",
+    "web/girc-site/service.html",
+    "web/girc-site/evaluate/index.html",
+    "web/girc-site/evaluate/scope.html",
+    "research/REPORT.md",
 ]
 
 

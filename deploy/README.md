@@ -1,9 +1,9 @@
-# Deploying the evaluation portal
+# Deploying the portal and the hosted analysis
 
-The evaluation portal is the part of Product B that hands out
-confidential material. It is a small application, but the things it
-holds are worth protecting, so the deployment is built around four
-properties:
+The portal is the part of GIRC that hands out confidential material, and the
+hosted analysis is the part that makes the measurement runnable by somebody
+who did not build a toolchain. They are two doors into one product, and the
+deployment is built around four properties:
 
 1. **The secret is never in the image.** The signing secret, the
    database password and the Redis token are passed in as environment
@@ -144,13 +144,79 @@ setting, not a secret, and it is set in `.github/workflows/pages.yml`:
 
 ```yaml
 env:
-  GIRC_PORTAL_URL: https://eval.example.com
+  GIRC_PORTAL_URL: https://girc-portal.onrender.com
 ```
 
 The portal itself is a separate deployment with its own domain, its own
 certificate and its own secrets, and it is not served from the
 project's pages. The pages under `/evaluate/` are the public face of
 it: what the evaluation is, how it runs, and what is out of scope.
+
+## The hosted analysis on Render
+
+The portal runs on Render as one free web service, because a workspace
+gets 750 free instance hours a month and a month is 730 to 744 hours, so
+exactly one always-on free service fits. The manifest is in the
+repository, so what is deployed can be compared with what is committed:
+
+```yaml
+# render.yaml
+services:
+  - type: web
+    name: girc-portal
+    runtime: docker          # the service is the codec, so it builds it
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    dockerfilePath: ./deploy/Dockerfile.service
+```
+
+The service is Docker because it is the codec: the container builds the
+Rust CLI and shells out to it, so the numbers over HTTP are the numbers
+the command line produces, from one implementation rather than two.
+
+The service can also be created through the API
+(`tools/create_render_service.py` does it), and the request shape is
+not what the error messages suggest:
+
+- `repo`, `branch` and `envVars` belong at the **top level**; only the
+  runtime knobs belong inside `serviceDetails`, with the docker build
+  paths nested one level deeper under `serviceDetails.envSpecificDetails`.
+- `autoDeploy` is a **string enum** (`"yes"`/`"no"`), not a boolean; use
+  `autoDeployTrigger: "commit"` instead. Sending a boolean gets the
+  useless reply `{"message":"invalid JSON"}`, which is what the API
+  returns for any schema violation, valid JSON or not.
+- The POST bucket on `/v1/services` is far stricter than the GET
+  bucket — a handful of requests per window, and the window is minutes
+  long. The script reads `ratelimit-reset` and waits rather than
+  burning attempts.
+
+A free account must have a payment card on file before the API will
+create any service, even a free one. The dashboard and the API share
+this rule.
+
+A free instance sleeps after fifteen minutes without a request, so an
+UptimeRobot monitor pings `/health` every five minutes. The monitor is
+created with the UptimeRobot API and the key is never in the repository:
+
+```sh
+curl -X POST https://api.uptimerobot.com/v2/newMonitor \
+  -d "api_key=$UPTIMEROBOT_API_KEY&format=json" \
+  -d "friendly_name=GIRC portal (Render free instance)" \
+  -d "url=https://girc-portal.onrender.com/health&type=1" \
+  -d "interval=300"
+```
+
+Render's cron jobs are a paid instance type, so the free workspace
+schedules nothing and the scheduled canary lives in GitHub Actions
+instead: `.github/workflows/service.yml` calls the service over HTTP
+once a week, which keeps the one-instance budget intact and uses a
+scheduler that already exists in the repository.
+
+The portal's address is
+**[girc-portal.onrender.com](https://girc-portal.onrender.com/)**. The
+analysis endpoint is `/analyze`, which takes a sequence and returns the
+figures; `/register` is the evaluation portal.
 
 ## What is not in the repository
 

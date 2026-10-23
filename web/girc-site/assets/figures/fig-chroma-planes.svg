@@ -1,0 +1,23 @@
+<figure class="chart">
+  <figcaption>
+    <span>Why there are two rate axes: the mechanism is a luma mechanism</span>
+    <span class="src">crates/girc-core/src/chroma.rs, ITU-T H.266 clause 7.3.9</span>
+  </figcaption>
+  <div class="plot">
+    <svg viewBox="0 0 900 280" role="img" aria-label="A 4:2:0 frame drawn to scale: one luma sample per chroma sample in a 2x2 ratio, with the chroma planes carrying no transform-type signalling at all">
+    <rect x="40" y="60" width="480" height="320" fill="var(--accent)" opacity="0.14" stroke="var(--line-strong)" stroke-width="1" />
+    <text x="48.0" y="84.0" font-size="12" fill="var(--ink)" text-anchor="start" font-weight="400">luma: 352 × 288, four samples per chroma sample</text>
+    <text x="48.0" y="104.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">the transform type is signalled here, and the mechanism removes all of it</text>
+    <rect x="560" y="100" width="240" height="160" fill="var(--sev-info)" opacity="0.14" stroke="var(--line-strong)" stroke-width="1" />
+    <text x="568.0" y="124.0" font-size="12" fill="var(--ink)" text-anchor="start" font-weight="400">Cb: 176 × 144</text>
+    <text x="568.0" y="144.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">always the plain DCT-II</text>
+    <text x="568.0" y="162.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">no transform type is signalled</text>
+    <rect x="690" y="100" width="240" height="160" fill="var(--sev-info)" opacity="0.14" stroke="var(--line-strong)" stroke-width="1" />
+    <text x="698.0" y="124.0" font-size="12" fill="var(--ink)" text-anchor="start" font-weight="400">Cr: 176 × 144</text>
+    <text x="698.0" y="144.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">always the plain DCT-II</text>
+    <text x="698.0" y="162.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">no transform type is signalled</text>
+    <text x="40.0" y="24.0" font-size="12.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">the mechanism changes the luma signalling and nothing else</text>
+    <text x="40.0" y="44.0" font-size="11.5" fill="var(--ink-faint)" text-anchor="start" font-weight="400">so the benchmark reports the luma rate, which is the mechanism's own effect, and the whole-frame rate, which is what a deployment saves</text>
+    </svg>
+  </div>
+</figure>

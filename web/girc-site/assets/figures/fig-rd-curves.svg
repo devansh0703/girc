@@ -1,0 +1,60 @@
+<figure class="chart">
+  <figcaption>
+    <span>Rate-distortion, foreman_cif: the two GIRC modes and the three anchors</span>
+    <span class="src">research/benchmark/report-v9-joint.json · results</span>
+  </figcaption>
+  <div class="plot">
+    <svg viewBox="0 0 900 400" role="img" aria-label="The rate-distortion curves for foreman_cif at four quantization parameters, for GIRC in both modes and for x265, SVT-AV1 and VVenC">
+    <line x1="80.0" y1="295.4" x2="820.0" y2="295.4" stroke="var(--grid)" stroke-width="1.0" />
+    <text x="70.0" y="299.4" font-size="11" fill="var(--ink-faint)" text-anchor="end" font-weight="400">33.0</text>
+    <line x1="80.0" y1="237.2" x2="820.0" y2="237.2" stroke="var(--grid)" stroke-width="1.0" />
+    <text x="70.0" y="241.2" font-size="11" fill="var(--ink-faint)" text-anchor="end" font-weight="400">35.4</text>
+    <line x1="80.0" y1="179.0" x2="820.0" y2="179.0" stroke="var(--grid)" stroke-width="1.0" />
+    <text x="70.0" y="183.0" font-size="11" fill="var(--ink-faint)" text-anchor="end" font-weight="400">37.7</text>
+    <line x1="80.0" y1="120.8" x2="820.0" y2="120.8" stroke="var(--grid)" stroke-width="1.0" />
+    <text x="70.0" y="124.8" font-size="11" fill="var(--ink-faint)" text-anchor="end" font-weight="400">40.1</text>
+    <line x1="80.0" y1="62.6" x2="820.0" y2="62.6" stroke="var(--grid)" stroke-width="1.0" />
+    <text x="70.0" y="66.6" font-size="11" fill="var(--ink-faint)" text-anchor="end" font-weight="400">42.5</text>
+    <polyline points="820.0,89.1 559.6,167.0 367.1,235.4 255.4,295.3" fill="none" stroke="var(--ink-dim)" stroke-width="2.0" />
+    <circle cx="820.0" cy="89.1" r="3.5" fill="var(--ink-dim)" />
+    <circle cx="559.6" cy="167.0" r="3.5" fill="var(--ink-dim)" />
+    <circle cx="367.1" cy="235.4" r="3.5" fill="var(--ink-dim)" />
+    <circle cx="255.4" cy="295.3" r="3.5" fill="var(--ink-dim)" />
+    <polyline points="817.0,90.5 555.2,167.4 364.4,235.4 255.7,295.4" fill="none" stroke="var(--accent)" stroke-width="2.0" />
+    <circle cx="817.0" cy="90.5" r="3.5" fill="var(--accent)" />
+    <circle cx="555.2" cy="167.4" r="3.5" fill="var(--accent)" />
+    <circle cx="364.4" cy="235.4" r="3.5" fill="var(--accent)" />
+    <circle cx="255.7" cy="295.4" r="3.5" fill="var(--accent)" />
+    <polyline points="302.4,93.6 181.5,160.4 121.9,230.6 91.0,295.2" fill="none" stroke="var(--sev-info)" stroke-width="2.0" />
+    <circle cx="302.4" cy="93.6" r="3.5" fill="var(--sev-info)" />
+    <circle cx="181.5" cy="160.4" r="3.5" fill="var(--sev-info)" />
+    <circle cx="121.9" cy="230.6" r="3.5" fill="var(--sev-info)" />
+    <circle cx="91.0" cy="295.2" r="3.5" fill="var(--sev-info)" />
+    <polyline points="239.7,108.8 195.0,134.9 158.6,162.1 134.1,186.7" fill="none" stroke="var(--sev-warning)" stroke-width="2.0" />
+    <circle cx="239.7" cy="108.8" r="3.5" fill="var(--sev-warning)" />
+    <circle cx="195.0" cy="134.9" r="3.5" fill="var(--sev-warning)" />
+    <circle cx="158.6" cy="162.1" r="3.5" fill="var(--sev-warning)" />
+    <circle cx="134.1" cy="186.7" r="3.5" fill="var(--sev-warning)" />
+    <polyline points="268.8,62.6 159.5,128.0 105.3,194.0 80.0,250.8" fill="none" stroke="var(--sev-ok)" stroke-width="2.0" />
+    <circle cx="268.8" cy="62.6" r="3.5" fill="var(--sev-ok)" />
+    <circle cx="159.5" cy="128.0" r="3.5" fill="var(--sev-ok)" />
+    <circle cx="105.3" cy="194.0" r="3.5" fill="var(--sev-ok)" />
+    <circle cx="80.0" cy="250.8" r="3.5" fill="var(--sev-ok)" />
+    <line x1="80.0" y1="26.0" x2="98.0" y2="26.0" stroke="var(--ink-dim)" stroke-width="2.2" />
+    <text x="104.0" y="30.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">girc-explicit</text>
+    <line x1="201.0" y1="26.0" x2="219.0" y2="26.0" stroke="var(--accent)" stroke-width="2.2" />
+    <text x="225.0" y="30.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">girc-inferred</text>
+    <line x1="322.0" y1="26.0" x2="340.0" y2="26.0" stroke="var(--sev-info)" stroke-width="2.2" />
+    <text x="346.0" y="30.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">x265</text>
+    <line x1="380.0" y1="26.0" x2="398.0" y2="26.0" stroke="var(--sev-warning)" stroke-width="2.2" />
+    <text x="404.0" y="30.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">svt-av1</text>
+    <line x1="459.0" y1="26.0" x2="477.0" y2="26.0" stroke="var(--sev-ok)" stroke-width="2.2" />
+    <text x="483.0" y="30.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">vvenc</text>
+    <line x1="367.1" y1="235.4" x2="364.4" y2="235.4" stroke="var(--sev-critical)" stroke-width="1.6" />
+    <text x="365.8" y="261.4" font-size="11" fill="var(--sev-critical)" text-anchor="middle" font-weight="400">the mechanism, at QP 32: 3968 bits apart</text>
+    <text x="18.0" y="28.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">PSNR, dB</text>
+    <text x="450.0" y="354.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="middle" font-weight="400">bits for ten frames</text>
+    <text x="80.0" y="24.0" font-size="12" fill="var(--ink-faint)" text-anchor="start" font-weight="400">the anchors are better codecs; the gap between the two GIRC lines is the mechanism</text>
+    </svg>
+  </div>
+</figure>

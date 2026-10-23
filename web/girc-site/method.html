@@ -1,49 +1,75 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Method — GIRC</title>
     <meta
       name="description"
-      content="How GIRC's geometry-inference transform signalling works: the features, the predictor, the signalling syntax and the rate-distortion margin."
+      content="How GIRC's geometry-inference transform signalling works: the features, the predictor, the two syntaxes and the rate-distortion margin."
     />
     <link rel="stylesheet" href="assets/site.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23f3f1ea'/><path d='M5 22 L12 10 L19 22 L26 10' stroke='%239c5c14' stroke-width='2.5' fill='none'/></svg>"
+    />
+    <script is:inline>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('girc-theme');
+        } catch (e) {
+          stored = null;
+        }
+        // Light is the default. Dark happens only when a reader chose it
+        // here and it was remembered: the site has one default and the
+        // operating system does not get to move it.
+        var theme = stored === 'dark' || stored === 'light' ? stored : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
     <header class="site">
       <div class="wrap">
-        <a class="brand" href="index.html">GIRC<span>.</span>dev</a>
+        <a class="brand" href="index.html"><i class="ph ph-waveform"></i>GIRC<span>.</span>dev</a>
         <nav class="site">
           <a href="index.html">Overview</a>
-          <a href="method.html">Method</a>
+          <a href="method.html" aria-current="page">Method</a>
+          <a href="install.html">Install</a>
           <a href="results.html">Results</a>
-          <a href="package.html">Patent Package</a>
+          <a href="docs.html">Docs</a>
+          <a href="research.html">Research</a>
+          <a href="service.html">Service</a>
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
+            <i class="ph ph-moon"></i>
+          </button>
         </nav>
       </div>
     </header>
 
-    <main>
+    <main id="main">
       <div class="wrap narrow">
         <section class="hero">
-          <div class="readout">METHOD · TRANSFORM-TYPE INFERENCE</div>
+          <div class="section-label">Method · transform-type inference</div>
           <h1>Deriving the transform from what the decoder already has.</h1>
           <p class="lede">
-            The mechanism is a substitution. Where a conventional codec spends
-            bits to say which transform it used, GIRC has the decoder work
-            it out, and the encoder only has to correct it when the guess is
-            wrong.
+            The mechanism is a substitution. Where a conventional codec spends bits to say which
+            transform it used, GIRC has the decoder work it out, and the encoder only has to correct
+            it when the guess is wrong.
           </p>
         </section>
 
         <section>
-          <h2>The bitstream</h2>
+          <div class="section-label">The bitstream</div>
+          <h2>A research format, on purpose</h2>
           <p>
-            GIRC's bitstream is its own research format, not VVC-conformant.
-            That is deliberate: the mechanism has to be measured with
-            everything else held constant, and a conformant bitstream would
-            force the comparison to inherit every other design decision of
-            the standard.
+            GIRC's bitstream is its own research format, not VVC-conformant. That is deliberate: the
+            mechanism has to be measured with everything else held constant, and a conformant
+            bitstream would force the comparison to inherit every other design decision of the
+            standard.
           </p>
           <pre><code>"GIRC"        4 bytes magic
 version       u16, little endian
@@ -54,43 +80,41 @@ qp            u8
 payload len   u32, little endian
 payload       range-coded words</code></pre>
           <p>
-            The flags field records the signalling mode, so a stream is
-            self-describing: the two modes have different syntax, and a
-            decoder that guessed wrong would desynchronise.
+            The flags field records the signalling mode, so a stream is self-describing: the two modes
+            have different syntax, and a decoder that guessed wrong would desynchronise. What
+            <em>is</em> conformant is the signalling the mechanism removes: the explicit mode writes
+            the same bins the reference implementation writes for <code>mts_idx</code>, checked
+            against VVenC's own output over 187,834 transform units.
           </p>
         </section>
 
         <section>
-          <h2>The syntax</h2>
+          <div class="section-label">The syntax</div>
+          <h2>One bin for the answer, two for the correction</h2>
           <p>
-            The explicit mode codes the transform type with a truncated
-            binary code: the first type in the canonical order costs one bin
-            and the other two cost two.
+            The explicit mode codes the transform type with a truncated binary code: the plain DCT-II
+            costs one bin and the other four cost two to four.
           </p>
           <p>
-            The inferred mode codes one bin saying whether the decoder's
-            prediction was right. When it was wrong, one further bin
-            selects between the two transforms the prediction ruled out. The
-            ordering of the remaining two is canonical, so the selection is
-            unambiguous.
+            The inferred mode codes one bin saying whether the decoder's prediction was right. When it
+            was wrong, two further bins select between the four modes the prediction ruled out.
           </p>
           <p>
-            That second bin is what makes the design worth having. The naive
-            form of the mechanism spends a bin on the correction and then
-            the full type again, which is three bins against the explicit
-            mode's two. Coding the correction relative to the prediction
-            brings it back to two, so an override never costs more than the
-            signalling it replaces.
+            That second part is what makes the design worth having. The naive form spends a bin on the
+            correction and then the full type again, which is three bins against the explicit mode's
+            two. Coding the correction relative to the prediction brings it back to two, so an
+            override never costs more than the signalling it replaces.
           </p>
+          {{FIGURE:fig-syntax}}
+          {{FIGURE:fig-signalling-bins}}
         </section>
 
         <section>
-          <h2>The features</h2>
+          <div class="section-label">The features</div>
+          <h2>Read from the decoder's own reconstruction</h2>
           <p>
-            The decoder reads a 16-sample square window ending at the
-            block's top-left corner. Every sample in it has already been
-            reconstructed, so reading it costs nothing in signalling. The
-            features are:
+            The decoder reads a 16-sample square window ending at the block's top-left corner. Every
+            sample in it has already been reconstructed, so reading it costs nothing in signalling.
           </p>
           <table>
             <thead>
@@ -154,121 +178,99 @@ payload       range-coded words</code></pre>
             </tbody>
           </table>
           <p>
-            The gradient is taken with central differences over a genuine
-            two-dimensional window. Restricting it to the two reference
-            lines — the top row and the left column — throws away the
-            diagonal information that distinguishes the transforms, and
-            leaves four of the eight orientation bins permanently empty.
+            The gradient is taken with central differences over a genuine two-dimensional window.
+            Restricting it to the two reference lines — the top row and the left column — throws away
+            the diagonal information that distinguishes the transforms, and leaves four of the eight
+            orientation bins permanently empty.
           </p>
           <p>
-            The neighbour context is free: the decoder already knows every
-            already-coded neighbour's transform mode, because it decoded
-            them. It is also the context the codec literature uses, since
-            the transform choice is strongly spatially correlated.
-          </p>
-          <p>
-            The intra mode is the strongest single signal, and it is
-            available on both sides: the mode is decoded before the
-            transform type, so the predictor may use it. The quantization
-            parameter is available from the bitstream header.
+            The neighbour context is free: the decoder already knows every already-coded neighbour's
+            transform mode, because it decoded them. The intra mode is the strongest single signal and
+            it is available on both sides, because the mode is decoded before the transform type.
           </p>
         </section>
 
         <section>
-          <h2>The predictor</h2>
+          <div class="section-label">The predictor</div>
+          <h2>One model over five modes, fitted on the encoder's own choices</h2>
           <p>
-            The predictor models the joint mode: one multinomial logistic
-            regression over the five modes. An earlier version modelled
-            the two axes separately and composed them, because each axis
-            on its own was well above the majority class — about 53.9%
-            against 50.1% — and the composed mode came out below it, at
-            48.8%. The five modes are not a product space: the plain
-            DCT-II appears on an axis only in the mode where both axes
-            are the plain DCT-II, and the four multiple transform
-            selection modes are correlated. Composing two independent
-            per-axis models cannot recover the joint distribution, and
-            the measurement showed it losing. One model over the five
-            modes is both simpler and better.
+            The predictor models the joint mode: one multinomial logistic regression over the five
+            modes. An earlier version modelled the two axes separately and composed them, because each
+            axis on its own was well above the majority class — about 53.9% against 50.1% — and the
+            composed mode came out below it, at 48.8%. The five modes are not a product space, so
+            composing two independent per-axis models cannot recover the joint distribution, and the
+            measurement showed it losing. One model over the five modes is both simpler and better.
           </p>
           <p>
-            The regression is a weight vector and a bias per mode, and
-            the prediction is the highest logit. It is a pure function of
-            its weights and the feature vector, so the encoder and the
+            The regression is a weight vector and a bias per mode, and the prediction is the highest
+            logit. It is a pure function of its weights and the feature vector, so the encoder and the
             decoder always agree.
           </p>
           <p>
-            The features include the block's own prediction plane. The
-            encoder chooses the transform that best compacts the
-            residual, and the residual inherits the prediction's
-            directional structure, so the prediction's orientation is the
-            most direct evidence of the transform the encoder will want.
-            Both sides have the prediction before they need the transform
-            type, because the intra mode and the motion vector are both
-            decoded first. For an inter block the prediction comes from
-            the previous frame at a motion-compensated position, so it
-            carries information the causal window of the current frame
-            does not have at all.
+            The model is trained on the encoder's own decisions. The collection pass runs the encoder
+            and records, for every block, the geometry features and the transform the rate-distortion
+            search actually chose. The training set is therefore the encoder's behaviour and not a
+            proxy for it.
           </p>
           <p>
-            The model is trained on the encoder's own decisions. The
-            collection pass runs the encoder and records, for every block,
-            the geometry features and the transform the rate-distortion
-            search actually chose. The training set is therefore the
-            encoder's behaviour and not a proxy for it, and the features are
-            taken from the reconstructed neighbourhood, exactly as the
-            decoder will see them.
+            The pipeline also reports the predictability ceiling: a gradient-boosted tree fitted over
+            the same features gives an upper bound on what any model over them can achieve, so a
+            report can state what the features can support rather than only what the shipped model
+            achieves.
           </p>
-          <p>
-            The pipeline also reports the predictability ceiling: a
-            gradient-boosted tree fitted over the same features gives an
-            upper bound on what any model over them can achieve. A report
-            can then state what the features can support rather than only
-            what the shipped model achieves.
-          </p>
+          {{FIGURE:fig-mode-distribution}}
+          {{FIGURE:fig-predictability}}
         </section>
 
         <section>
-          <h2>The margin</h2>
+          <div class="section-label">The margin</div>
+          <h2>The one free parameter, and why it is necessary</h2>
           <p>
-            The mechanism's free parameter is the margin: the amount of
-            rate-distortion cost,
-            the encoder is willing to give up to avoid signalling the
-            transform type. When the predicted transform is within the
-            margin of the search's own choice, the encoder takes the
-            predicted one and spends nothing.
+            The mechanism's free parameter is the margin: the amount of rate-distortion cost the
+            encoder is willing to give up to avoid signalling the transform type. When the predicted
+            transform is within the margin of the search's own choice, the encoder takes the predicted
+            one and spends nothing.
           </p>
           <p>
-            The margin is the honest form of the mechanism. Without it the
-            encoder takes the strictly optimal transform and overrides
-            whenever the prediction differs, and the inferred mode is
-            reliably <em>larger</em> than the explicit one, because the
-            signalling it removes is smaller than the distortion it costs.
-            The margin is what lets the two balance.
+            The margin is the honest form of the mechanism. Without it the encoder takes the strictly
+            optimal transform and overrides whenever the prediction differs, and the inferred mode is
+            reliably <em>larger</em> than the explicit one, because the signalling it removes is
+            smaller than the distortion it costs. The margin is what lets the two balance.
           </p>
           <p>
-            The margin applies only to the inferred mode. The explicit mode
-            stays a clean rate-distortion optimum, so the comparison between
-            them is not confounded by the explicit baseline being
-            deliberately handicapped.
+            The margin applies only to the inferred mode. The explicit mode stays a clean
+            rate-distortion optimum, so the comparison between them is not confounded by the explicit
+            baseline being deliberately handicapped.
           </p>
+          {{FIGURE:fig-mismatch}}
         </section>
 
         <section>
-          <h2>What is held constant</h2>
+          <div class="section-label">Held constant</div>
+          <h2>One variable, so the rate difference is attributable</h2>
           <p>
-            The two modes share the intra prediction, the quantization, the
-            transform arithmetic, the residual coding and the entropy coder.
-            They differ in one place: how the transform type reaches the
-            decoder. A difference in the measured rate is therefore
-            attributable to the signalling mechanism alone.
+            The two modes share the intra prediction, the quantization, the transform arithmetic, the
+            residual coding and the entropy coder. They differ in one place: how the transform type
+            reaches the decoder. A difference in the measured rate is therefore attributable to the
+            signalling mechanism alone.
           </p>
           <p>
-            The transform arithmetic is the real thing. The integer
-            transforms are bit-exact against Fraunhofer HHI's VVenC 1.14.0,
-            checked by a test that drives the reference implementation's own
-            kernels and compares the results bit for bit across all twelve
-            transform and size combinations.
+            The transform arithmetic is the real thing. The integer transforms are bit-exact against
+            Fraunhofer HHI's VVenC 1.14.0, checked by a test that drives the reference implementation's
+            own kernels and compares the results bit for bit across all twelve transform and size
+            combinations.
           </p>
+          {{FIGURE:fig-benchmark-apparatus}}
+          <div class="callout">
+            <div class="callout-title">The chroma planes</div>
+            <p>
+              GIRC codes 4:2:0 content. No chroma transform type is signalled — H.266 codes one for
+              the luma plane only — so the mechanism is a luma mechanism, exactly where the standard
+              signals a transform type at all. That is why the benchmark reports two rate axes: the
+              luma rate, which is the mechanism's own effect, and the whole-frame rate, which is what
+              a deployment would save.
+            </p>
+          </div>
         </section>
       </div>
     </main>
@@ -279,9 +281,29 @@ payload       range-coded words</code></pre>
         <div>
           <a href="index.html">Overview</a>
           <a href="results.html">Results</a>
-          <a href="package.html">Patent Package</a>
+          <a href="install.html">Install</a>
+          <a href="mailto:devanshraulo@gmail.com">devanshraulo@gmail.com</a>
         </div>
       </div>
     </footer>
+
+    <script>
+      const button = document.getElementById('theme-toggle');
+      const icon = button?.querySelector('i');
+      function paint() {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (icon) icon.className = dark ? 'ph ph-sun' : 'ph ph-moon';
+        button?.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+      }
+      button?.addEventListener('click', () => {
+        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+        try {
+          localStorage.setItem('girc-theme', dark ? 'light' : 'dark');
+        } catch (e) {}
+        paint();
+      });
+      paint();
+    </script>
   </body>
 </html>

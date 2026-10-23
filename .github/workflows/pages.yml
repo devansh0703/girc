@@ -5,7 +5,13 @@ on:
     branches: [master]
     paths:
       - "web/girc-site/**"
-      - "web/eval-site/**"
+      - "tools/generate_figures.py"
+      - "tools/generate_report.py"
+      - "tools/assemble_site.py"
+      - "tools/check_site_links.py"
+      - "tools/check_design_contract.py"
+      - "research/benchmark/**"
+      - "models/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -21,10 +27,10 @@ permissions:
   id-token: write
 
 env:
-  # The address the confidential portal is served on. It is a
-  # repository setting rather than a secret, and it is substituted
-  # into the evaluation site's pages when they are assembled.
-  GIRC_PORTAL_URL: https://eval.girc.invalid
+  # The address the hosted analysis is served on. It is a repository setting
+  # rather than a secret, and it is substituted into the pages when they are
+  # assembled.
+  GIRC_PORTAL_URL: https://girc-portal.onrender.com
 
 jobs:
   build:
@@ -33,35 +39,65 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install --upgrade pip
+
+      # The figures are generated from the committed artifacts, so the build
+      # fails when an artifact is missing rather than shipping a page with a
+      # blank where a measurement belongs.
+      - name: Generate every figure
+        run: python3 tools/generate_figures.py
+
       - name: Check that every page links to a page that exists
-        run: |
-          python3 tools/check_site_links.py
+        run: python3 tools/check_site_links.py
+
+      - name: Check the site against the design contract
+        run: python3 tools/check_design_contract.py
 
       - name: Assemble the site
         run: |
-          mkdir -p _site
-          cp -R web/girc-site/. _site/
-          # The evaluation site's pages are the public face of the
-          # confidential portal: what the evaluation is, how it runs,
-          # and what is out of scope. They are deployed under
-          # /evaluate/, and the portal itself is a separate
-          # deployment with its own domain and its own secrets.
-          mkdir -p _site/evaluate
-          cp -R web/eval-site/. _site/evaluate/
-          # The portal's address is a deployment setting, so the pages
-          # carry a token and the real address is substituted here.
-          PORTAL_URL="${GIRC_PORTAL_URL:-https://eval.girc.invalid}"
-          find _site/evaluate -name '*.html' -print0 \
-            | xargs -0 sed -i "s|{{PORTAL_URL}}|$PORTAL_URL|g"
+          python3 tools/assemble_site.py
           # The site uses relative links throughout, so it works under a
-          # project path without a base tag. The .nojekyll file keeps
-          # GitHub Pages from running the directory through Jekyll.
-          touch _site/.nojekyll
+          # project path without a base tag. The .nojekyll file keeps GitHub
+          # Pages from running the directory through Jekyll.
+          touch build/site/.nojekyll
+
+      - name: Check that no built page carries an invented address
+        run: |
+          # A demo address on a product site is a message nobody receives.
+          if grep -rniE 'example\.com|example\.org|@example\.|\.invalid|lorem ipsum|coming soon' \
+               build/site --include='*.html'; then
+            echo "::error::a built page carries a placeholder"
+            exit 1
+          fi
+          if ! grep -rq 'devanshraulo@gmail.com' build/site --include='*.html'; then
+            echo "::error::the site does not name the real contact address"
+            exit 1
+          fi
+          echo "the real address is the only contact detail on the site"
+
+      - name: Check that every page carries at least two figures
+        run: |
+          # The site's own rule: a page with no figure is a page that asks to
+          # be trusted rather than checked.
+          python3 - <<'PY'
+          import pathlib, re, sys
+          failed = False
+          for page in sorted(pathlib.Path("build/site").rglob("*.html")):
+              found = len(re.findall(r'<figure class="chart"', page.read_text(encoding="utf-8")))
+              if found < 2:
+                  print(f"{page}: {found} figure(s)")
+                  failed = True
+          sys.exit(1 if failed else 0)
+          PY
 
       - name: Upload the site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: build/site
 
   deploy:
     name: Deploy

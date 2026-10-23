@@ -1,0 +1,61 @@
+<figure class="chart">
+  <figcaption>
+    <span>The two syntaxes, and what each costs</span>
+    <span class="src">crates/girc-core/src/bitstream.rs, ITU-T H.266 clause 7.3.9</span>
+  </figcaption>
+  <div class="plot">
+    <svg viewBox="0 0 900 280" role="img" aria-label="The explicit mode's truncated binary code over the five modes, against the inferred mode's one bin plus a two-bin correction">
+    <rect x="40" y="56" width="180" height="30" rx="2" fill="var(--panel)" stroke="var(--line-strong)" stroke-width="1" />
+    <text x="52.0" y="76.0" font-size="11.5" fill="var(--ink)" text-anchor="start" font-weight="400">plain DCT-II</text>
+    <rect x="250" y="56" width="28" height="30" fill="var(--ink-dim)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="264.0" y="76.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">1</text>
+    <text x="398.0" y="76.0" font-size="12" fill="var(--ink)" text-anchor="start" font-weight="500">1 bin</text>
+    <rect x="40" y="96" width="180" height="30" rx="2" fill="var(--panel)" stroke="var(--line-strong)" stroke-width="1" />
+    <text x="52.0" y="116.0" font-size="11.5" fill="var(--ink)" text-anchor="start" font-weight="400">DST-VII / DST-VII</text>
+    <rect x="250" y="96" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="264.0" y="116.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">1</text>
+    <rect x="284" y="96" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="298.0" y="116.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">0</text>
+    <text x="398.0" y="116.0" font-size="12" fill="var(--ink)" text-anchor="start" font-weight="500">2 bins</text>
+    <rect x="40" y="136" width="180" height="30" rx="2" fill="var(--panel)" stroke="var(--line-strong)" stroke-width="1" />
+    <text x="52.0" y="156.0" font-size="11.5" fill="var(--ink)" text-anchor="start" font-weight="400">DCT-VIII / DST-VII</text>
+    <rect x="250" y="136" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="264.0" y="156.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">1</text>
+    <rect x="284" y="136" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="298.0" y="156.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">0</text>
+    <rect x="318" y="136" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="332.0" y="156.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">0</text>
+    <text x="398.0" y="156.0" font-size="12" fill="var(--ink)" text-anchor="start" font-weight="500">3 bins</text>
+    <rect x="40" y="176" width="180" height="30" rx="2" fill="var(--panel)" stroke="var(--line-strong)" stroke-width="1" />
+    <text x="52.0" y="196.0" font-size="11.5" fill="var(--ink)" text-anchor="start" font-weight="400">DST-VII / DCT-VIII</text>
+    <rect x="250" y="176" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="264.0" y="196.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">1</text>
+    <rect x="284" y="176" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="298.0" y="196.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">0</text>
+    <rect x="318" y="176" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="332.0" y="196.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">0</text>
+    <rect x="352" y="176" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="366.0" y="196.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">0</text>
+    <text x="398.0" y="196.0" font-size="12" fill="var(--ink)" text-anchor="start" font-weight="500">4 bins</text>
+    <rect x="40" y="216" width="180" height="30" rx="2" fill="var(--panel)" stroke="var(--line-strong)" stroke-width="1" />
+    <text x="52.0" y="236.0" font-size="11.5" fill="var(--ink)" text-anchor="start" font-weight="400">DCT-VIII / DCT-VIII</text>
+    <rect x="250" y="216" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="264.0" y="236.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">1</text>
+    <rect x="284" y="216" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="298.0" y="236.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">0</text>
+    <rect x="318" y="216" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="332.0" y="236.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">0</text>
+    <rect x="352" y="216" width="28" height="30" fill="var(--sev-info)" opacity="0.3" stroke="var(--line-strong)" stroke-width="0.8" />
+    <text x="366.0" y="236.0" font-size="11" fill="var(--ink)" text-anchor="start" font-weight="400">0</text>
+    <text x="398.0" y="236.0" font-size="12" fill="var(--ink)" text-anchor="start" font-weight="500">4 bins</text>
+    <rect x="600" y="56" width="300" height="30" rx="2" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.4" />
+    <text x="612.0" y="76.0" font-size="11.5" fill="var(--accent)" text-anchor="start" font-weight="400">1 bin: was the prediction right?</text>
+    <rect x="600" y="96" width="300" height="30" rx="2" fill="var(--panel)" stroke="var(--line-strong)" stroke-width="1" />
+    <text x="612.0" y="116.0" font-size="11.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">and if not, 2 bins select between the four the prediction ruled out</text>
+    <text x="600.0" y="160.0" font-size="11.5" fill="var(--ink-faint)" text-anchor="start" font-weight="400">an override never costs more than the signalling it replaces</text>
+    <text x="600.0" y="180.0" font-size="11.5" fill="var(--ink-faint)" text-anchor="start" font-weight="400">the naive form spent a bin on the correction and then the full type again</text>
+    <text x="40.0" y="24.0" font-size="12.5" fill="var(--ink-dim)" text-anchor="start" font-weight="400">the inferred mode codes the correction relative to the prediction</text>
+    <text x="860.0" y="24.0" font-size="11.5" fill="var(--ink-faint)" text-anchor="end" font-weight="400">the explicit mode is the standard's own mts_idx</text>
+    </svg>
+  </div>
+</figure>
